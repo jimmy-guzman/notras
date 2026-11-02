@@ -21,14 +21,21 @@ pub enum IndexError {
     Db(#[from] rusqlite::Error),
 }
 
-pub(crate) const DATABASE: &str = "index.db";
+/// Every build shares the cache directory, and two can run at once. A file per
+/// schema keeps one build from dropping tables another is writing.
+// TODO: files from earlier schemas stay in the cache. Deleting one at launch
+// would pull it from under an older build that is still running.
+pub(crate) fn database(schema: i64) -> String {
+    format!("index-v{schema}.db")
+}
 
 /// Open the index in its cache directory, rebuilding it from nothing when what
 /// is there cannot be opened or holds no usable schema. The files are the source
 /// of truth, so a database the app cannot read is one it can throw away.
 pub fn open(index_dir: &Path) -> Result<Connection, IndexError> {
     fs::create_dir_all(index_dir)?;
-    let path = index_dir.join(DATABASE);
+    let database = database(SCHEMA_VERSION);
+    let path = index_dir.join(&database);
     let opened = Connection::open(&path).and_then(|conn| ensure_schema(&conn).map(|()| conn));
     let error = match opened {
         Ok(conn) => return Ok(conn),
@@ -37,7 +44,7 @@ pub fn open(index_dir: &Path) -> Result<Connection, IndexError> {
 
     log::warn!("rebuilding the index, which could not be opened: {error}");
     for suffix in ["", "-wal", "-shm"] {
-        let stale = index_dir.join(format!("{DATABASE}{suffix}"));
+        let stale = index_dir.join(format!("{database}{suffix}"));
         if let Err(remove_error) = fs::remove_file(&stale) {
             if remove_error.kind() != io::ErrorKind::NotFound {
                 log::warn!("could not remove {}: {remove_error}", stale.display());
@@ -51,9 +58,7 @@ pub fn open(index_dir: &Path) -> Result<Connection, IndexError> {
 
 /// Bump when a row's derivation changes. The mtime skip would otherwise leave
 /// every unedited note on the old derivation until someone ran "reindex".
-/// A newer version rebuilds too: every build shares one index, and an older
-/// build cannot write rows into a newer build's tables.
-const SCHEMA_VERSION: i64 = 14;
+pub(crate) const SCHEMA_VERSION: i64 = 14;
 
 /// The derived, disposable search index. Files are the source of truth; this
 /// database can be deleted at any time and rebuilt from the notes directory.
@@ -70,10 +75,8 @@ pub fn ensure_schema(conn: &Connection) -> rusqlite::Result<()> {
     conn.execute_batch("PRAGMA journal_mode = WAL;")?;
     let version: i64 = conn.query_row("PRAGMA user_version", [], |row| row.get(0))?;
     let tx = conn.unchecked_transaction()?;
-    if version != SCHEMA_VERSION {
-        log::info!(
-            "index schema {version} differs from {SCHEMA_VERSION}, rebuilding for the rescan"
-        );
+    if version < SCHEMA_VERSION {
+        log::info!("index schema {version} is behind {SCHEMA_VERSION}, rebuilding for the rescan");
         tx.execute_batch(
             "DROP TABLE IF EXISTS note_fts;
              DROP TABLE IF EXISTS folder;
@@ -127,7 +130,7 @@ pub fn ensure_schema(conn: &Connection) -> rusqlite::Result<()> {
          );",
     )?;
 
-    if version != SCHEMA_VERSION {
+    if version < SCHEMA_VERSION {
         tx.pragma_update(None, "user_version", SCHEMA_VERSION)?;
     }
     tx.commit()
@@ -859,25 +862,33 @@ mod tests {
     }
 
     #[test]
-    fn should_drop_rows_from_a_newer_schema_on_open() {
-        let dir_directory = tempfile::tempdir().unwrap();
-        let dir = dir_directory.path().to_owned();
+    fn should_leave_an_index_another_schema_has_open() {
+        let notes = tempfile::tempdir().unwrap();
+        let dir = notes.path().to_owned();
         fs::write(dir.join("a.md"), "see [[b]]\n").unwrap();
-        let conn = Connection::open_in_memory().unwrap();
-        ensure_schema(&conn).unwrap();
+        let cache = tempfile::tempdir().unwrap();
+        let newer = Connection::open(cache.path().join(database(SCHEMA_VERSION + 1))).unwrap();
+        newer
+            .execute_batch(
+                "CREATE TABLE note_link (path TEXT NOT NULL, span INTEGER NOT NULL);
+                 INSERT INTO note_link VALUES ('a.md', 3);",
+            )
+            .unwrap();
+        newer
+            .pragma_update(None, "user_version", SCHEMA_VERSION + 1)
+            .unwrap();
+
+        let conn = open(cache.path()).unwrap();
         scan_all(&conn, &root(&dir), &dir).unwrap();
 
-        conn.pragma_update(None, "user_version", SCHEMA_VERSION + 1)
-            .unwrap();
-        ensure_schema(&conn).unwrap();
-
-        assert!(select(&conn, "SELECT path FROM note_link", &[])
-            .unwrap()
-            .is_empty());
-        let version: i64 = conn
-            .query_row("PRAGMA user_version", [], |row| row.get(0))
-            .unwrap();
-        assert_eq!(version, SCHEMA_VERSION);
+        assert_eq!(
+            select(&conn, "SELECT target FROM note_link", &[]).unwrap(),
+            vec![vec![json!("b")]]
+        );
+        assert_eq!(
+            select(&newer, "SELECT path, span FROM note_link", &[]).unwrap(),
+            vec![vec![json!("a.md"), json!(3)]]
+        );
     }
 
     #[test]
@@ -894,7 +905,7 @@ mod tests {
                 .modified(),
         )
         .unwrap();
-        let conn = Connection::open(index_dir.join(DATABASE)).unwrap();
+        let conn = Connection::open(index_dir.join(database(SCHEMA_VERSION))).unwrap();
         conn.execute_batch(
             "CREATE TABLE note (path TEXT PRIMARY KEY, title TEXT NOT NULL, folder TEXT NOT NULL DEFAULT '', pinned INTEGER NOT NULL DEFAULT 0, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL);
              CREATE VIRTUAL TABLE note_fts USING fts5(path UNINDEXED, title, content, tokenize='unicode61');
