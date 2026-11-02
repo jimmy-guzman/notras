@@ -37,9 +37,11 @@ pub(crate) fn title_of(rel_path: &str) -> String {
         .to_string()
 }
 
-/// `line` is 1-based and `target` is the text between the brackets as written.
+/// `line` is 1-based, `target` is the text between the brackets as written,
+/// and `at` is the byte in `context` where the target starts.
 pub(crate) struct Wikilink<'a> {
-    pub(crate) context: &'a str,
+    pub(crate) at: usize,
+    pub(crate) context: String,
     pub(crate) line: usize,
     pub(crate) target: &'a str,
 }
@@ -192,7 +194,7 @@ struct Scan<'a> {
     link_spans: Vec<Range<usize>>,
     links: Vec<(usize, String)>,
     prose: Vec<bool>,
-    wikilinks: Vec<(usize, &'a str)>,
+    wikilinks: Vec<DrawnWikilink<'a>>,
 }
 
 /// What the editor draws, byte by byte: true for prose, false for what its
@@ -277,9 +279,8 @@ fn scan(body: &str) -> Scan<'_> {
     links.sort_by_key(|(at, _)| *at);
 
     let wikilinks = drawn
-        .iter()
+        .into_iter()
         .filter(|link| prose[link.span.start])
-        .map(|link| (link.span.start + usize::from(link.embed), link.target))
         .collect();
 
     Scan {
@@ -541,15 +542,57 @@ fn line_starts(body: &str) -> Vec<usize> {
 const CONTEXT_BEFORE: usize = 160;
 const CONTEXT_AFTER: usize = 400;
 
-/// The 1-based line holding byte `at`, and that line's text, cut to a window
-/// around `at` when the line is long.
-fn line_at<'a>(body: &'a str, starts: &[usize], at: usize) -> (usize, &'a str) {
+/// `body[range]` with each of `wikilinks` and embeds read as its target, and
+/// the byte in that text where `at`, or the wikilink holding it, now starts.
+/// `wikilinks` are the ones inside `range`, in order.
+fn read_as_targets(
+    body: &str,
+    range: Range<usize>,
+    wikilinks: &[DrawnWikilink<'_>],
+    at: usize,
+) -> (String, usize) {
+    let mut text = String::new();
+    let mut cursor = range.start;
+    let mut subject = None;
+
+    for link in wikilinks {
+        if subject.is_none() && at < link.span.end {
+            subject = Some(text.len() + (at - cursor).min(link.span.start - cursor));
+        }
+        text.push_str(&body[cursor..link.span.start]);
+        text.push_str(link.target);
+        cursor = link.span.end;
+    }
+    let subject = subject.unwrap_or_else(|| text.len() + at - cursor);
+    text.push_str(&body[cursor..range.end]);
+
+    (text, subject)
+}
+
+/// The 1-based line holding byte `at`, that line's text read as targets, and
+/// the byte in that text where `at`, or the wikilink holding it, now starts. A
+/// long line is cut to a window around `at`, keeping whole any wikilink the
+/// window cuts. Unlike the note browser's preview, an embed keeps its target,
+/// since the row may be the embed's own.
+fn line_at(
+    body: &str,
+    starts: &[usize],
+    wikilinks: &[DrawnWikilink<'_>],
+    at: usize,
+) -> (usize, String, usize) {
     let line = starts.partition_point(|&start| start <= at);
     let line_end = starts.get(line).map_or(body.len(), |next| next - 1);
     let from = body.floor_char_boundary(at.saturating_sub(CONTEXT_BEFORE).max(starts[line - 1]));
     let to = body.ceil_char_boundary((at + CONTEXT_AFTER).min(line_end));
+    let inside = &wikilinks[wikilinks.partition_point(|link| link.span.end <= from)
+        ..wikilinks.partition_point(|link| link.span.start < to)];
+    let from = inside
+        .first()
+        .map_or(from, |link| link.span.start.min(from));
+    let to = inside.last().map_or(to, |link| link.span.end.max(to));
+    let (text, subject) = read_as_targets(body, from..to, inside, at);
 
-    (line, body[from..to].trim_end_matches('\r'))
+    (line, text.trim_end_matches('\r').to_owned(), subject)
 }
 
 fn prose_ranges(mask: &[bool]) -> Vec<Range<usize>> {
@@ -994,23 +1037,28 @@ pub(crate) fn readable_text(body: &str) -> String {
 pub(crate) fn wikilinks(body: &str) -> Vec<Wikilink<'_>> {
     let starts = line_starts(body);
 
-    scan(body)
-        .wikilinks
-        .into_iter()
-        .map(|(open, target)| {
-            let (line, context) = line_at(body, &starts, open);
+    let wikilinks = scan(body).wikilinks;
+
+    wikilinks
+        .iter()
+        .map(|link| {
+            let open = link.span.start + usize::from(link.embed);
+            let (line, context, at) = line_at(body, &starts, &wikilinks, open);
 
             Wikilink {
+                at,
                 context,
                 line,
-                target,
+                target: link.target,
             }
         })
         .collect()
 }
 
-pub(crate) struct MarkdownLink<'a> {
-    pub(crate) context: &'a str,
+/// `at` is the byte in `context` where the link starts.
+pub(crate) struct MarkdownLink {
+    pub(crate) at: usize,
+    pub(crate) context: String,
     pub(crate) line: usize,
     pub(crate) target: String,
 }
@@ -1018,16 +1066,19 @@ pub(crate) struct MarkdownLink<'a> {
 /// Kept in parity with the editor's parser the way `wikilinks` is:
 /// `should_find_the_markdown_note_links_the_editor_renders` below and
 /// `src/components/editor/markdown-link.spec.ts` assert one table of cases.
-pub(crate) fn destinations(body: &str) -> Vec<MarkdownLink<'_>> {
+pub(crate) fn destinations(body: &str) -> Vec<MarkdownLink> {
     let starts = line_starts(body);
+    let Scan {
+        links, wikilinks, ..
+    } = scan(body);
 
-    scan(body)
-        .links
+    links
         .into_iter()
         .map(|(open, target)| {
-            let (line, context) = line_at(body, &starts, open);
+            let (line, context, at) = line_at(body, &starts, &wikilinks, open);
 
             MarkdownLink {
+                at,
                 context,
                 line,
                 target,
@@ -1037,7 +1088,7 @@ pub(crate) fn destinations(body: &str) -> Vec<MarkdownLink<'_>> {
 }
 
 #[cfg(test)]
-pub(crate) fn markdown_links(body: &str) -> Vec<MarkdownLink<'_>> {
+pub(crate) fn markdown_links(body: &str) -> Vec<MarkdownLink> {
     destinations(body)
         .into_iter()
         .filter(|link| is_note_path(&link.target))
@@ -1066,17 +1117,19 @@ fn case_insensitive_prefix(text: &str, needle: &[char]) -> Option<usize> {
     (wanted.len() == 0 && consumed > 0).then_some(consumed)
 }
 
-/// Inside `[[...]]` or a markdown link the title is a link and counted
+/// Each line, its context, and the byte in that context where the title
+/// starts. Inside `[[...]]` or a markdown link the title is a link and counted
 /// already. The readable line naming the note is excluded from mentions.
-pub(crate) fn bare_mentions<'a>(
-    body: &'a str,
+pub(crate) fn bare_mentions(
+    body: &str,
     title: &str,
     exclude_title_line: bool,
-) -> Vec<(usize, &'a str)> {
+) -> Vec<(usize, String, usize)> {
     let needle: Vec<char> = title.chars().flat_map(char::to_lowercase).collect();
     let Scan {
         link_spans: links,
         prose,
+        wikilinks,
         ..
     } = scan(body);
     let title_line = exclude_title_line
@@ -1105,13 +1158,13 @@ pub(crate) fn bare_mentions<'a>(
             let linked = links
                 .iter()
                 .any(|span| start < span.end && end > span.start);
-            let (line, context) = line_at(body, &starts, start);
+            let (line, context, offset) = line_at(body, &starts, &wikilinks, start);
 
             if !bounded || linked || title_line == Some(line - 1) {
                 continue;
             }
 
-            found.push((line, context));
+            found.push((line, context, offset));
             skip_until = at + len;
         }
     }
@@ -1224,9 +1277,64 @@ mod tests {
         let links = wikilinks(&long);
 
         assert_eq!(links[0].line, 1);
-        assert!(links[0].context.contains("[[a]]"));
+        assert!(links[0].context.contains("x a y"));
         assert!(links[0].context.len() <= CONTEXT_BEFORE + CONTEXT_AFTER);
-        assert_eq!(wikilinks("see [[a]] here\r\n")[0].context, "see [[a]] here");
+        assert_eq!(wikilinks("see [[a]] here\r\n")[0].context, "see a here");
+    }
+
+    #[test]
+    fn should_read_each_link_in_a_context_as_its_target() {
+        let links = wikilinks("the [[Pour-over]] at 15g ![[cup.png]] and `[[code]]`\n");
+        assert_eq!(
+            links[0].context,
+            "the Pour-over at 15g cup.png and `[[code]]`"
+        );
+        assert_eq!((links[0].at, links[1].at), (4, 21));
+
+        let embedded = wikilinks("![[B]]\nsee ![[B]] here\n");
+        assert_eq!(embedded[0].context, "B");
+        assert_eq!(
+            (embedded[1].context.as_str(), embedded[1].at),
+            ("see B here", 4)
+        );
+
+        let mention = bare_mentions("Beans go in the [[Pour-over]], beans", "beans", false);
+        assert_eq!(
+            mention[1],
+            (1, "Beans go in the Pour-over, beans".to_owned(), 27)
+        );
+
+        let link = destinations("[[Grinder]] then [map](atlas.md)");
+        assert_eq!(
+            (link[0].context.as_str(), link[0].at),
+            ("Grinder then [map](atlas.md)", 13)
+        );
+
+        let cut = format!(
+            "[[{}]]{}[[a]]",
+            "long ".repeat(40),
+            "x".repeat(CONTEXT_BEFORE - 10)
+        );
+        let cut_link = &wikilinks(&cut)[1];
+        assert!(
+            cut_link.context.starts_with(&"long ".repeat(40)),
+            "{}",
+            cut_link.context
+        );
+        assert_eq!(&cut_link.context[cut_link.at..], "a");
+    }
+
+    #[test]
+    fn should_find_each_mention_on_a_line_that_opens_with_code() {
+        let mentions = bare_mentions("`x` Ada, Ada", "ada", false);
+
+        assert_eq!(
+            mentions
+                .iter()
+                .map(|(_, _, offset)| *offset)
+                .collect::<Vec<_>>(),
+            [4, 9]
+        );
     }
 
     /// The wikilink parity table. `src/components/editor/wikilink.spec.ts`

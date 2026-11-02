@@ -978,7 +978,7 @@ mod tests {
         assert_eq!(mentions[0]["note"]["title"], "Source");
         assert_eq!(
             mentions[0]["lines"],
-            json!([{"context":"Atlas in prose","line":5,"match":"Atlas"}])
+            json!([{"at":0,"context":"Atlas in prose","line":5}])
         );
         let result = invoke(&window, "search_notes", json!({"search":{"query":"", "incomplete":false,"filters":[{"kind":"to","value":"atlas.md"}]}})).unwrap();
         assert_eq!(result[0]["path"], "source.md");

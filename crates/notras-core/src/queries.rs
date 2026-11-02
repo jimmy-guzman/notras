@@ -246,16 +246,17 @@ fn select_notes(
 
 fn select_links(conn: &Connection, destinations: bool) -> Result<Vec<NoteLink>, CommandError> {
     let mut statement = conn.prepare(
-        "SELECT context, kind, line, path, target FROM note_link
+        "SELECT at, context, kind, line, path, target FROM note_link
          WHERE ?1 OR kind IN ('link', 'wikilink') ORDER BY path, line, rowid",
     )?;
     let rows = statement.query_map([destinations], |row| {
         Ok(NoteLink {
-            context: row.get(0)?,
-            kind: row.get(1)?,
-            line: row.get(2)?,
-            path: row.get(3)?,
-            target: row.get(4)?,
+            at: row.get(0)?,
+            context: row.get(1)?,
+            kind: row.get(2)?,
+            line: row.get(3)?,
+            path: row.get(4)?,
+            target: row.get(5)?,
         })
     })?;
     Ok(rows.collect::<rusqlite::Result<_>>()?)
@@ -602,7 +603,7 @@ mod tests {
             for offset in 1..=5 {
                 core.conn
                     .execute(
-                        "INSERT INTO note_link VALUES (?1, ?2, 'wikilink', ?3, 'context')",
+                        "INSERT INTO note_link VALUES (?1, ?2, 'wikilink', ?3, 'context', 0)",
                         (
                             format!("note-{i}.md"),
                             offset,
@@ -1025,13 +1026,46 @@ mod tests {
                 .collect::<Vec<_>>(),
             [5, 6, 6]
         );
-        assert_eq!(mentions[0].lines[0].r#match, "Atlas");
+        assert_eq!(
+            mentions[0]
+                .lines
+                .iter()
+                .map(|line| (line.context.as_str(), line.at))
+                .collect::<Vec<_>>(),
+            [
+                ("Atlas in prose", 0),
+                ("Atlas and [map](atlas.md)", 0),
+                ("Atlas and [map](atlas.md)", 10)
+            ]
+        );
         save(&core, "atlas.md", "# Earth", 3);
         assert_eq!(
             core.read_view().unwrap().find_mentions("atlas.md").unwrap()[0]
                 .lines
                 .len(),
             2
+        );
+    }
+
+    #[test]
+    fn should_place_a_mention_in_utf16_units_for_the_webview() {
+        let (_directory, core) = library();
+        save(&core, "atlas.md", "# Atlas", 1);
+        save(
+            &core,
+            "source.md",
+            "# Source\ncafé [[Atlas]]\ncafé Atlas",
+            2,
+        );
+        let mentions = core.read_view().unwrap().find_mentions("atlas.md").unwrap();
+
+        assert_eq!(
+            mentions[0]
+                .lines
+                .iter()
+                .map(|line| (line.context.as_str(), line.at))
+                .collect::<Vec<_>>(),
+            [("café Atlas", 5), ("café Atlas", 5)]
         );
     }
 

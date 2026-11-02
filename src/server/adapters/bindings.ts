@@ -153,9 +153,13 @@ export type Mention = {
 };
 
 export type MentionLine = {
+	/**
+	 *  Where the link or mention starts in `context`, in UTF-16 code units,
+	 *  which is how the webview indexes a string.
+	 */
+	at: number,
 	context: string,
 	line: number,
-	match: string,
 };
 
 export type MutationReceipt = {

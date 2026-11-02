@@ -51,7 +51,7 @@ pub fn open(index_dir: &Path) -> Result<Connection, IndexError> {
 
 /// Bump when a row's derivation changes. The mtime skip would otherwise leave
 /// every unedited note on the old derivation until someone ran "reindex".
-const SCHEMA_VERSION: i64 = 12;
+const SCHEMA_VERSION: i64 = 13;
 
 /// The derived, disposable search index. Files are the source of truth; this
 /// database can be deleted at any time and rebuilt from the notes directory.
@@ -106,7 +106,8 @@ pub fn ensure_schema(conn: &Connection) -> rusqlite::Result<()> {
            line INTEGER NOT NULL,
            kind TEXT NOT NULL,
            target TEXT NOT NULL,
-           context TEXT NOT NULL
+           context TEXT NOT NULL,
+           at INTEGER NOT NULL
          );
          -- A rebuild deletes by path once per note as the table grows:
          -- measured at 4.3s for 10k notes of 5 links unindexed, 0.04s indexed.
@@ -170,6 +171,8 @@ pub fn remove_folder(conn: &Connection, rel_path: &str) -> rusqlite::Result<bool
 #[cfg_attr(feature = "bindings", derive(specta::Type))]
 #[derive(Debug, Serialize)]
 pub struct BareMention {
+    /// The byte in `context` where the title starts.
+    pub at: usize,
     pub context: String,
     pub line: usize,
     pub path: String,
@@ -256,8 +259,9 @@ pub fn scan_prose(
         found.extend(
             bare_mentions(&body, title, !include_title_line)
                 .into_iter()
-                .map(|(line, context)| BareMention {
-                    context: context.to_string(),
+                .map(|(line, context, at)| BareMention {
+                    at,
+                    context,
                     line: line + body_line_offset,
                     path: candidate.clone(),
                 }),
@@ -398,13 +402,14 @@ pub(crate) fn index_note(
     tx.execute("DELETE FROM note_link WHERE path = ?1", [rel_path])?;
     for link in wikilinks(parsed.body) {
         tx.execute(
-            "INSERT INTO note_link (path, line, kind, target, context)
-             VALUES (?1, ?2, 'wikilink', ?3, ?4)",
+            "INSERT INTO note_link (path, line, kind, target, context, at)
+             VALUES (?1, ?2, 'wikilink', ?3, ?4, ?5)",
             rusqlite::params![
                 rel_path,
                 link.line + body_line_offset,
                 link.target,
-                link.context
+                link.context,
+                link.at
             ],
         )?;
     }
@@ -415,14 +420,15 @@ pub(crate) fn index_note(
             "destination"
         };
         tx.execute(
-            "INSERT INTO note_link (path, line, kind, target, context)
-             VALUES (?1, ?2, ?5, ?3, ?4)",
+            "INSERT INTO note_link (path, line, kind, target, context, at)
+             VALUES (?1, ?2, ?5, ?3, ?4, ?6)",
             rusqlite::params![
                 rel_path,
                 link.line + body_line_offset,
                 link.target,
                 link.context,
-                kind
+                kind,
+                link.at
             ],
         )?;
     }
@@ -788,21 +794,21 @@ mod tests {
                     json!(4),
                     json!("wikilink"),
                     json!("b"),
-                    json!("intro [[b]] here")
+                    json!("intro b here")
                 ],
                 vec![
                     json!("a.md"),
                     json!(6),
                     json!("wikilink"),
                     json!("b"),
-                    json!("see [[b]] and [[c]]")
+                    json!("see b and c")
                 ],
                 vec![
                     json!("a.md"),
                     json!(6),
                     json!("wikilink"),
                     json!("c"),
-                    json!("see [[b]] and [[c]]")
+                    json!("see b and c")
                 ],
             ]
         );

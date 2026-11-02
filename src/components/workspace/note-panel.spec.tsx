@@ -143,7 +143,7 @@ describe("note panel tags", () => {
 
 /** One note linking here, as the native index reports it. */
 const BEE = {
-  lines: [{ context: "see [[a]]", line: 1, match: "[[a]]" }],
+  lines: [{ at: 4, context: "see a", line: 1 }],
   note: {
     createdAt: 0,
     folder: "",

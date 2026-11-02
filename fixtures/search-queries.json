@@ -1963,21 +1963,24 @@
       ],
       [
         {
-          "context": "see [[B]]",
+          "at": 4,
+          "context": "see B",
           "kind": "wikilink",
           "line": 1,
           "path": "projects/atlas.md",
           "target": "B"
         },
         {
-          "context": "see [[Atlas]]",
+          "at": 4,
+          "context": "see Atlas",
           "kind": "wikilink",
           "line": 1,
           "path": "projects/atlas.md",
           "target": "Atlas"
         },
         {
-          "context": "see [[missing]]",
+          "at": 4,
+          "context": "see missing",
           "kind": "wikilink",
           "line": 1,
           "path": "projects/atlas.md",
@@ -1986,7 +1989,7 @@
       ],
       []
     ],
-    "expected": [["projects/b.md", "Atlas (projects/atlas.md): see [[B]]"]]
+    "expected": [["projects/b.md", "Atlas (projects/atlas.md): see B"]]
   },
   {
     "operation": "searchFilterMatches",
@@ -2029,21 +2032,24 @@
       ],
       [
         {
-          "context": "see [[B]]",
+          "at": 4,
+          "context": "see B",
           "kind": "wikilink",
           "line": 1,
           "path": "projects/atlas.md",
           "target": "B"
         },
         {
-          "context": "see [[Atlas]]",
+          "at": 4,
+          "context": "see Atlas",
           "kind": "wikilink",
           "line": 1,
           "path": "projects/atlas.md",
           "target": "Atlas"
         },
         {
-          "context": "see [[missing]]",
+          "at": 4,
+          "context": "see missing",
           "kind": "wikilink",
           "line": 1,
           "path": "projects/atlas.md",
@@ -2095,14 +2101,16 @@
       ],
       [
         {
-          "context": "see [[Atlas]]",
+          "at": 4,
+          "context": "see Atlas",
           "kind": "wikilink",
           "line": 1,
           "path": "a.md",
           "target": "Atlas"
         },
         {
-          "context": "[[Atlas]]",
+          "at": 0,
+          "context": "Atlas",
           "kind": "wikilink",
           "line": 1,
           "path": "atlas.md",
@@ -2111,6 +2119,7 @@
       ],
       [
         {
+          "at": 0,
           "context": "Atlas here",
           "line": 2,
           "path": "b.md"
@@ -2118,7 +2127,7 @@
       ]
     ],
     "expected": [
-      ["a.md", "see [[Atlas]]"],
+      ["a.md", "see Atlas"],
       ["b.md", "Atlas here"]
     ]
   },
@@ -2132,6 +2141,7 @@
       [],
       [
         {
+          "at": 0,
           "context": "[code](https://GitHub.com/a)",
           "kind": "destination",
           "line": 1,
@@ -2139,7 +2149,8 @@
           "target": "https://GitHub.com/a"
         },
         {
-          "context": "[[missing]]",
+          "at": 0,
+          "context": "missing",
           "kind": "wikilink",
           "line": 1,
           "path": "b.md",
@@ -2160,6 +2171,7 @@
       [],
       [
         {
+          "at": 0,
           "context": "[code](https://GitHub.com/a)",
           "kind": "destination",
           "line": 1,
@@ -2167,7 +2179,8 @@
           "target": "https://GitHub.com/a"
         },
         {
-          "context": "[[missing]]",
+          "at": 0,
+          "context": "missing",
           "kind": "wikilink",
           "line": 1,
           "path": "b.md",
@@ -2176,6 +2189,6 @@
       ],
       []
     ],
-    "expected": [["b.md", "[[missing]]"]]
+    "expected": [["b.md", "missing"]]
   }
 ]

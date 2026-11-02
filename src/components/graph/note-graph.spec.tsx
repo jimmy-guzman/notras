@@ -55,7 +55,7 @@ function meta(path: string): NoteMeta {
 
 function mention(path: string): Mention {
   return {
-    lines: [{ context: "see [[c]]", line: 1, match: "[[c]]" }],
+    lines: [{ at: 4, context: "see c", line: 1 }],
     note: meta(path),
   };
 }
@@ -328,14 +328,14 @@ describe(NoteGraph, () => {
     const rows = screen.getAllByRole("menuitem");
 
     expect(rows).toHaveLength(14);
-    expect(rows[0]?.textContent).toBe("o00see [[c]]");
+    expect(rows[0]?.textContent).toBe("o00see c");
 
-    await user.click(screen.getByRole("menuitem", { name: "o05 see [[c]]" }));
+    await user.click(screen.getByRole("menuitem", { name: "o05 see c" }));
     expect(onHop).toHaveBeenLastCalledWith("o05.md", false);
 
     await user.click(screen.getByRole("button", { name: "3 more links" }));
     await user.keyboard("{Meta>}");
-    await user.click(screen.getByRole("menuitem", { name: "o06 see [[c]]" }));
+    await user.click(screen.getByRole("menuitem", { name: "o06 see c" }));
     await user.keyboard("{/Meta}");
     expect(onHop).toHaveBeenLastCalledWith("o06.md", true);
   });
@@ -500,7 +500,7 @@ describe(TabGraph, () => {
 
       await user.click(
         screen.getByRole("menuitem", {
-          name: list === "links" ? "o05 see [[c]]" : "m12 work",
+          name: list === "links" ? "o05 see c" : "m12 work",
         })
       );
 
@@ -629,9 +629,7 @@ describe("TabGraph native queries", () => {
             incoming: [],
             outgoing: [
               {
-                lines: [
-                  { context: "[[Linked]]", line: 2, match: "[[Linked]]" },
-                ],
+                lines: [{ at: 0, context: "Linked", line: 2 }],
                 note: {
                   createdAt: 0,
                   folder: "",
