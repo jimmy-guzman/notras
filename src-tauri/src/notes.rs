@@ -1,13 +1,12 @@
 use std::path::Path;
 use std::sync::atomic::Ordering;
 
-use serde_json::Value;
 use tauri::{AppHandle, Manager, Runtime, State};
 use tauri_plugin_opener::OpenerExt;
-use tauri_plugin_store::StoreExt;
 use tauri_specta::Event;
 
 use crate::bindings::{IndexStatus, MutationWarnings, NotesChanged};
+use crate::settings::Settings;
 use crate::state::AppState;
 use crate::watcher;
 use notras_core::{
@@ -429,11 +428,7 @@ pub async fn index_status<R: Runtime>(app: AppHandle<R>) -> Result<IndexStatus, 
 /// Save the chosen folder before the swap: a folder the next launch cannot find
 /// again is worse than one this launch never switched to.
 fn persist_notes_dir<R: Runtime>(app: &AppHandle<R>, path: &str) -> Result<(), CommandError> {
-    let store = app
-        .store("settings.json")
-        .map_err(crate::windows::settings_error)?;
-    crate::windows::save_setting(&store, "notesDir", Value::String(path.to_owned()))
-        .map_err(crate::windows::settings_error)
+    app.state::<Settings>().save_notes_dir(path)
 }
 
 fn watch_error(error: notify::Error) -> CommandError {
@@ -568,7 +563,7 @@ mod tests {
     use std::sync::{mpsc, Mutex};
     use std::time::{Duration, Instant};
 
-    use serde_json::json;
+    use serde_json::{json, Value};
     use tauri::Listener;
 
     #[test]
@@ -584,7 +579,10 @@ mod tests {
         context.config_mut().identifier =
             directory.path().join("settings").to_string_lossy().into();
         let app = tauri::test::mock_builder()
-            .plugin(tauri_plugin_store::Builder::new().build())
+            .manage(
+                crate::settings::Settings::load(directory.path().join("settings/settings.json"))
+                    .unwrap(),
+            )
             .manage(AppState {
                 library: crate::library::LibraryOwner::new(
                     Library::open(&initial, &directory.path().join(".index")).unwrap(),
@@ -667,7 +665,10 @@ mod tests {
         context.config_mut().identifier =
             directory.path().join("settings").to_string_lossy().into();
         let app = tauri::test::mock_builder()
-            .plugin(tauri_plugin_store::Builder::new().build())
+            .manage(
+                crate::settings::Settings::load(directory.path().join("settings/settings.json"))
+                    .unwrap(),
+            )
             .build(context)
             .unwrap();
         let file = directory.path().join("settings/settings.json");
@@ -687,9 +688,10 @@ mod tests {
         );
 
         fs::remove_dir(&file).unwrap();
-        let store = app.store("settings.json").unwrap();
-        store.set("appearance", json!("dark"));
-        store.save().unwrap();
+        let store = app.state::<crate::settings::Settings>();
+        store
+            .save_appearance(crate::windows::Appearance::Dark)
+            .unwrap();
         let settings: Value = serde_json::from_slice(&fs::read(&file).unwrap()).unwrap();
         assert_eq!(settings["notesDir"], "/notes/old");
     }
@@ -701,13 +703,17 @@ mod tests {
         context.config_mut().identifier =
             directory.path().join("settings").to_string_lossy().into();
         let app = tauri::test::mock_builder()
-            .plugin(tauri_plugin_store::Builder::new().build())
+            .manage(
+                crate::settings::Settings::load(directory.path().join("settings/settings.json"))
+                    .unwrap(),
+            )
             .build(context)
             .unwrap();
         let file = directory.path().join("settings/settings.json");
-        let store = app.store("settings.json").unwrap();
-        store.set("appearance", json!("dark"));
-        store.save().unwrap();
+        let store = app.state::<crate::settings::Settings>();
+        store
+            .save_appearance(crate::windows::Appearance::Dark)
+            .unwrap();
         fs::remove_file(&file).unwrap();
         fs::create_dir(&file).unwrap();
 
@@ -723,8 +729,9 @@ mod tests {
         );
 
         fs::remove_dir(&file).unwrap();
-        store.set("appearance", json!("light"));
-        store.save().unwrap();
+        store
+            .save_appearance(crate::windows::Appearance::Light)
+            .unwrap();
         let settings: Value = serde_json::from_slice(&fs::read(&file).unwrap()).unwrap();
         assert_eq!(settings, json!({"appearance": "light"}));
     }
