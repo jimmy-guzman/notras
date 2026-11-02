@@ -6,7 +6,7 @@
       [
         {
           "at": 4,
-          "context": "see [there](b.md)",
+          "context": "see there",
           "kind": "link",
           "line": 4,
           "path": "a.md",
@@ -42,7 +42,7 @@
         "lines": [
           {
             "at": 4,
-            "context": "see [there](b.md)",
+            "context": "see there",
             "line": 4
           }
         ],

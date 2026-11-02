@@ -2142,7 +2142,7 @@
       [
         {
           "at": 0,
-          "context": "[code](https://GitHub.com/a)",
+          "context": "code",
           "kind": "destination",
           "line": 1,
           "path": "a.md",
@@ -2159,7 +2159,7 @@
       ],
       []
     ],
-    "expected": [["a.md", "[code](https://GitHub.com/a)"]]
+    "expected": [["a.md", "code"]]
   },
   {
     "operation": "searchFilterMatches",
@@ -2172,7 +2172,7 @@
       [
         {
           "at": 0,
-          "context": "[code](https://GitHub.com/a)",
+          "context": "code",
           "kind": "destination",
           "line": 1,
           "path": "a.md",
