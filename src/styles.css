@@ -46,26 +46,26 @@
   }
 }
 
-/* The title band's divider. Each use places its own. */
-@utility groove {
+/* The title band's divider. Each use places its own. Its color sits at 2.5:1
+   against the band, Chrome's tab separator contrast; a line fainter than that
+   stops reading as a boundary between two unfilled tabs. */
+@utility band-divider {
   width: 1px;
-  height: 16px;
-  background: var(--groove);
-  box-shadow: 1px 0 0 var(--groove-highlight);
+  height: 12px;
+  background: var(--band-divider);
 }
 
 /* The line between two resting tabs, and between the last one and new note. A
    filled tab already shows its own edge, so the line on either side of it
-   goes. The groove and its highlight span 2px, centered in the strip's 4px
-   gap. A drag moves tabs by transform and reorders them only on drop, so
-   neighbors in the markup are not the ones on screen and every line goes
-   until the drop. */
+   goes. It centers in the strip's 4px gap, and 6px down the tab it centers on
+   the band's row above the feet, level with the bar buttons. A drag moves tabs
+   by transform and reorders them only on drop, so neighbors in the markup are
+   not the ones on screen and every line goes until the drop. */
 @utility tab-divider {
-  @apply groove;
+  @apply band-divider;
   position: absolute;
-  top: 50%;
-  left: -3px;
-  translate: 0 -50%;
+  top: 6px;
+  left: -2.5px;
   pointer-events: none;
   transition: opacity 150ms ease-out;
   [role="tablist"] > :is(:first-child, :hover, [data-active]) > &,
@@ -141,8 +141,7 @@
   --info: #83bac7;
   --border: #282729;
   --input: #7b747d;
-  --groove: color-mix(in srgb, black 60%, var(--shell));
-  --groove-highlight: color-mix(in srgb, white 7%, var(--shell));
+  --band-divider: color-mix(in srgb, white 29%, var(--shell));
   --ink-on-dark: var(--foreground);
   --ink-on-light: var(--background);
   --ring: #e99ac2;
@@ -188,8 +187,7 @@
     --info: #196f85;
     --border: #dedbd9;
     --input: #aaa4ad;
-    --groove: color-mix(in srgb, black 15%, var(--shell));
-    --groove-highlight: color-mix(in srgb, white 70%, var(--shell));
+    --band-divider: color-mix(in srgb, black 38%, var(--shell));
     --ink-on-dark: var(--background);
     --ink-on-light: var(--foreground);
     --ring: #ae286f;
@@ -238,6 +236,19 @@
   }
   body {
     @apply bg-background text-foreground;
+  }
+  /* A stroke in CSS pixels at every icon size, where lucide's scales with the
+     glyph's 24-unit grid. On a 2x screen 0.75 draws 1.5 device pixels, the
+     least that reads as enabled beside the tab labels; below 2x it holds one
+     whole CSS pixel. CSS beats the stroke-width attribute lucide writes. */
+  .lucide {
+    stroke-width: 0.75;
+    @media (resolution < 2x) {
+      stroke-width: 1;
+    }
+  }
+  .lucide * {
+    vector-effect: non-scaling-stroke;
   }
   /* Base UI portals popups to the body, after the app root. A stacking context
      on the root keeps them above page content without a z-index race. */
