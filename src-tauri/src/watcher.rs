@@ -67,9 +67,10 @@ mod tests {
     use super::*;
     use crate::bindings::NotesChanged;
     use crate::library::LibraryOwner;
+    use crate::state::QuitHandshake;
     use notras_core::Library;
     use std::fs;
-    use std::sync::{atomic::AtomicBool, mpsc, Mutex};
+    use std::sync::{mpsc, Mutex};
     use std::time::Instant;
     use tauri::Listener;
 
@@ -87,7 +88,7 @@ mod tests {
                 ),
                 watcher: Mutex::new(None),
                 pending_open: Mutex::new(Vec::new()),
-                quitting: AtomicBool::new(false),
+                quit: QuitHandshake::default(),
             })
             .build(tauri::test::mock_context(tauri::test::noop_assets()))
             .unwrap();

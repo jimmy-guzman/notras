@@ -1,4 +1,4 @@
-use std::sync::atomic::AtomicBool;
+use std::collections::HashSet;
 use std::sync::{Mutex, MutexGuard};
 
 use crate::library::{LibraryGuard, LibraryOwner};
@@ -11,9 +11,65 @@ pub struct AppState {
     pub watcher: Mutex<Option<NotesWatcher>>,
     /// Files handed to us by "Open With" before the frontend was listening.
     pub pending_open: Mutex<Vec<String>>,
-    /// Set once a quit is in flight, so the webview gets exactly one chance to
-    /// flush pending writes before the process goes away.
-    pub quitting: AtomicBool,
+    /// Gives each webview one chance to flush pending writes before the
+    /// process goes away.
+    pub quit: QuitHandshake,
+}
+
+/// What a settled quit does with the process.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, specta::Type)]
+#[serde(rename_all = "kebab-case")]
+pub enum Ending {
+    Exit,
+    Restart,
+}
+
+struct Pending {
+    ending: Ending,
+    waiting: HashSet<String>,
+}
+
+/// The windows an in-flight quit still waits on.
+#[derive(Default)]
+pub struct QuitHandshake(Mutex<Option<Pending>>);
+
+/// Access panics if a prior operation poisoned the handshake.
+impl QuitHandshake {
+    /// Wait on `windows`, then end in `ending`. False when a quit is already in
+    /// flight.
+    pub fn begin(&self, ending: Ending, windows: impl IntoIterator<Item = String>) -> bool {
+        let mut pending = self.lock();
+        if pending.is_some() {
+            return false;
+        }
+        *pending = Some(Pending {
+            ending,
+            waiting: windows.into_iter().collect(),
+        });
+        true
+    }
+
+    /// Record that `window` flushed. The ending once every window has, and
+    /// never after a cancel.
+    pub fn answer(&self, window: &str) -> Option<Ending> {
+        self.lock().as_mut().and_then(|pending| {
+            pending.waiting.remove(window);
+            pending.waiting.is_empty().then_some(pending.ending)
+        })
+    }
+
+    pub fn cancel(&self) {
+        *self.lock() = None;
+    }
+
+    /// The ending of the quit in flight, if one is.
+    pub fn pending(&self) -> Option<Ending> {
+        self.lock().as_ref().map(|pending| pending.ending)
+    }
+
+    fn lock(&self) -> MutexGuard<'_, Option<Pending>> {
+        self.0.lock().expect("the quit handshake was poisoned")
+    }
 }
 
 /// Access panics if a prior operation poisoned the requested state.
@@ -40,6 +96,37 @@ mod tests {
     use std::panic::{catch_unwind, AssertUnwindSafe};
 
     #[test]
+    fn should_settle_a_quit_only_once_every_window_answers() {
+        let quit = QuitHandshake::default();
+        assert!(quit.begin(Ending::Exit, ["main".into(), "capture".into()]));
+        assert!(!quit.begin(Ending::Restart, ["main".into()]));
+        assert_eq!(quit.answer("main"), None);
+        assert_eq!(quit.answer("main"), None);
+        assert_eq!(quit.answer("capture"), Some(Ending::Exit));
+        assert_eq!(quit.pending(), Some(Ending::Exit));
+    }
+
+    #[test]
+    fn should_end_a_restart_as_a_restart() {
+        let quit = QuitHandshake::default();
+        assert!(quit.begin(Ending::Restart, ["main".into(), "capture".into()]));
+        assert_eq!(quit.answer("capture"), None);
+        assert_eq!(quit.answer("main"), Some(Ending::Restart));
+    }
+
+    #[test]
+    fn should_ignore_answers_after_a_cancel_and_allow_a_new_quit() {
+        let quit = QuitHandshake::default();
+        assert!(quit.begin(Ending::Exit, ["main".into(), "capture".into()]));
+        quit.cancel();
+        assert_eq!(quit.answer("main"), None);
+        assert_eq!(quit.answer("capture"), None);
+        assert_eq!(quit.pending(), None);
+        assert!(quit.begin(Ending::Exit, ["main".into()]));
+        assert_eq!(quit.answer("main"), Some(Ending::Exit));
+    }
+
+    #[test]
     fn should_refuse_library_access_after_a_panic() {
         let directory = tempfile::tempdir().unwrap();
         let state = AppState {
@@ -49,7 +136,7 @@ mod tests {
             ),
             watcher: Mutex::new(None),
             pending_open: Mutex::new(vec![]),
-            quitting: AtomicBool::new(false),
+            quit: QuitHandshake::default(),
         };
         assert!(catch_unwind(AssertUnwindSafe(|| {
             let _library = state.library();
@@ -69,7 +156,7 @@ mod tests {
             ),
             watcher: Mutex::new(None),
             pending_open: Mutex::new(vec![]),
-            quitting: AtomicBool::new(false),
+            quit: QuitHandshake::default(),
         };
         assert!(catch_unwind(AssertUnwindSafe(|| {
             let _watcher = state.watcher();
@@ -89,7 +176,7 @@ mod tests {
             ),
             watcher: Mutex::new(None),
             pending_open: Mutex::new(vec![]),
-            quitting: AtomicBool::new(false),
+            quit: QuitHandshake::default(),
         };
         assert!(catch_unwind(AssertUnwindSafe(|| {
             let mut pending = state.pending_open();

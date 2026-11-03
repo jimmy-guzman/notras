@@ -1,8 +1,16 @@
 use serde::{Deserialize, Serialize};
 use tauri::Runtime;
 
+use crate::state::Ending;
 use crate::{clipboard, notes, pdf, windows};
 use notras_core::MutationWarning;
+
+/// Every window flushes its unsaved buffers and answers `quit_app`, or calls
+/// the quit off with `cancel_quit`.
+#[derive(Clone, Serialize, specta::Type, tauri_specta::Event)]
+pub struct AppQuit {
+    pub ending: Ending,
+}
 
 /// Relative paths whose saved content or index rows changed; empty means the library.
 #[derive(Clone, Deserialize, Serialize, specta::Type, tauri_specta::Event)]
@@ -59,6 +67,7 @@ pub fn builder<R: Runtime>() -> tauri_specta::Builder<R> {
             notes::read_external,
             notes::read_note::<tauri::Wry>,
             notes::reindex_all::<tauri::Wry>,
+            notes::restart_app::<tauri::Wry>,
             notes::create_note::<tauri::Wry>,
             notes::move_note::<tauri::Wry>,
             notes::open_external_file::<tauri::Wry>,
@@ -75,6 +84,7 @@ pub fn builder<R: Runtime>() -> tauri_specta::Builder<R> {
             windows::show_capture::<tauri::Wry>,
         ])
         .events(tauri_specta::collect_events![
+            AppQuit,
             NotesChanged,
             MutationWarnings,
             IndexStatus
@@ -84,12 +94,12 @@ pub fn builder<R: Runtime>() -> tauri_specta::Builder<R> {
 #[cfg(test)]
 mod tests {
     use std::fs;
-    use std::sync::{atomic::AtomicBool, mpsc, Mutex};
+    use std::sync::{mpsc, Mutex};
 
     use serde_json::{json, Value};
     use tauri::{Listener, Manager};
 
-    use crate::state::AppState;
+    use crate::state::{AppState, QuitHandshake};
     use notras_core::Library;
 
     use super::*;
@@ -139,7 +149,7 @@ mod tests {
                 ),
                 watcher: Mutex::new(None),
                 pending_open: Mutex::new(vec![]),
-                quitting: AtomicBool::new(false),
+                quit: QuitHandshake::default(),
             })
             .invoke_handler(contract.invoke_handler())
             .build(tauri::test::mock_context(tauri::test::noop_assets()))
@@ -205,7 +215,7 @@ mod tests {
                 ),
                 watcher: Mutex::new(None),
                 pending_open: Mutex::new(vec![]),
-                quitting: AtomicBool::new(false),
+                quit: QuitHandshake::default(),
             })
             .invoke_handler(contract.invoke_handler())
             .build(tauri::test::mock_context(tauri::test::noop_assets()))
@@ -253,7 +263,7 @@ mod tests {
                 ),
                 watcher: Mutex::new(None),
                 pending_open: Mutex::new(vec![]),
-                quitting: AtomicBool::new(false),
+                quit: QuitHandshake::default(),
             })
             .invoke_handler(contract.invoke_handler())
             .build(tauri::test::mock_context(tauri::test::noop_assets()))
@@ -397,7 +407,7 @@ mod tests {
                 library: crate::library::LibraryOwner::new(library, |_| {}),
                 watcher: Mutex::new(None),
                 pending_open: Mutex::new(vec![]),
-                quitting: AtomicBool::new(false),
+                quit: QuitHandshake::default(),
             })
             .invoke_handler(contract.invoke_handler())
             .build(tauri::test::mock_context(tauri::test::noop_assets()))
@@ -451,7 +461,7 @@ mod tests {
                 ),
                 watcher: Mutex::new(None),
                 pending_open: Mutex::new(vec![]),
-                quitting: AtomicBool::new(false),
+                quit: QuitHandshake::default(),
             })
             .invoke_handler(contract.invoke_handler())
             .build(tauri::test::mock_context(tauri::test::noop_assets()))
@@ -504,7 +514,7 @@ mod tests {
                 ),
                 watcher: Mutex::new(None),
                 pending_open: Mutex::new(vec![]),
-                quitting: AtomicBool::new(false),
+                quit: QuitHandshake::default(),
             })
             .invoke_handler(contract.invoke_handler())
             .build(tauri::test::mock_context(tauri::test::noop_assets()))
@@ -553,7 +563,7 @@ mod tests {
                 ),
                 watcher: Mutex::new(None),
                 pending_open: Mutex::new(vec![]),
-                quitting: AtomicBool::new(false),
+                quit: QuitHandshake::default(),
             })
             .invoke_handler(contract.invoke_handler())
             .build(context)
@@ -636,7 +646,7 @@ mod tests {
                 ),
                 watcher: Mutex::new(None),
                 pending_open: Mutex::new(vec![]),
-                quitting: AtomicBool::new(false),
+                quit: QuitHandshake::default(),
             })
             .invoke_handler(contract.invoke_handler())
             .build(context)
@@ -689,7 +699,7 @@ mod tests {
                 library: crate::library::LibraryOwner::new(library, |_| {}),
                 watcher: Mutex::new(None),
                 pending_open: Mutex::new(vec![]),
-                quitting: AtomicBool::new(false),
+                quit: QuitHandshake::default(),
             })
             .invoke_handler(contract.invoke_handler())
             .build(tauri::test::mock_context(tauri::test::noop_assets()))
@@ -754,7 +764,7 @@ mod tests {
                 ),
                 watcher: Mutex::new(None),
                 pending_open: Mutex::new(vec![]),
-                quitting: AtomicBool::new(false),
+                quit: QuitHandshake::default(),
             })
             .invoke_handler(contract.invoke_handler())
             .build(context)
@@ -829,7 +839,7 @@ mod tests {
             ),
             watcher: Mutex::new(None),
             pending_open: Mutex::new(vec![]),
-            quitting: AtomicBool::new(false),
+            quit: QuitHandshake::default(),
         });
         let window = tauri::WebviewWindowBuilder::new(&app, "main", Default::default())
             .build()
@@ -870,7 +880,7 @@ mod tests {
                 ),
                 watcher: Mutex::new(None),
                 pending_open: Mutex::new(vec![]),
-                quitting: AtomicBool::new(false),
+                quit: QuitHandshake::default(),
             })
             .invoke_handler(contract.invoke_handler())
             .build(tauri::test::mock_context(tauri::test::noop_assets()))
@@ -931,7 +941,7 @@ mod tests {
                 ),
                 watcher: Mutex::new(None),
                 pending_open: Mutex::new(vec![]),
-                quitting: AtomicBool::new(false),
+                quit: QuitHandshake::default(),
             })
             .invoke_handler(contract.invoke_handler())
             .build(context)
@@ -1016,7 +1026,7 @@ mod tests {
                 library: crate::library::LibraryOwner::new(library, |_| {}),
                 watcher: Mutex::new(None),
                 pending_open: Mutex::new(vec![]),
-                quitting: AtomicBool::new(false),
+                quit: QuitHandshake::default(),
             })
             .invoke_handler(contract.invoke_handler())
             .build(tauri::test::mock_context(tauri::test::noop_assets()))

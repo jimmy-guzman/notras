@@ -1,10 +1,9 @@
-import { relaunch } from "@tauri-apps/plugin-process";
 import { check } from "@tauri-apps/plugin-updater";
 import type { Update } from "@tauri-apps/plugin-updater";
 
 import { toast } from "@/components/ui/toast";
-import { flushPendingWrites } from "@/lib/pending-flush";
 import { reasonOf } from "@/lib/ui/failure";
+import { commands } from "@/server/adapters/bindings";
 
 /**
  * Whether this build can reach the updater at all. The endpoint that
@@ -28,26 +27,14 @@ export async function findUpdate() {
 }
 
 /**
- * Download the update, install it, and restart into it. Does not resolve on the
- * happy path: `relaunch` replaces the process.
- *
- * Throws when a buffer could not be written. The app keeps running the old
- * version rather than restarting, and the bundle already downloaded applies the
- * next time someone launches it.
+ * Download the update, install it, and restart into it once every window has
+ * saved, through the same handshake as a quit. A buffer that cannot be written
+ * calls the restart off, and the bundle already downloaded applies the next
+ * time someone launches it.
  */
 async function installUpdate(update: Update) {
   await update.downloadAndInstall();
-
-  // Tauri ignores `prevent_exit` for a restart, so Rust cannot hold this one
-  // open for the quit handshake the way it holds a ⌘Q. Flushing here is what
-  // keeps the last keystrokes from dying with the old process.
-  if (!(await flushPendingWrites())) {
-    throw new Error(
-      "Could not save your changes: the update will apply on next launch"
-    );
-  }
-
-  await relaunch();
+  await commands.restartApp();
 }
 
 /**
@@ -71,16 +58,17 @@ export function offerUpdate(update: Update) {
     try {
       await installUpdate(update);
     } catch (error) {
-      // Closing the offer runs `release` through `onClose`, so the failure
-      // path must not free the handle itself, and must not close before
-      // `installUpdate` is done with it.
-      toast.close(offer);
       toast.add({
         description: reasonOf(error),
         title: "could not install the update",
         type: "error",
       });
     }
+
+    // Closing the offer runs `release` through `onClose`, so it waits until
+    // `installUpdate` is done with the handle. Left open after a restart
+    // begins, a second install would download again.
+    toast.close(offer);
   };
 
   const id = toast.add({

@@ -32,7 +32,10 @@ export const commands = {
 	readGraph: (target: GraphTarget) => __TAURI_INVOKE<GraphResult>("read_graph", { target }),
 	searchNotes: (search: NoteSearch) => __TAURI_INVOKE<NoteMeta[]>("search_notes", { search }),
 	pendingOpenFiles: () => __TAURI_INVOKE<PendingOpen[]>("pending_open_files"),
-	/**  Exit after the frontend has flushed its pending writes. */
+	/**
+	 *  Answer the quit handshake: this window has flushed its pending writes. The
+	 *  app exits, or restarts, once every window has.
+	 */
 	quitApp: () => __TAURI_INVOKE<void>("quit_app"),
 	readConflict: (kind: OpenKind, path: string) => __TAURI_INVOKE<{
 	base: NoteFile,
@@ -41,6 +44,11 @@ export const commands = {
 	readExternal: (path: string) => __TAURI_INVOKE<NoteFile>("read_external", { path }),
 	readNote: (path: string) => __TAURI_INVOKE<NoteFile>("read_note", { path }),
 	reindexAll: () => __TAURI_INVOKE<string[]>("reindex_all"),
+	/**
+	 *  Restart into an installed update once every window has flushed its pending
+	 *  writes, through the same handshake as a quit.
+	 */
+	restartApp: () => __TAURI_INVOKE<void>("restart_app"),
 	createNote: (options: CreateNote) => __TAURI_INVOKE<MutationReceipt>("create_note", { options }),
 	moveNote: (path: string, folder: string) => __TAURI_INVOKE<PathMutationReceipt>("move_note", { path, folder }),
 	openExternalFile: (document: string, destination: string) => __TAURI_INVOKE<null>("open_external_file", { document, destination }),
@@ -72,12 +80,21 @@ export const commands = {
 
 /** Events */
 export const events = {
+	appQuit: makeEvent<AppQuit>("app-quit"),
 	indexStatus: makeEvent<IndexStatus>("index-status"),
 	mutationWarnings: makeEvent<MutationWarnings>("mutation-warnings"),
 	notesChanged: makeEvent<NotesChanged>("notes-changed"),
 };
 
 /* Types */
+/**
+ *  Every window flushes its unsaved buffers and answers `quit_app`, or calls
+ *  the quit off with `cancel_quit`.
+ */
+export type AppQuit = {
+	ending: Ending,
+};
+
 /**  The scheme the app paints in. `Auto` follows the system. */
 export type Appearance = "auto" | "light" | "dark";
 
@@ -117,6 +134,9 @@ export type DeleteReceipt = {
 	path: string,
 	warnings: MutationWarning[],
 };
+
+/**  What a settled quit does with the process. */
+export type Ending = "exit" | "restart";
 
 /**
  *  Why a command failed. A webview tab has to tell a file that is gone from a

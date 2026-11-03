@@ -1,5 +1,4 @@
 import { getCurrentWebview } from "@tauri-apps/api/webview";
-import { error as logError } from "@tauri-apps/plugin-log";
 import { cn } from "cn";
 import { PanelLeftIcon, PanelRightIcon } from "lucide-react";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
@@ -23,6 +22,7 @@ import { Home } from "@/components/workspace/home";
 import { NotePanel, NotePanelToggles } from "@/components/workspace/note-panel";
 import { NoteSession } from "@/components/workspace/note-session";
 import { attachFile } from "@/data/attach-file";
+import { disposeLater } from "@/lib/dispose-later";
 import {
   activateTab,
   changeNoteMetadata,
@@ -407,21 +407,7 @@ export function Workspace({ onOpenSearch }: { onOpenSearch: () => void }) {
       }
     });
 
-    const dispose = async () => {
-      try {
-        (await unlisten)();
-      } catch (error) {
-        try {
-          await logError(`could not remove a listener: ${String(error)}`);
-        } catch {
-          // A logging failure must not reject the cleanup promise.
-        }
-      }
-    };
-
-    return () => {
-      void dispose();
-    };
+    return disposeLater(unlisten);
   }, []);
 
   useHotkey("Mod+W", closeActive, { meta: { name: "close tab" } });

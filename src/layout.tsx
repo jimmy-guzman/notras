@@ -19,33 +19,14 @@ import { Workspace } from "@/components/workspace/workspace";
 import { applyIndexStatus } from "@/data/index-status";
 import { noteQueries, notesDirQuery } from "@/data/queries";
 import { startupQuery } from "@/data/restore-session";
+import { disposeLater } from "@/lib/dispose-later";
 import { flushPendingWrites } from "@/lib/pending-flush";
 import { openDraft, openTab, persistTabs, refreshTabs } from "@/lib/tabs/store";
 import { reasonOf } from "@/lib/ui/failure";
 import { useHotkey } from "@/lib/ui/shortcuts";
 import { findUpdate, offerUpdate, updatesSupported } from "@/lib/updater";
 import { commands, events } from "@/server/adapters/bindings";
-
-/** `listen` resolves to its own unsubscribe, which every effect here drops. */
-function disposeLater(...pending: Promise<() => void>[]) {
-  return () => {
-    for (const unlisten of pending) {
-      const dispose = async () => {
-        try {
-          (await unlisten)();
-        } catch (error) {
-          try {
-            await logError(`could not remove a listener: ${String(error)}`);
-          } catch {
-            // Best effort.
-          }
-        }
-      };
-
-      void dispose();
-    }
-  };
-}
+import type { Ending } from "@/server/adapters/bindings";
 
 function MainWindow() {
   const [{ data: notesDir }] = useSuspenseQueries({
@@ -200,10 +181,11 @@ function MainWindow() {
     return disposeLater(unlistenNew, unlistenOpen);
   }, []);
 
-  // Quit is held open by Rust until the buffers are on disk -- and called off
-  // entirely if one of them could not be written.
+  // Quit, and the restart into an update, are held open by Rust until the
+  // buffers are on disk -- and called off entirely if one could not be written.
+  // oxlint-disable-next-line react-doctor/effect-needs-cleanup -- disposeLater stops the listener once its promise settles
   useEffect(() => {
-    const persistBeforeQuit = async () => {
+    const persistBeforeQuit = async (ending: Ending) => {
       // Carets are read off the live sessions, so the set has to be written
       // here rather than only when it last changed. One that could not be
       // written is no reason to hold the quit.
@@ -218,8 +200,8 @@ function MainWindow() {
       }
 
       if (await flushPendingWrites()) {
-        // Every buffer landed and Rust's backstop exits either way, so an answer
-        // it cannot hear is still safe, and a log line would travel the channel
+        // Every buffer landed and Rust's backstop ends the app either way, so an
+        // answer it cannot hear is still safe, and a log line would travel the channel
         // that just failed.
         try {
           await commands.quitApp();
@@ -230,13 +212,22 @@ function MainWindow() {
         return;
       }
 
-      toast.add({
-        description: "Some changes could not be saved",
-        title: "could not quit",
-        type: "error",
-      });
+      toast.add(
+        ending === "restart"
+          ? {
+              description:
+                "Some changes could not be saved, so the update applies on next launch",
+              title: "could not restart into the update",
+              type: "error",
+            }
+          : {
+              description: "Some changes could not be saved",
+              title: "could not quit",
+              type: "error",
+            }
+      );
 
-      // A cancel Rust cannot hear ends in its backstop exiting with the buffer
+      // A cancel Rust cannot hear ends in its backstop ending the app with the buffer
       // unsaved, so this one failure is said out loud.
       try {
         await commands.cancelQuit();
@@ -249,8 +240,8 @@ function MainWindow() {
       }
     };
 
-    const unlisten = listen("app-quit", () => {
-      void persistBeforeQuit();
+    const unlisten = events.appQuit.listen((event) => {
+      void persistBeforeQuit(event.payload.ending);
     });
 
     return disposeLater(unlisten);

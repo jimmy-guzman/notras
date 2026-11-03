@@ -11,7 +11,6 @@ mod windows;
 #[cfg(target_os = "macos")]
 mod writing_tools;
 
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Mutex;
 use std::time::Duration;
 
@@ -25,7 +24,7 @@ use tauri::{
 use tauri_plugin_dialog::{DialogExt, MessageDialogKind};
 
 use crate::library::LibraryOwner;
-use crate::state::AppState;
+use crate::state::{AppState, Ending, QuitHandshake};
 use notras_core::Library;
 use tauri_specta::Event;
 
@@ -98,6 +97,41 @@ fn show_main(app: &AppHandle) {
         let _ = window.show();
         let _ = window.set_focus();
     }
+}
+
+pub(crate) fn end_quit<R: Runtime>(app: &AppHandle<R>, ending: Ending) {
+    match ending {
+        Ending::Exit => app.exit(0),
+        Ending::Restart => app.request_restart(),
+    }
+}
+
+/// Ask every webview to flush its unsaved buffers, then end in `ending` once
+/// each has answered through `quit_app`. False when a quit is already in
+/// flight.
+pub(crate) fn begin_quit<R: Runtime>(app: &AppHandle<R>, ending: Ending) -> bool {
+    if !app
+        .state::<AppState>()
+        .quit
+        .begin(ending, app.webview_windows().into_keys())
+    {
+        return false;
+    }
+    if let Err(error) = (bindings::AppQuit { ending }).emit(app) {
+        log::error!("could not emit app-quit: {error}");
+    }
+
+    // Backstop for a webview that never answers. It re-checks the handshake so
+    // a quit the frontend called off (a write failed, and ending would lose the
+    // buffer) is not ended a moment later anyway.
+    let fallback = app.clone();
+    std::thread::spawn(move || {
+        std::thread::sleep(Duration::from_secs(5));
+        if let Some(pending) = fallback.state::<AppState>().quit.pending() {
+            end_quit(&fallback, pending);
+        }
+    });
+    true
 }
 
 pub(crate) fn open_capture<R: Runtime>(app: &AppHandle<R>) {
@@ -205,7 +239,7 @@ fn init(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
         }),
         watcher: Mutex::new(None),
         pending_open: Mutex::new(Vec::new()),
-        quitting: AtomicBool::new(false),
+        quit: QuitHandshake::default(),
     });
 
     // Initial scan off the main thread so startup stays instant.
@@ -347,7 +381,6 @@ pub fn run() {
                 tauri_plugin_autostart::MacosLauncher::LaunchAgent,
                 None,
             ))
-            .plugin(tauri_plugin_process::init())
             .plugin(tauri_plugin_updater::Builder::new().build());
     }
 
@@ -358,8 +391,9 @@ pub fn run() {
         })
         .invoke_handler(bindings.invoke_handler())
         .on_window_event(|window, event| match event {
-            // Close-to-tray for the main window; capture window just hides.
-            WindowEvent::CloseRequested { api, .. } => {
+            // Close-to-tray for the main window. The capture window answers its
+            // own close, since closing it saves the jot.
+            WindowEvent::CloseRequested { api, .. } if window.label() == "main" => {
                 let _ = window.hide();
                 api.prevent_close();
             }
@@ -404,41 +438,18 @@ pub fn run() {
             // ungated arm is a Linux compile error the macOS gate cannot see.
             #[cfg(target_os = "macos")]
             RunEvent::Reopen { .. } => show_main(app),
-            // Every quit (⌘Q, tray, `quit_app`) funnels through here. The first one
-            // is held back so the webview can flush unsaved buffers; the frontend
-            // answers by calling `quit_app`, and a timer covers the case where it
-            // never does.
+            // Every quit (⌘Q, tray, `quit_app`) funnels through here, and the first
+            // one is held back for the handshake.
             RunEvent::ExitRequested { api, code, .. } => {
-                // An update restart arrives here too, and Tauri ignores
-                // `prevent_exit` for it, so the handshake below would be a promise
-                // this process cannot keep. `installUpdate` flushes before it calls
-                // `relaunch` instead.
+                // The restart a settled `restart_app` handshake ends in arrives here
+                // too, and Tauri ignores `prevent_exit` for it, so it passes.
                 if code == Some(tauri::RESTART_EXIT_CODE) {
                     return;
                 }
 
-                if app
-                    .state::<AppState>()
-                    .quitting
-                    .swap(true, Ordering::SeqCst)
-                {
-                    return;
+                if begin_quit(app, Ending::Exit) {
+                    api.prevent_exit();
                 }
-                api.prevent_exit();
-                if let Err(error) = app.emit("app-quit", ()) {
-                    log::error!("could not emit {}: {error}", "app-quit");
-                }
-
-                // Backstop for a webview that never answers. It re-checks the flag
-                // so a quit the frontend called off (a write failed, and exiting
-                // would lose the buffer) is not killed a moment later anyway.
-                let fallback = app.clone();
-                std::thread::spawn(move || {
-                    std::thread::sleep(Duration::from_secs(5));
-                    if fallback.state::<AppState>().quitting.load(Ordering::SeqCst) {
-                        fallback.exit(0);
-                    }
-                });
             }
             #[cfg(target_os = "macos")]
             RunEvent::Opened { urls } => {
