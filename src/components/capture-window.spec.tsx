@@ -449,4 +449,55 @@ describe("capture window", () => {
       );
     });
   });
+
+  describe("mark", () => {
+    it("should blink while the jot is empty and hold still once it has text", async () => {
+      mockIPC(() => null);
+      const editor = await mountCapture();
+      expect(
+        document.querySelector("footer .mark-blinking")
+      ).toBeInTheDocument();
+      act(() => {
+        editor.commands.insertContent("a thought");
+      });
+      await waitFor(() => {
+        expect(
+          document.querySelector("footer .mark-blinking")
+        ).not.toBeInTheDocument();
+      });
+      expect(document.querySelectorAll("footer circle")).toHaveLength(2);
+    });
+
+    it("should go meh when a save fails and blink again after a discard", async () => {
+      const user = userEvent.setup();
+
+      const refused = vi.fn<() => Promise<never>>().mockRejectedValue({
+        kind: "failed",
+        message: "The disk is full",
+      });
+
+      mockIPC(async (command) => {
+        if (command === "create_note") {
+          return await refused();
+        }
+
+        return null;
+      });
+      const editor = await mountCapture();
+      act(() => {
+        editor.commands.insertContent("keep this thought");
+      });
+      await user.keyboard("{Escape}");
+      await waitFor(() => {
+        expect(document.body.textContent).toContain("The disk is full");
+        expect(document.querySelectorAll("footer circle")).toHaveLength(0);
+      });
+      await user.keyboard("{Control>}{Shift>}{Backspace}{/Shift}{/Control}");
+      await waitFor(() => {
+        expect(
+          document.querySelector("footer .mark-blinking")
+        ).toBeInTheDocument();
+      });
+    });
+  });
 });

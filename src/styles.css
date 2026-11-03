@@ -284,7 +284,7 @@
   }
 }
 
-/* The welcome mark's eyes close for about 80ms each way every 4.2s. The one
+/* The mark's eyes close for about 80ms each way every 4.2s. The one
    motion that carries no state change: it is the character. The reduced-motion
    rule above collapses it to a still mark. */
 .mark-blinking circle {

@@ -7,6 +7,7 @@ import type { EditorHandle } from "@/components/editor/editor";
 import { Editor } from "@/components/editor/editor";
 import type { FindHandle } from "@/components/editor/find";
 import { FindBar } from "@/components/find-bar";
+import { Mark } from "@/components/mark";
 import { Titlebar } from "@/components/titlebar";
 import { Toaster, toast } from "@/components/ui/toast";
 import { createNote } from "@/data/create-note";
@@ -16,10 +17,6 @@ import { createFindController } from "@/lib/ui/find";
 import { useHotkey, useHotkeys } from "@/lib/ui/shortcuts";
 import { commands, events } from "@/server/adapters/bindings";
 import type { Ending } from "@/server/adapters/bindings";
-
-const NOOP = () => {
-  // The capture window reads its editor at save time, not on every edit.
-};
 
 async function hideCapture() {
   try {
@@ -42,6 +39,7 @@ export function CaptureWindow() {
   const editorRef = useRef<EditorHandle | null>(null);
   const busyRef = useRef<Promise<void> | null>(null);
   const [session, setSession] = useState(0);
+  const [mood, setMood] = useState<"empty" | "failed" | "written">("empty");
   // oxlint-disable-next-line react/hook-use-state -- a once-built instance has no setter
   const [find] = useState(createFindController);
   const findState = useSelector(find.store);
@@ -67,6 +65,7 @@ export function CaptureWindow() {
   const resetAndHide = async () => {
     editorRef.current = null;
     find.close();
+    setMood("empty");
     setSession((current) => current + 1);
     await hideCapture();
   };
@@ -78,6 +77,7 @@ export function CaptureWindow() {
       try {
         await createNote({ content });
       } catch (error) {
+        setMood("failed");
         // Keep the jot on screen -- hiding would lose it.
         toast.add({
           description: reasonOf(error),
@@ -99,6 +99,7 @@ export function CaptureWindow() {
       try {
         await createNote({ content });
       } catch (error) {
+        setMood("failed");
         toast.add(
           ending === "restart"
             ? {
@@ -204,14 +205,25 @@ export function CaptureWindow() {
           focusOnMount
           initialContent=""
           key={session}
-          onChange={NOOP}
+          onChange={(content) => {
+            setMood(content.trim() === "" ? "empty" : "written");
+          }}
           onReady={attachEditor}
           placeholderText="jot it down..."
         />
         <FindBar controller={find} />
       </div>
-      <footer className="text-muted-foreground flex h-8 shrink-0 items-center justify-end gap-1 p-1 text-xs">
-        <Chord hotkey="Escape" /> saves note
+      {/* px-4 puts the mark under the traffic lights, which sit 16px in. */}
+      <footer className="text-muted-foreground flex h-8 shrink-0 items-center justify-between px-4 py-1 text-xs">
+        <Mark
+          blinking={mood === "empty"}
+          expression={mood === "failed" ? "meh" : "awake"}
+          muted
+          size={16}
+        />
+        <span className="flex items-center gap-1">
+          <Chord hotkey="Escape" /> saves note
+        </span>
       </footer>
       {/* This window bypasses the router, so it needs its own Toaster. */}
       <Toaster />

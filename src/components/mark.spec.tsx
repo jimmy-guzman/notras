@@ -94,4 +94,18 @@ describe(Mark, () => {
       blinking.container.querySelectorAll(".mark-blinking circle")
     ).toHaveLength(2);
   });
+
+  it("should paint in the surrounding text color when muted", () => {
+    const { container } = render(<Mark muted size={16} />);
+
+    expect(container.querySelector("linearGradient")).toBeNull();
+    expect(container.querySelector("g")).toHaveAttribute(
+      "fill",
+      "currentColor"
+    );
+    expect(container.querySelector("path")).toHaveAttribute(
+      "stroke",
+      "currentColor"
+    );
+  });
 });
