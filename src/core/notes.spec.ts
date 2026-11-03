@@ -66,9 +66,9 @@ describe(resolveTitle, () => {
 
 describe(filenameFromTitle, () => {
   it("should leave a whole Unicode character at the filename limit", () => {
-    expect(filenameFromTitle(`${"a".repeat(119)}😀`)).toBe("a".repeat(119));
-    expect(filenameFromTitle(`${"a".repeat(118)}😀`)).toBe(
-      `${"a".repeat(118)}😀`
+    expect(filenameFromTitle(`${"a".repeat(59)}😀`)).toBe("a".repeat(59));
+    expect(filenameFromTitle(`${"a".repeat(58)}😀`)).toBe(
+      `${"a".repeat(58)}😀`
     );
   });
 
@@ -97,9 +97,9 @@ describe(filenameFromTitle, () => {
   });
 
   it("should cap the length and leave no trailing separator", () => {
-    const filename = filenameFromTitle(`${"a".repeat(119)} tail`);
+    const filename = filenameFromTitle(`${"a".repeat(59)} tail`);
 
-    expect(filename).toHaveLength(119);
+    expect(filename).toHaveLength(59);
     expect(filename.endsWith("-")).toBeFalsy();
   });
 

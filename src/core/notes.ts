@@ -26,7 +26,8 @@ export interface NoteFilters {
 
 const TRAILING_SURROGATE = /\p{Surrogate}$/u;
 
-const NOTE_NAME_MAX_LENGTH = 120;
+/** UTF-16 units a title's filename keeps, so a pasted paragraph does not become the whole name. */
+const SLUG_LIMIT = 60;
 
 const MARKDOWN_EXTENSION = /\.(?:md|markdown)$/iu;
 
@@ -45,26 +46,36 @@ export function noteTitle(path: string) {
  */
 export const ATX_HEADING = /^ {0,3}#(?:[ \t]|$)/u;
 
-/**
- * A filesystem-safe filename for `title`, without its extension.
- *
- * Illegal and control characters join whitespace as separators, so any run of
- * them collapses to one hyphen. The result always satisfies
- * the native filename validation: no separators, no leading dot, never blank.
- */
 const LEADING_DOTS_OR_HYPHENS = /^[.-]+/u;
 
 const TRAILING_DOTS_OR_HYPHENS = /[.-]+$/u;
 
+/**
+ * A filesystem-safe filename for `title`, without its extension.
+ *
+ * Illegal and control characters join whitespace as separators, so any run of
+ * them collapses to one hyphen. Keeps at most `SLUG_LIMIT` UTF-16 units,
+ * dropping a word the limit cuts short unless it is the only word. The result
+ * always satisfies the native filename validation: no separators, no leading
+ * dot, never blank.
+ */
 export function filenameFromTitle(title: string) {
-  const slug = title
+  const separated = title
     .toLowerCase()
     .replaceAll(/[\s"*/:<>?\\|\p{Cc}]+/gu, "-")
     .replaceAll(/-{2,}/gu, "-")
-    .slice(0, NOTE_NAME_MAX_LENGTH)
-    .replace(TRAILING_SURROGATE, "")
-    .replace(LEADING_DOTS_OR_HYPHENS, "")
-    .replace(TRAILING_DOTS_OR_HYPHENS, "");
+    .replace(LEADING_DOTS_OR_HYPHENS, "");
+
+  const cut = separated.slice(0, SLUG_LIMIT).replace(TRAILING_SURROGATE, "");
+  const next = separated.charAt(cut.length);
+  const boundary = cut.lastIndexOf("-");
+
+  const kept =
+    next !== "" && next !== "-" && boundary !== -1
+      ? cut.slice(0, boundary)
+      : cut;
+
+  const slug = kept.replace(TRAILING_DOTS_OR_HYPHENS, "");
 
   return slug === "" ? "untitled" : slug;
 }
