@@ -371,6 +371,10 @@ fn truncate_name(name: &str, limit: usize) -> String {
         .collect()
 }
 
+/// UTF-16 units a title's filename keeps, so a pasted paragraph does not
+/// become the whole name.
+const SLUG_LIMIT: usize = 60;
+
 fn filename_from_title(title: &str) -> String {
     let mut separated = String::new();
     for c in title.to_lowercase().chars() {
@@ -383,13 +387,21 @@ fn filename_from_title(title: &str) -> String {
             separated.push(c);
         }
     }
-    let slug = truncate_name(&separated, 120)
-        .trim_matches(['.', '-'])
-        .to_owned();
+    let separated = separated.trim_start_matches(['.', '-']);
+    let cut = truncate_name(separated, SLUG_LIMIT);
+    let ends_mid_word = separated[cut.len()..]
+        .chars()
+        .next()
+        .is_some_and(|next| next != '-');
+    let kept = match cut.rfind('-') {
+        Some(boundary) if ends_mid_word => &cut[..boundary],
+        _ => cut.as_str(),
+    };
+    let slug = kept.trim_end_matches(['.', '-']);
     if slug.is_empty() {
         "untitled".into()
     } else {
-        slug
+        slug.to_owned()
     }
 }
 
@@ -1746,12 +1758,12 @@ mod tests {
     #[test]
     fn should_leave_whole_unicode_characters_at_the_filename_limit() {
         assert_eq!(
-            filename_from_title(&format!("{}😀", "a".repeat(119))),
-            "a".repeat(119)
+            filename_from_title(&format!("{}😀", "a".repeat(59))),
+            "a".repeat(59)
         );
         assert_eq!(
-            filename_from_title(&format!("{}😀", "a".repeat(118))),
-            format!("{}😀", "a".repeat(118))
+            filename_from_title(&format!("{}😀", "a".repeat(58))),
+            format!("{}😀", "a".repeat(58))
         );
     }
 
@@ -1834,7 +1846,7 @@ mod tests {
         fn should_derive_a_valid_bounded_filename(title in ".{0,300}") {
             let filename = filename_from_title(&title);
             prop_assert!(valid_segment(&filename));
-            prop_assert!(filename.encode_utf16().count() <= 120);
+            prop_assert!(filename.encode_utf16().count() <= SLUG_LIMIT);
             prop_assert_eq!(filename_from_title(&filename), filename);
         }
     }

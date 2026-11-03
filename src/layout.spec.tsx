@@ -1,4 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { emit } from "@tauri-apps/api/event";
 import { clearMocks, mockIPC, mockWindows } from "@tauri-apps/api/mocks";
 import {
   act,
@@ -12,8 +13,10 @@ import userEvent from "@testing-library/user-event";
 import { object, parse, string } from "valibot";
 import { beforeEach, describe, expect, it, onTestFinished } from "vitest";
 
+import { Toaster } from "@/components/ui/toast";
 import { SNIPPET_END, SNIPPET_START } from "@/core/fts-markers";
 import { Layout } from "@/layout";
+import { registerPendingFlush } from "@/lib/pending-flush";
 import { closeTab, getTabState } from "@/lib/tabs/store";
 import { noteFind } from "@/lib/ui/find";
 import { closeNoteBrowser } from "@/lib/ui/note-browser";
@@ -1027,5 +1030,105 @@ describe("layout", () => {
     await waitFor(() => {
       expect(dialog).not.toBeInTheDocument();
     });
+  });
+
+  it("should call off an update restart and say the update waits when a buffer cannot be written", async () => {
+    localStorage.setItem(
+      "tabs",
+      JSON.stringify({
+        activeId: "first",
+        carets: {},
+        tabs: [{ id: "first", kind: "note", path: "first.md" }],
+      })
+    );
+    mockWindows("main");
+    const calls: string[] = [];
+    mockIPC(
+      (command) => {
+        calls.push(command);
+
+        if (command === "classify_open_paths") {
+          return [{ kind: "note", path: "first.md" }];
+        }
+
+        if (command === "get_notes_dir") {
+          return "/notes";
+        }
+
+        if (command === "index_status") {
+          return { state: "ready" };
+        }
+
+        if (command === "list_notes" || command === "list_tags") {
+          return [];
+        }
+
+        if (command === "read_conflict") {
+          return null;
+        }
+
+        if (command === "read_note") {
+          return {
+            content: "# First\n\nNothing here",
+            revision: "r1",
+            updatedAt: 1,
+          };
+        }
+
+        if (
+          command === "take_pending_open" ||
+          command === "find_mentions" ||
+          command === "pending_open_files"
+        ) {
+          return [];
+        }
+
+        if (command === "cancel_quit" || command.startsWith("plugin:")) {
+          return null;
+        }
+
+        throw new Error(`unexpected command: ${command}`);
+      },
+      { shouldMockEvents: true }
+    );
+
+    const unregister = registerPendingFlush(
+      async () => await Promise.resolve(false)
+    );
+
+    const client = new QueryClient({
+      defaultOptions: {
+        queries: { retry: false, staleTime: Number.POSITIVE_INFINITY },
+      },
+    });
+
+    onTestFinished(() => {
+      unregister();
+
+      for (const tab of getTabState().tabs) {
+        closeTab(tab.id);
+      }
+
+      client.clear();
+      clearMocks();
+      localStorage.removeItem("tabs");
+    });
+    render(
+      <QueryClientProvider client={client}>
+        <Layout />
+        <Toaster />
+      </QueryClientProvider>
+    );
+
+    expect(await screen.findByText("Nothing here")).toBeInTheDocument();
+    await emit("app-quit", { ending: "restart" });
+
+    expect(
+      await screen.findByText("could not restart into the update")
+    ).toBeInTheDocument();
+    await waitFor(() => {
+      expect(calls).toContain("cancel_quit");
+    });
+    expect(calls).not.toContain("quit_app");
   });
 });

@@ -34,6 +34,6 @@ Toast types identify the result: success follows the user's action, information 
 
 ## Motion and accessibility
 
-Motion explains state changes. Pointer-driven dragging tracks the pointer without a transition. The welcome mark's blink is the existing decorative exception. Reduced motion removes decorative movement and transitions while preserving the final state and direct manipulation.
+Motion explains state changes. Pointer-driven dragging tracks the pointer without a transition. The mark's blink, on the welcome screen and in an empty jot, is the existing decorative exception. Reduced motion removes decorative movement and transitions while preserving the final state and direct manipulation.
 
 Interactive elements retain visible keyboard focus. Focus indicators must survive clipping and scrolling containers. Dialogs keep their accessible title inside the portalled content. Controls remain named when their visible content is only an icon. Validate keyboard operation and native interactions in the running app as well as through component tests.

@@ -1,4 +1,5 @@
 import { detectPlatform } from "@tanstack/react-hotkeys";
+import { mockIPC, mockWindows } from "@tauri-apps/api/mocks";
 import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { Editor } from "@tiptap/core";
@@ -202,6 +203,8 @@ describe("find controls", () => {
 
   it("should close find in the capture window without replacing its editor", async () => {
     const user = userEvent.setup();
+    mockWindows("capture");
+    mockIPC(() => null);
     const { container } = render(createElement(CaptureWindow));
     await waitFor(() =>
       expect(container.querySelector(".ProseMirror")).toBeInTheDocument()

@@ -1,5 +1,4 @@
 use std::path::Path;
-use std::sync::atomic::Ordering;
 
 use tauri::{AppHandle, Manager, Runtime, State};
 use tauri_plugin_opener::OpenerExt;
@@ -540,26 +539,37 @@ pub async fn pending_open_files<R: Runtime>(
     .await
 }
 
-/// Exit after the frontend has flushed its pending writes.
+/// Answer the quit handshake: this window has flushed its pending writes. The
+/// app exits, or restarts, once every window has.
 #[tauri::command]
 #[specta::specta]
-pub fn quit_app<R: Runtime>(app: AppHandle<R>) {
-    app.exit(0);
+pub fn quit_app<R: Runtime>(window: tauri::WebviewWindow<R>, state: State<'_, AppState>) {
+    if let Some(ending) = state.quit.answer(window.label()) {
+        crate::end_quit(window.app_handle(), ending);
+    }
+}
+
+/// Restart into an installed update once every window has flushed its pending
+/// writes, through the same handshake as a quit.
+#[tauri::command]
+#[specta::specta]
+pub fn restart_app<R: Runtime>(app: AppHandle<R>) {
+    crate::begin_quit(&app, crate::state::Ending::Restart);
 }
 
 /// Cancel the quit handshake when a pending write fails.
 #[tauri::command]
 #[specta::specta]
 pub fn cancel_quit(state: State<'_, AppState>) {
-    state.quitting.store(false, Ordering::SeqCst);
+    state.quit.cancel();
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::state::QuitHandshake;
     use std::fs;
     use std::panic::{catch_unwind, panic_any};
-    use std::sync::atomic::AtomicBool;
     use std::sync::{mpsc, Mutex};
     use std::time::{Duration, Instant};
 
@@ -590,7 +600,7 @@ mod tests {
                 ),
                 watcher: Mutex::new(None),
                 pending_open: Mutex::new(vec![]),
-                quitting: AtomicBool::new(false),
+                quit: QuitHandshake::default(),
             })
             .invoke_handler(contract.invoke_handler())
             .build(context)
