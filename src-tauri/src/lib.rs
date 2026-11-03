@@ -107,31 +107,30 @@ pub(crate) fn end_quit<R: Runtime>(app: &AppHandle<R>, ending: Ending) {
 }
 
 /// Ask every webview to flush its unsaved buffers, then end in `ending` once
-/// each has answered through `quit_app`. False when a quit is already in
-/// flight.
-pub(crate) fn begin_quit<R: Runtime>(app: &AppHandle<R>, ending: Ending) -> bool {
-    if !app
+/// each has answered through `quit_app`. Does nothing while another quit is
+/// waiting or settled.
+pub(crate) fn begin_quit<R: Runtime>(app: &AppHandle<R>, ending: Ending) {
+    let Some(generation) = app
         .state::<AppState>()
         .quit
         .begin(ending, app.webview_windows().into_keys())
-    {
-        return false;
-    }
+    else {
+        return;
+    };
     if let Err(error) = (bindings::AppQuit { ending }).emit(app) {
         log::error!("could not emit app-quit: {error}");
     }
 
-    // Backstop for a webview that never answers. It re-checks the handshake so
-    // a quit the frontend called off (a write failed, and ending would lose the
-    // buffer) is not ended a moment later anyway.
+    // Backstop for a webview that never answers. It ends only its own quit, so
+    // one the frontend called off (a write failed, and ending would lose the
+    // buffer) is not ended a moment later, and neither is a quit begun since.
     let fallback = app.clone();
     std::thread::spawn(move || {
         std::thread::sleep(Duration::from_secs(5));
-        if let Some(pending) = fallback.state::<AppState>().quit.pending() {
-            end_quit(&fallback, pending);
+        if let Some(expired) = fallback.state::<AppState>().quit.expire(generation) {
+            end_quit(&fallback, expired);
         }
     });
-    true
 }
 
 pub(crate) fn open_capture<R: Runtime>(app: &AppHandle<R>) {
@@ -438,8 +437,8 @@ pub fn run() {
             // ungated arm is a Linux compile error the macOS gate cannot see.
             #[cfg(target_os = "macos")]
             RunEvent::Reopen { .. } => show_main(app),
-            // Every quit (⌘Q, tray, `quit_app`) funnels through here, and the first
-            // one is held back for the handshake.
+            // Every quit (⌘Q, tray, `quit_app`) funnels through here and is held
+            // until the handshake settles.
             RunEvent::ExitRequested { api, code, .. } => {
                 // The restart a settled `restart_app` handshake ends in arrives here
                 // too, and Tauri ignores `prevent_exit` for it, so it passes.
@@ -447,9 +446,14 @@ pub fn run() {
                     return;
                 }
 
-                if begin_quit(app, Ending::Exit) {
-                    api.prevent_exit();
+                // A settled quit's own exit passes. Any other request is held,
+                // so a second quit while windows are still flushing waits for
+                // them instead of ending the process under their writes.
+                if app.state::<AppState>().quit.is_settled() {
+                    return;
                 }
+                api.prevent_exit();
+                begin_quit(app, Ending::Exit);
             }
             #[cfg(target_os = "macos")]
             RunEvent::Opened { urls } => {

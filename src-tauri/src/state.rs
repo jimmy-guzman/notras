@@ -24,50 +24,93 @@ pub enum Ending {
     Restart,
 }
 
-struct Pending {
-    ending: Ending,
-    waiting: HashSet<String>,
+#[derive(Default)]
+enum Phase {
+    #[default]
+    Idle,
+    Waiting {
+        generation: u64,
+        ending: Ending,
+        windows: HashSet<String>,
+    },
+    /// Every window answered, or the backstop gave up on them; the exit or
+    /// restart it asked for is under way.
+    Settled,
+}
+
+#[derive(Default)]
+struct Handshake {
+    started: u64,
+    phase: Phase,
 }
 
 /// The windows an in-flight quit still waits on.
 #[derive(Default)]
-pub struct QuitHandshake(Mutex<Option<Pending>>);
+pub struct QuitHandshake(Mutex<Handshake>);
 
 /// Access panics if a prior operation poisoned the handshake.
 impl QuitHandshake {
-    /// Wait on `windows`, then end in `ending`. False when a quit is already in
-    /// flight.
-    pub fn begin(&self, ending: Ending, windows: impl IntoIterator<Item = String>) -> bool {
-        let mut pending = self.lock();
-        if pending.is_some() {
-            return false;
+    /// Wait on `windows`, then end in `ending`. The new quit's generation, or
+    /// `None` while another quit is waiting or settled.
+    pub fn begin(&self, ending: Ending, windows: impl IntoIterator<Item = String>) -> Option<u64> {
+        let mut handshake = self.lock();
+        if !matches!(handshake.phase, Phase::Idle) {
+            return None;
         }
-        *pending = Some(Pending {
+        handshake.started += 1;
+        handshake.phase = Phase::Waiting {
+            generation: handshake.started,
             ending,
-            waiting: windows.into_iter().collect(),
-        });
-        true
+            windows: windows.into_iter().collect(),
+        };
+        Some(handshake.started)
     }
 
-    /// Record that `window` flushed. The ending once every window has, and
-    /// never after a cancel.
+    /// Record that `window` flushed. Settles the quit and returns its ending
+    /// once every window has, and never after a cancel.
     pub fn answer(&self, window: &str) -> Option<Ending> {
-        self.lock().as_mut().and_then(|pending| {
-            pending.waiting.remove(window);
-            pending.waiting.is_empty().then_some(pending.ending)
-        })
+        let mut handshake = self.lock();
+        let Phase::Waiting {
+            ending, windows, ..
+        } = &mut handshake.phase
+        else {
+            return None;
+        };
+        windows.remove(window);
+        let ending = windows.is_empty().then_some(*ending)?;
+        handshake.phase = Phase::Settled;
+        Some(ending)
+    }
+
+    /// Give up on the windows of quit `generation`. Settles it and returns its
+    /// ending only while that same quit is still waiting.
+    pub fn expire(&self, generation: u64) -> Option<Ending> {
+        let mut handshake = self.lock();
+        let Phase::Waiting {
+            generation: waiting,
+            ending,
+            ..
+        } = handshake.phase
+        else {
+            return None;
+        };
+        if waiting != generation {
+            return None;
+        }
+        handshake.phase = Phase::Settled;
+        Some(ending)
     }
 
     pub fn cancel(&self) {
-        *self.lock() = None;
+        self.lock().phase = Phase::Idle;
     }
 
-    /// The ending of the quit in flight, if one is.
-    pub fn pending(&self) -> Option<Ending> {
-        self.lock().as_ref().map(|pending| pending.ending)
+    /// Whether the exit or restart a quit asked for is under way.
+    pub fn is_settled(&self) -> bool {
+        matches!(self.lock().phase, Phase::Settled)
     }
 
-    fn lock(&self) -> MutexGuard<'_, Option<Pending>> {
+    fn lock(&self) -> MutexGuard<'_, Handshake> {
         self.0.lock().expect("the quit handshake was poisoned")
     }
 }
@@ -98,18 +141,23 @@ mod tests {
     #[test]
     fn should_settle_a_quit_only_once_every_window_answers() {
         let quit = QuitHandshake::default();
-        assert!(quit.begin(Ending::Exit, ["main".into(), "capture".into()]));
-        assert!(!quit.begin(Ending::Restart, ["main".into()]));
+        assert!(quit
+            .begin(Ending::Exit, ["main".into(), "capture".into()])
+            .is_some());
+        assert_eq!(quit.begin(Ending::Restart, ["main".into()]), None);
         assert_eq!(quit.answer("main"), None);
         assert_eq!(quit.answer("main"), None);
+        assert!(!quit.is_settled());
         assert_eq!(quit.answer("capture"), Some(Ending::Exit));
-        assert_eq!(quit.pending(), Some(Ending::Exit));
+        assert!(quit.is_settled());
     }
 
     #[test]
     fn should_end_a_restart_as_a_restart() {
         let quit = QuitHandshake::default();
-        assert!(quit.begin(Ending::Restart, ["main".into(), "capture".into()]));
+        assert!(quit
+            .begin(Ending::Restart, ["main".into(), "capture".into()])
+            .is_some());
         assert_eq!(quit.answer("capture"), None);
         assert_eq!(quit.answer("main"), Some(Ending::Restart));
     }
@@ -117,13 +165,27 @@ mod tests {
     #[test]
     fn should_ignore_answers_after_a_cancel_and_allow_a_new_quit() {
         let quit = QuitHandshake::default();
-        assert!(quit.begin(Ending::Exit, ["main".into(), "capture".into()]));
+        assert!(quit
+            .begin(Ending::Exit, ["main".into(), "capture".into()])
+            .is_some());
         quit.cancel();
         assert_eq!(quit.answer("main"), None);
         assert_eq!(quit.answer("capture"), None);
-        assert_eq!(quit.pending(), None);
-        assert!(quit.begin(Ending::Exit, ["main".into()]));
+        assert!(!quit.is_settled());
+        assert!(quit.begin(Ending::Exit, ["main".into()]).is_some());
         assert_eq!(quit.answer("main"), Some(Ending::Exit));
+    }
+
+    #[test]
+    fn should_let_a_backstop_end_only_the_quit_that_started_it() {
+        let quit = QuitHandshake::default();
+        let first = quit.begin(Ending::Exit, ["main".into()]).unwrap();
+        quit.cancel();
+        let second = quit.begin(Ending::Exit, ["main".into()]).unwrap();
+        assert_eq!(quit.expire(first), None);
+        assert!(!quit.is_settled());
+        assert_eq!(quit.expire(second), Some(Ending::Exit));
+        assert!(quit.is_settled());
     }
 
     #[test]
