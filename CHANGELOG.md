@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.12.2](https://github.com/jimmy-guzman/notras/compare/v0.12.1...v0.12.2) (2026-11-04)
+
+
+### Features
+
+* **ui:** ✨ discard jots & save them on close ([#480](https://github.com/jimmy-guzman/notras/issues/480)) ([da55106](https://github.com/jimmy-guzman/notras/commit/da55106a606d767c4615af14d04854ae979d7cca))
+
+
+### Bug Fixes
+
+* **notes:** 🐛 keep emoji whole in mention rows ([#482](https://github.com/jimmy-guzman/notras/issues/482)) ([eef808a](https://github.com/jimmy-guzman/notras/commit/eef808a8f86cf931735d908b6e9bbcc0371adcf5))
+
 ## [0.12.1](https://github.com/jimmy-guzman/notras/compare/v0.12.0...v0.12.1) (2026-11-02)
 
 
