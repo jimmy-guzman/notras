@@ -226,4 +226,72 @@ describe(contextFrom, () => {
       contextFrom({ at: padding.length, context: `${padding}here at the end` })
     ).toBe("…word word word word word word here at the end");
   });
+
+  it("should keep an emoji whole when the line starts inside it", () => {
+    const lead = `aaaaaaa😀${"b".repeat(31)}`;
+
+    expect(contextFrom({ at: lead.length, context: `${lead}here` })).toBe(
+      `…😀${"b".repeat(31)}here`
+    );
+  });
+
+  it("should keep a flag whole when the line starts inside it", () => {
+    const lead = `aaaaaaa🇺🇸${"b".repeat(30)}`;
+
+    expect(contextFrom({ at: lead.length, context: `${lead}here` })).toBe(
+      `…🇺🇸${"b".repeat(30)}here`
+    );
+  });
+
+  it("should keep a joined emoji whole when the line starts inside it", () => {
+    const lead = `aaaaaaa👩‍💻${"b".repeat(29)}`;
+
+    expect(contextFrom({ at: lead.length, context: `${lead}here` })).toBe(
+      `…👩‍💻${"b".repeat(29)}here`
+    );
+  });
+
+  it("should drop the ellipsis when the whole character opens the line", () => {
+    const lead = `😀${"b".repeat(31)}`;
+
+    expect(contextFrom({ at: lead.length, context: `${lead}here` })).toBe(
+      `${lead}here`
+    );
+  });
+
+  it("should keep an accent whole when the line starts after a space", () => {
+    const lead = `${"a".repeat(15)} ́${"b".repeat(28)}`;
+
+    expect(contextFrom({ at: lead.length, context: `${lead}here` })).toBe(
+      `… ́${"b".repeat(28)}here`
+    );
+  });
+
+  it("should show the words before an empty link that ends the line", () => {
+    const line = `${"a".repeat(59)} `;
+
+    expect(contextFrom({ at: line.length, context: line })).toBe(
+      `…${"a".repeat(32)} `
+    );
+  });
+
+  it("should show the words before an empty link behind several spaces", () => {
+    const line = `${"a".repeat(59)}   `;
+
+    expect(contextFrom({ at: line.length, context: line })).toBe(
+      `…${"a".repeat(32)}   `
+    );
+  });
+
+  it("should show the words before an empty link with text after it", () => {
+    expect(contextFrom({ at: 60, context: `${"a".repeat(59)} .` })).toBe(
+      `…${"a".repeat(32)} .`
+    );
+  });
+
+  it("should show the end of a long word before its link", () => {
+    expect(contextFrom({ at: 60, context: `${"a".repeat(59)} here` })).toBe(
+      `…${"a".repeat(32)} here`
+    );
+  });
 });
