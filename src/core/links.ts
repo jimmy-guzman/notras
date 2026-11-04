@@ -18,18 +18,28 @@ export interface Mention {
 /** A row clamps its line, so a link deep in a paragraph would sit past the ellipsis. */
 const CONTEXT_LEAD = 32;
 
-/** The mention's line from a word boundary a little before where it starts. */
+const graphemes = new Intl.Segmenter();
+
+/** The mention's line from a word boundary a little before where it starts, with no character cut in two. */
 export function contextFrom(line: Pick<MentionLine, "at" | "context">) {
-  const rough = Math.max(0, line.at - CONTEXT_LEAD);
+  const lead = line.context.slice(0, line.at).trimEnd();
+  const rough = Math.max(0, lead.length - CONTEXT_LEAD);
 
   if (rough === 0) {
     return line.context;
   }
 
-  const boundary = line.context.indexOf(" ", rough);
-  const start = boundary === -1 || boundary >= line.at ? rough : boundary + 1;
+  const boundary = lead.indexOf(" ", rough);
+  const cut = boundary === -1 ? rough : boundary + 1;
+  const segment = graphemes.segment(line.context).containing(cut);
 
-  return `…${line.context.slice(start)}`;
+  if (segment === undefined) {
+    throw new RangeError(`No character at ${cut} in a mention's line`);
+  }
+
+  return segment.index === 0
+    ? line.context
+    : `…${line.context.slice(segment.index)}`;
 }
 
 export interface LinkResolver {
