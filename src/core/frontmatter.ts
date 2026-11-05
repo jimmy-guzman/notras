@@ -202,6 +202,12 @@ export function parseNote(content: string): ParsedNote {
 
   const lines = content.split("\n");
 
+  // The serializer follows a rule with a blank line, and a second rule further
+  // down would otherwise close a block around the text between them.
+  if (lines[1]?.trim() === "") {
+    return fallback;
+  }
+
   const closeIndex = lines.findIndex(
     (line, index) => index > 0 && CLOSING_DELIMITERS.has(line.trimEnd())
   );
@@ -296,7 +302,10 @@ export function updateFrontmatter(
     ownLines.push(`tags: [${tags.join(", ")}]`);
   }
 
-  const blockLines = [...ownLines, ...foreignLines];
+  const kept = [...ownLines, ...foreignLines];
+  const firstKept = kept.findIndex((line) => line.trim() !== "");
+  // A blank first line reads as a rule, and removing a key can leave one on top.
+  const blockLines = firstKept === -1 ? [] : kept.slice(firstKept);
 
   const arrivedEmpty =
     parsed.raw !== undefined && parsed.raw.lines.length === 0;
@@ -304,9 +313,12 @@ export function updateFrontmatter(
   // Removing the block is for one this update emptied. A block that arrived
   // empty had no owned keys to remove, so `---\n---` survives a no-op patch.
   // A block this rewrites keeps the delimiter the file used; one it creates
-  // gets the `---` notras authors.
+  // gets the `---` notras authors. A body that would read as a block of its own
+  // keeps an empty one ahead of it, or its text would turn into metadata.
   const raw =
-    blockLines.length === 0 && !arrivedEmpty
+    blockLines.length === 0 &&
+    !arrivedEmpty &&
+    parseNote(parsed.body).raw === undefined
       ? undefined
       : { close: parsed.raw?.close ?? "---", lines: blockLines };
 

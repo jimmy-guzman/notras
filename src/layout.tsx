@@ -21,12 +21,33 @@ import { noteQueries, notesDirQuery } from "@/data/queries";
 import { startupQuery } from "@/data/restore-session";
 import { disposeLater } from "@/lib/dispose-later";
 import { flushPendingWrites } from "@/lib/pending-flush";
-import { openDraft, openTab, persistTabs, refreshTabs } from "@/lib/tabs/store";
+import {
+  openDraft,
+  openNoteAtCaret,
+  openTab,
+  persistTabs,
+  refreshTabs,
+} from "@/lib/tabs/store";
 import { reasonOf } from "@/lib/ui/failure";
+import { noteFind } from "@/lib/ui/find";
 import { useHotkey } from "@/lib/ui/shortcuts";
 import { findUpdate, offerUpdate, updatesSupported } from "@/lib/updater";
 import { commands, events } from "@/server/adapters/bindings";
 import type { Ending } from "@/server/adapters/bindings";
+
+async function listenForContinuedJots() {
+  return await events.jotContinued.listen(({ payload }) => {
+    // A session leaves focus to the find bar and the note browser, and the
+    // jot's caret has to take it from both to keep the writing going.
+    noteFind.dismiss();
+
+    if (document.activeElement instanceof HTMLElement) {
+      document.activeElement.blur();
+    }
+
+    openNoteAtCaret(payload.path, payload.caret);
+  });
+}
 
 function MainWindow() {
   const [{ data: notesDir }] = useSuspenseQueries({
@@ -149,7 +170,6 @@ function MainWindow() {
     };
   }, []);
 
-  // Tray menu + "Open With" plumbing from Rust.
   useEffect(() => {
     // Rust queues every "Open With" path and only signals that the queue has
     // something in it, so draining is the single delivery mechanism. Each one
@@ -176,9 +196,11 @@ function MainWindow() {
       void drainPendingOpens();
     });
 
+    const unlistenJot = listenForContinuedJots();
+
     void drainPendingOpens();
 
-    return disposeLater(unlistenNew, unlistenOpen);
+    return disposeLater(unlistenNew, unlistenOpen, unlistenJot);
   }, []);
 
   // Quit, and the restart into an update, are held open by Rust until the

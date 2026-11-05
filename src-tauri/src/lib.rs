@@ -92,7 +92,7 @@ fn use_compact_window_controls<R: Runtime>(window: &tauri::WebviewWindow<R>) {
 #[cfg(not(target_os = "macos"))]
 fn use_compact_window_controls<R: Runtime>(_window: &tauri::WebviewWindow<R>) {}
 
-fn show_main(app: &AppHandle) {
+pub(crate) fn show_main<R: Runtime>(app: &AppHandle<R>) {
     if let Some(window) = app.get_webview_window("main") {
         let _ = window.show();
         let _ = window.set_focus();

@@ -3,10 +3,12 @@ import type { Node } from "@tiptap/pm/model";
 /**
  * The caret rides through the markdown converters as a sentinel character:
  * serialize/parse the document with the sentinel at the caret, then look at
- * where it landed. Exact by construction -- no fuzzy anchor matching.
+ * where it landed. No fuzzy anchor matching: a table that cannot keep the
+ * file's text reports no offset at all.
  *
- * U+E000 (private use area): never produced by typing, untouched by the
- * serializer, marked, and the nbsp scrub.
+ * U+E000 (private use area): never produced by typing. The table renderer keeps
+ * it out of a column's width, and marked drops it past a table's last pipe and
+ * keeps it in a link's attributes.
  */
 export const SENTINEL = "";
 

@@ -23,6 +23,14 @@ pub struct MutationWarnings {
     pub warnings: Vec<MutationWarning>,
 }
 
+/// A saved jot for the main window to open, with the caret where the writing
+/// stopped, as an offset into the note's markdown.
+#[derive(Clone, Deserialize, Serialize, specta::Type, tauri_specta::Event)]
+pub struct JotContinued {
+    pub caret: u32,
+    pub path: String,
+}
+
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize, specta::Type, tauri_specta::Event)]
 #[serde(tag = "state", rename_all = "kebab-case")]
 pub enum IndexStatus {
@@ -79,6 +87,7 @@ pub fn builder<R: Runtime>() -> tauri_specta::Builder<R> {
             notes::save_note::<tauri::Wry>,
             pdf::export_pdf::<tauri::Wry>,
             pdf::pdf_layout_width,
+            windows::continue_jot::<tauri::Wry>,
             windows::get_appearance::<tauri::Wry>,
             windows::set_appearance::<tauri::Wry>,
             windows::show_capture::<tauri::Wry>,
@@ -87,7 +96,8 @@ pub fn builder<R: Runtime>() -> tauri_specta::Builder<R> {
             AppQuit,
             NotesChanged,
             MutationWarnings,
-            IndexStatus
+            IndexStatus,
+            JotContinued
         ])
 }
 
@@ -817,6 +827,38 @@ mod tests {
         let note = invoke(&window, "read_note", json!({"path": "external.md"})).unwrap();
         assert_eq!(note["content"], "# through the alias");
         *app.state::<AppState>().watcher() = None;
+    }
+
+    #[test]
+    fn should_hand_a_saved_jot_to_the_main_window_and_nothing_for_an_empty_one() {
+        let contract = builder::<tauri::test::MockRuntime>();
+        let app = tauri::test::mock_builder()
+            .invoke_handler(contract.invoke_handler())
+            .build(tauri::test::mock_context(tauri::test::noop_assets()))
+            .unwrap();
+        contract.mount_events(&app);
+        let window = tauri::WebviewWindowBuilder::new(&app, "main", Default::default())
+            .build()
+            .unwrap();
+        let (sender, jots) = mpsc::channel();
+        app.listen("jot-continued", move |event| {
+            sender
+                .send(serde_json::from_str::<Value>(event.payload()).unwrap())
+                .unwrap();
+        });
+
+        invoke(&window, "continue_jot", json!({"jot": null})).unwrap();
+        invoke(
+            &window,
+            "continue_jot",
+            json!({"jot": {"caret": 7, "path": "jot.md"}}),
+        )
+        .unwrap();
+
+        assert_eq!(
+            jots.try_iter().collect::<Vec<_>>(),
+            [json!({"caret": 7, "path": "jot.md"})]
+        );
     }
 
     #[test]

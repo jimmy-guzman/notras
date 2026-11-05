@@ -131,12 +131,13 @@ xattr -dr com.apple.quarantine /Applications/notras.app
 | `⌘⇧N` | global quick capture |
 | `esc` | (capture window) save + hide |
 | `⌘⏎` | (capture window) save + hide |
+| `⌘O` | (capture window) save + continue in the main window |
 | `⌘⇧⌫` | (capture window) discard + hide |
 | `esc` | (review) back to the note |
 | `⌘⏎` | (review) resolve |
 
 - `⌘⇧D`, `⌘⇧Y`, `⌘⇧L` and `⌘⌥G` need a note from your library. A file opened from outside has no frontmatter and is not in the index.
-- The palette and tab shortcuts do not reach the capture window. `esc`, `⌘⏎`, `⌘⇧⌫`, `⌘F` and the editor's own keys do. Closing the capture window or quitting saves the jot, the same as `esc`.
+- The palette and tab shortcuts do not reach the capture window. `esc`, `⌘⏎`, `⌘O`, `⌘⇧⌫`, `⌘F` and the editor's own keys do. Closing the capture window or quitting saves the jot, the same as `esc`.
 
 </details>
 
