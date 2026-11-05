@@ -83,6 +83,16 @@ pub fn parse(content: &str) -> Parsed<'_> {
         return parsed;
     };
 
+    // The serializer follows a rule with a blank line, and a second rule further
+    // down would otherwise close a block around the text between them.
+    if rest
+        .lines()
+        .next()
+        .is_some_and(|line| line.trim_matches(is_space).is_empty())
+    {
+        return parsed;
+    }
+
     // Find the closing delimiter line.
     let mut close = None;
     let mut offset = 0;
@@ -272,6 +282,27 @@ mod tests {
 
         let missing = parse("---\npinned: true\n---\nbody\n");
         assert_eq!(missing.frontmatter.title, None);
+    }
+
+    #[test]
+    fn should_read_two_rules_as_body_rather_than_a_block() {
+        let content = "---\n\ntitle: first thing\n\n---\n\nthe rest\n";
+        let parsed = parse(content);
+        assert_eq!(parsed.body, content);
+        assert_eq!(parsed.frontmatter.title, None);
+
+        let crlf = "---\r\n\r\nfirst thing\r\n\r\n---\r\n";
+        assert_eq!(parse(crlf).body, crlf);
+    }
+
+    #[test]
+    fn should_read_a_rule_before_a_heading_or_fence_as_body() {
+        for content in [
+            "---\n\nTitle\n---\n\nbody\n",
+            "---\n\n```yaml\n---\ntitle: x\n---\n```\n",
+        ] {
+            assert_eq!(parse(content).body, content);
+        }
     }
 
     #[test]

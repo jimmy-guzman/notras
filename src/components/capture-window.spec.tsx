@@ -4,9 +4,11 @@ import { act, render, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { Editor as TiptapEditor } from "@tiptap/core";
 import { createElement } from "react";
+import { object, parse, string } from "valibot";
 import { describe, expect, it, vi } from "vitest";
 
 import { CaptureWindow } from "@/components/capture-window";
+import { chordGlyph } from "@/lib/ui/shortcuts";
 
 async function mountCapture() {
   mockWindows("capture");
@@ -385,6 +387,183 @@ describe("capture window", () => {
           "quit_app",
         ]);
       });
+    });
+  });
+
+  describe("continuing", () => {
+    it("should save the jot and hand it to the main window with its caret before hiding", async () => {
+      const user = userEvent.setup();
+      const calls: { args: unknown; command: string }[] = [];
+      mockIPC((command, args) => {
+        calls.push({ args, command });
+
+        return command === "create_note"
+          ? { path: "a-thought.md", updatedAt: 1, warnings: [] }
+          : null;
+      });
+      const editor = await mountCapture();
+      act(() => {
+        editor.commands.insertContent("a thought");
+        editor.commands.setTextSelection(3);
+      });
+      await user.keyboard("{Control>}o{/Control}");
+      await waitFor(() => {
+        expect(calls.map(({ command }) => command)).toContain(
+          "plugin:window|hide"
+        );
+      });
+      expect(calls.slice(-3).map(({ command }) => command)).toStrictEqual([
+        "create_note",
+        "continue_jot",
+        "plugin:window|hide",
+      ]);
+      expect(
+        calls.find(({ command }) => command === "continue_jot")?.args
+      ).toStrictEqual({ jot: { caret: 2, path: "a-thought.md" } });
+      await waitFor(() => {
+        expect(document.querySelector(".ProseMirror")?.textContent).toBe("");
+      });
+    });
+
+    it("should go to the main window without a note when the jot is empty", async () => {
+      const user = userEvent.setup();
+      const calls: { args: unknown; command: string }[] = [];
+      mockIPC((command, args) => {
+        calls.push({ args, command });
+
+        return null;
+      });
+      await mountCapture();
+      await user.keyboard("{Control>}o{/Control}");
+      await waitFor(() => {
+        expect(calls.map(({ command }) => command)).toContain(
+          "plugin:window|hide"
+        );
+      });
+      expect(calls.map(({ command }) => command)).not.toContain("create_note");
+      expect(
+        calls.find(({ command }) => command === "continue_jot")?.args
+      ).toStrictEqual({ jot: null });
+    });
+
+    it("should keep the jot on screen and stay out of the main window when it cannot be saved", async () => {
+      const user = userEvent.setup();
+      const calls: string[] = [];
+      mockIPC((command) => {
+        calls.push(command);
+
+        if (command === "create_note") {
+          throw new Error("The disk is full");
+        }
+
+        return null;
+      });
+      const editor = await mountCapture();
+      act(() => {
+        editor.commands.insertContent("a thought");
+      });
+      await user.keyboard("{Control>}o{/Control}");
+      await waitFor(() => {
+        expect(document.body.textContent).toContain(
+          "could not save the capture"
+        );
+      });
+      expect(calls).not.toContain("continue_jot");
+      expect(calls).not.toContain("plugin:window|hide");
+      expect(document.querySelector(".ProseMirror")?.textContent).toBe(
+        "a thought"
+      );
+    });
+
+    it("should keep the window up and clear the written jot when the main window cannot be reached", async () => {
+      const user = userEvent.setup();
+      const calls: string[] = [];
+      mockIPC((command) => {
+        calls.push(command);
+
+        if (command === "continue_jot") {
+          throw new Error("The window is no longer available");
+        }
+
+        return command === "create_note"
+          ? { path: "a-thought.md", updatedAt: 1, warnings: [] }
+          : null;
+      });
+      const editor = await mountCapture();
+      act(() => {
+        editor.commands.insertContent("a thought");
+      });
+      await user.keyboard("{Control>}o{/Control}");
+      await waitFor(() => {
+        expect(document.body.textContent).toContain("could not open notras");
+      });
+      await waitFor(() => {
+        expect(document.querySelector(".ProseMirror")?.textContent).toBe("");
+      });
+      expect(calls).not.toContain("plugin:window|hide");
+      await user.keyboard("{Escape}");
+      await waitFor(() => {
+        expect(calls).toContain("plugin:window|hide");
+      });
+      expect(calls.filter((command) => command === "create_note")).toHaveLength(
+        1
+      );
+    });
+
+    it("should open a jot at its end when the caret offset cannot be read", async () => {
+      const user = userEvent.setup();
+      const handed: unknown[] = [];
+      const written: string[] = [];
+      mockIPC((command, args) => {
+        if (command === "continue_jot") {
+          handed.push(args);
+        }
+
+        if (command === "create_note") {
+          const { options } = parse(
+            object({ options: object({ content: string() }) }),
+            args
+          );
+
+          written.push(options.content);
+
+          return { path: "jot.md", updatedAt: 1, warnings: [] };
+        }
+
+        return null;
+      });
+      const editor = await mountCapture();
+      act(() => {
+        editor.commands.setContent("|a|b|\n|-|-|\n|&lt;div&gt;|2|\n", {
+          contentType: "markdown",
+        });
+      });
+      const positions: number[] = [];
+      editor.state.doc.descendants((node, pos) => {
+        if (node.text === "<div>") {
+          positions.push(pos + "<d".length);
+        }
+      });
+      act(() => {
+        editor.commands.setTextSelection(positions[0] ?? -1);
+      });
+      await user.keyboard("{Control>}o{/Control}");
+      await waitFor(() => {
+        expect(handed).toHaveLength(1);
+      });
+      expect(handed).toStrictEqual([
+        { jot: { caret: written[0]?.length, path: "jot.md" } },
+      ]);
+    });
+
+    it("should show the chord that continues in notras", async () => {
+      mockIPC(() => null);
+      await mountCapture();
+
+      const footer = document.querySelector("footer")?.textContent;
+
+      expect(footer).toContain("continues in notras");
+      expect(footer).toContain(chordGlyph("Mod+O"));
     });
   });
 

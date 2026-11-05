@@ -3660,6 +3660,158 @@ describe("markdown written elsewhere", () => {
     expect(handle.getCaretSourceOffset()).toBe("first\n\n~gone~ and ~m".length);
   });
 
+  it.each([
+    ["a padded table", "| a   | b |\n| --- | - |\n| wide cell | 2 |\n"],
+    ["a table as typed", "|a|b|\n|-|-|\n|wide cell|2|\n"],
+    ["a row with an escaped pipe", "|a|b|\n|-|-|\n|x\\|y|wide cell|\n"],
+    ["a table without edge pipes", "a|b\n-|-\nwide cell|2\n"],
+    ["a repeated row", "|a|b|\n|-|-|\n|wide cell|2|\n|wide cell|2|\n"],
+    ["a table in a quote", "> a | b\n> --|--\n> wide cell | 2\n"],
+    ["a short row above the last", "|a|b|\n|-|-|\n|wide cell|\n|x|y|\n"],
+    ["a row in another style", "|a|b|\n|-|-|\n|_x_|wide cell|\n|x|y|\n"],
+    ["a row ending in an escaped pipe", "a|b\n-|-\nx|wide cell\\|\n"],
+  ])(
+    "should find the caret in the widest cell of %s",
+    async (_, initialContent) => {
+      const { editor, handle } = await mount({ initialContent });
+      const positions: number[] = [];
+
+      editor.state.doc.descendants((node, pos) => {
+        if (node.text?.startsWith("wide cell") === true) {
+          positions.push(pos + "wide".length);
+        }
+      });
+      act(() => {
+        editor.commands.setTextSelection(positions.at(-1) ?? -1);
+      });
+
+      expect(handle.getCaretSourceOffset()).toBe(
+        initialContent.lastIndexOf("wide cell") + "wide".length
+      );
+    }
+  );
+
+  it("should find the caret in the first of two rows that render alike", async () => {
+    const initialContent = "|a|b|\n|-|-|\n|wide cell|\n|wide cell| |\n";
+    const { editor, handle } = await mount({ initialContent });
+    const positions: number[] = [];
+
+    editor.state.doc.descendants((node, pos) => {
+      if (node.text === "wide cell") {
+        positions.push(pos + "wide".length);
+      }
+    });
+    act(() => {
+      editor.commands.setTextSelection(positions[0] ?? -1);
+    });
+
+    expect(handle.getCaretSourceOffset()).toBe(
+      initialContent.indexOf("wide cell") + "wide".length
+    );
+  });
+
+  it("should find the caret after a trailing space in a table cell", async () => {
+    const initialContent = "|a|b|\n|-|-|\n|foo|2|\n";
+    const { editor, handle } = await mount({ initialContent });
+    const positions: number[] = [];
+
+    editor.state.doc.descendants((node, pos) => {
+      if (node.text === "foo") {
+        positions.push(pos + "foo".length);
+      }
+    });
+    act(() => {
+      editor.commands.insertContentAt(positions[0] ?? -1, " ");
+    });
+
+    expect(handle.getContent().slice(0, handle.getCaretSourceOffset())).toMatch(
+      /foo $/u
+    );
+  });
+
+  it("should keep a sentinel past a table's last pipe out of the note", async () => {
+    const { editor, handle } = await mount({
+      initialContent: `| a | b |\n| --- | --- |\n| x | y |${SENTINEL}`,
+      stripSentinel: true,
+    });
+
+    expect(handle.getContent()).not.toContain(SENTINEL);
+    expect(editor.state.selection.$head.parent.textContent).toBe("y");
+  });
+
+  it("should keep the caret in its row when a sentinel past the last pipe is lost", async () => {
+    const { editor } = await mount({
+      initialContent: `| a | b |\n| --- | --- |\n| x | y |${SENTINEL}\n| p | q |\n\nafter\n`,
+      stripSentinel: true,
+    });
+
+    expect(editor.state.selection.$head.parent.textContent).toBe("y");
+  });
+
+  it.each([
+    ["a pipe in a link", `[x](http://a|${SENTINEL}b)\n\nafter\n`],
+    ["a surplus cell", `|a|b|\n|-|-|\n|x|y|z|${SENTINEL}\n\nafter\n`],
+  ])(
+    "should send a caret lost after %s to the end of the note",
+    async (_, initialContent) => {
+      const { editor } = await mount({ initialContent, stripSentinel: true });
+
+      expect(editor.state.selection.$head.parent.textContent).toBe("after");
+    }
+  );
+
+  it("should keep a sentinel held in a link out of the note", async () => {
+    const { editor, handle } = await mount({
+      initialContent: `see [[No${SENTINEL}te]]\n`,
+      stripSentinel: true,
+    });
+
+    act(() => {
+      editor.commands.insertContentAt(1, "x");
+    });
+
+    expect(handle.getContent()).toBe("xsee [[Note]]\n");
+  });
+
+  it("should keep every private use character in a rendered table", async () => {
+    const { editor, handle } = await mount({ initialContent: "start\n" });
+
+    act(() => {
+      editor.commands.setContent(`|a|b|\n|-|-|\n|${SENTINEL}|${SENTINEL}|\n`, {
+        contentType: "markdown",
+      });
+    });
+
+    expect(handle.getContent().split(SENTINEL)).toHaveLength(3);
+  });
+
+  it.each([
+    [
+      "a cell the file spells differently",
+      "|a|b|\n|-|-|\n|&lt;div&gt;|2|\n",
+      "<div>",
+    ],
+    [
+      "a table in a list",
+      "- item\n\n  |a|b|\n  |-|-|\n  |wide cell|2|\n",
+      "wide cell",
+    ],
+  ])("should report no caret offset in %s", async (_, initialContent, text) => {
+    const { editor, handle } = await mount({ initialContent });
+    const positions: number[] = [];
+
+    editor.state.doc.descendants((node, pos) => {
+      if (node.text === text) {
+        positions.push(pos + 2);
+      }
+    });
+    act(() => {
+      editor.commands.setTextSelection(positions[0] ?? -1);
+    });
+
+    expect(handle.getCaretSourceOffset()).toBe(-1);
+  });
+
   it("should land an edit when the serializer throws while carrying it", async () => {
     const onChange = vi.fn<ComponentProps<typeof Editor>["onChange"]>();
 

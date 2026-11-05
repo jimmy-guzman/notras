@@ -10,6 +10,8 @@ import {
   within,
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import type { UserEvent } from "@testing-library/user-event";
+import { Editor as TiptapEditor } from "@tiptap/core";
 import { object, parse, string } from "valibot";
 import { beforeEach, describe, expect, it, onTestFinished } from "vitest";
 
@@ -606,6 +608,175 @@ describe("layout", () => {
     before.setEnd(anchor, caret.anchorOffset);
     expect(before.toString()).toBe("An ");
   });
+
+  it.each([
+    ["nothing", async () => {}],
+    [
+      "the note browser search",
+      async (user: UserEvent) => {
+        await user.keyboard("{Control>}\\{/Control}");
+
+        const search = await screen.findByRole("textbox", {
+          name: "search all notes",
+        });
+
+        await user.click(search);
+        expect(search).toHaveFocus();
+      },
+    ],
+    [
+      "the find bar",
+      async (user: UserEvent) => {
+        await user.keyboard("{Control>}f{/Control}");
+        expect(
+          await screen.findByRole("textbox", { name: "find text" })
+        ).toHaveFocus();
+      },
+    ],
+    [
+      "the find bar on a match",
+      async (user: UserEvent) => {
+        await user.keyboard("{Control>}f{/Control}");
+        expect(
+          await screen.findByRole("textbox", { name: "find text" })
+        ).toHaveFocus();
+        await user.keyboard("Nothing");
+        expect(await screen.findByText("1 / 1")).toBeInTheDocument();
+      },
+    ],
+  ])(
+    "should open a continued jot in a new tab with the caret where the writing stopped while %s holds focus",
+    async (_, takeFocus) => {
+      localStorage.setItem(
+        "tabs",
+        JSON.stringify({
+          activeId: "first",
+          carets: {},
+          tabs: [{ id: "first", kind: "note", path: "first.md" }],
+        })
+      );
+      mockWindows("main");
+      mockIPC(
+        (command, args) => {
+          if (command === "classify_open_paths") {
+            return [{ kind: "note", path: "first.md" }];
+          }
+
+          if (command === "get_notes_dir") {
+            return "/notes";
+          }
+
+          if (command === "index_status") {
+            return { state: "ready" };
+          }
+
+          if (command === "list_notes" || command === "list_tags") {
+            return [];
+          }
+
+          if (command === "read_conflict") {
+            return null;
+          }
+
+          if (command === "read_note") {
+            const { path } = parse(object({ path: string() }), args);
+
+            return {
+              content: path === "jot.md" ? "a jot in progress" : "Nothing here",
+              revision: "r1",
+              updatedAt: 1,
+            };
+          }
+
+          if (
+            command === "take_pending_open" ||
+            command === "find_mentions" ||
+            command === "pending_open_files"
+          ) {
+            return [];
+          }
+
+          if (command.startsWith("plugin:")) {
+            return 0;
+          }
+
+          throw new Error(`unexpected command: ${command}`);
+        },
+        { shouldMockEvents: true }
+      );
+
+      const client = new QueryClient({
+        defaultOptions: {
+          queries: { retry: false, staleTime: Number.POSITIVE_INFINITY },
+        },
+      });
+
+      onTestFinished(() => {
+        for (const tab of getTabState().tabs) {
+          closeTab(tab.id);
+        }
+
+        client.clear();
+        clearMocks();
+        localStorage.removeItem("tabs");
+      });
+      render(
+        <QueryClientProvider client={client}>
+          <Layout />
+        </QueryClientProvider>
+      );
+
+      expect(
+        await screen.findByText("Nothing here", { selector: "p" })
+      ).toBeInTheDocument();
+      await takeFocus(userEvent.setup());
+      await act(async () => {
+        await emit("jot-continued", { caret: 5, path: "jot.md" });
+      });
+
+      expect(
+        await screen.findByText("a jot in progress", { selector: "p" })
+      ).toBeInTheDocument();
+      expect(getTabState().tabs.map(({ path }) => path)).toStrictEqual([
+        "first.md",
+        "jot.md",
+      ]);
+      await waitFor(() =>
+        expect(document.activeElement).toHaveClass("ProseMirror")
+      );
+      const caret = window.getSelection();
+      const anchor = caret?.anchorNode;
+      const paragraph = anchor?.parentElement?.closest("p");
+
+      if (
+        caret === null ||
+        anchor === null ||
+        anchor === undefined ||
+        paragraph === null ||
+        paragraph === undefined
+      ) {
+        throw new Error("the caret is not in a paragraph");
+      }
+
+      const before = document.createRange();
+      before.setStart(paragraph, 0);
+      before.setEnd(anchor, caret.anchorOffset);
+      expect(paragraph.textContent).toBe("a jot in progress");
+      expect(before.toString()).toBe("a jot");
+
+      const [left] = document.querySelectorAll(".ProseMirror");
+
+      if (
+        left === undefined ||
+        !("editor" in left) ||
+        !(left.editor instanceof TiptapEditor)
+      ) {
+        throw new Error("the note left behind has no editor");
+      }
+
+      expect(left.editor.state.selection.empty).toBeTruthy();
+    }
+  );
 
   it("should keep the actions palette on screen while it fades out", async () => {
     localStorage.setItem(

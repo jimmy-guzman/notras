@@ -16,7 +16,7 @@ import { reasonOf } from "@/lib/ui/failure";
 import { createFindController } from "@/lib/ui/find";
 import { useHotkey, useHotkeys } from "@/lib/ui/shortcuts";
 import { commands, events } from "@/server/adapters/bindings";
-import type { Ending } from "@/server/adapters/bindings";
+import type { Ending, JotContinued } from "@/server/adapters/bindings";
 
 async function hideCapture() {
   try {
@@ -32,8 +32,9 @@ async function hideCapture() {
 
 /**
  * The quick-capture window: a bare editor. Esc, ⌘⏎, the close button and quit
- * save the jot as a new note; empty captures are dropped. ⌘⇧⌫ throws the jot
- * away. Escape and ⌘⇧⌫ leave find to its bar while it is open.
+ * save the jot as a new note; empty captures are dropped. ⌘O saves it too and
+ * carries on in the main window. ⌘⇧⌫ throws the jot away. Escape and ⌘⇧⌫ leave
+ * find to its bar while it is open.
  */
 export function CaptureWindow() {
   const editorRef = useRef<EditorHandle | null>(null);
@@ -50,7 +51,7 @@ export function CaptureWindow() {
   );
   useHotkey("Mod+F", find.open, { meta: { name: "find in note" } });
 
-  // Esc, ⌘⏎, close and quit all write the jot, and two overlapping runs would
+  // Esc, ⌘⏎, ⌘O, close and quit all write the jot, and two overlapping runs would
   // write it twice, with the second copy taking a collision suffix.
   const runAlone = async (task: () => Promise<void>) => {
     if (busyRef.current !== null) {
@@ -62,34 +63,80 @@ export function CaptureWindow() {
     busyRef.current = null;
   };
 
-  const resetAndHide = async () => {
+  const resetCapture = () => {
     editorRef.current = null;
     find.close();
     setMood("empty");
     setSession((current) => current + 1);
+  };
+
+  const resetAndHide = async () => {
+    resetCapture();
     await hideCapture();
+  };
+
+  const writeJotOrReport = async (content: string) => {
+    try {
+      return await createNote({ content });
+    } catch (error) {
+      setMood("failed");
+      // Keep the jot on screen -- hiding would lose it.
+      toast.add({
+        description: reasonOf(error),
+        title: "could not save the capture",
+        type: "error",
+      });
+
+      return null;
+    }
   };
 
   const saveAndHide = async () => {
     const content = editorRef.current?.getContent() ?? "";
 
-    if (content.trim() !== "") {
-      try {
-        await createNote({ content });
-      } catch (error) {
-        setMood("failed");
-        // Keep the jot on screen -- hiding would lose it.
-        toast.add({
-          description: reasonOf(error),
-          title: "could not save the capture",
-          type: "error",
-        });
-
-        return;
-      }
+    if (content.trim() !== "" && (await writeJotOrReport(content)) === null) {
+      return;
     }
 
     await resetAndHide();
+  };
+
+  const handOff = async (jot: JotContinued | null) => {
+    try {
+      await commands.continueJot(jot);
+    } catch (error) {
+      // The toast lives in this window, so it stays up. A later esc must not
+      // write a saved jot twice.
+      resetCapture();
+      toast.add({
+        description: reasonOf(error),
+        title: "could not open notras",
+        type: jot === null ? "error" : "warning",
+      });
+
+      return;
+    }
+
+    await resetAndHide();
+  };
+
+  const saveAndContinue = async () => {
+    const handle = editorRef.current;
+    const content = handle?.getContent() ?? "";
+
+    if (handle === null || content.trim() === "") {
+      await handOff(null);
+
+      return;
+    }
+
+    const offset = handle.getCaretSourceOffset();
+    const caret = offset === -1 ? content.length : offset;
+    const note = await writeJotOrReport(content);
+
+    if (note !== null) {
+      await handOff({ caret, path: note.path });
+    }
   };
 
   const saveAndQuit = async (ending: Ending) => {
@@ -190,6 +237,12 @@ export function CaptureWindow() {
     },
     {
       callback: () => {
+        void runAlone(saveAndContinue);
+      },
+      hotkey: "Mod+O",
+    },
+    {
+      callback: () => {
         void runAlone(resetAndHide);
       },
       hotkey: "Mod+Shift+Backspace",
@@ -221,8 +274,13 @@ export function CaptureWindow() {
           muted
           size={16}
         />
-        <span className="flex items-center gap-1">
-          <Chord hotkey="Escape" /> saves note
+        <span className="flex items-center gap-3">
+          <span className="flex items-center gap-1">
+            <Chord hotkey="Escape" /> saves note
+          </span>
+          <span className="flex items-center gap-1">
+            <Chord hotkey="Mod+O" /> continues in notras
+          </span>
         </span>
       </footer>
       {/* This window bypasses the router, so it needs its own Toaster. */}

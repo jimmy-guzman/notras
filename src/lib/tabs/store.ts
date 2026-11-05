@@ -69,7 +69,7 @@ let closed: ClosedTab[] = [];
 let chosenTab: string | undefined;
 const loadedNotes = new Map<string, string>();
 
-/** Carets read back at launch, each consumed once by the session that mounts. */
+/** Carets read back at launch or handed over by a jot, each consumed once by the session that mounts. */
 const restored = new Map<string, number>();
 
 const handles = new Map<string, TabHandles>();
@@ -366,6 +366,15 @@ export function openTab(kind: Tab["kind"], path: string, inNewTab = false) {
 
 export function openNote(path: string, inNewTab = false) {
   openTab("note", path, inNewTab);
+}
+
+/** Open a note in a new tab with its caret at `caret`, an offset into its markdown. */
+export function openNoteAtCaret(path: string, caret: number) {
+  const tab = newTab("note", path);
+
+  restored.set(tab.id, caret);
+  setState(openInList(getTabState(), tab, true));
+  chooseActiveTab();
 }
 
 export function openDraft() {

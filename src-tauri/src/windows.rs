@@ -1,7 +1,9 @@
 use notras_core::CommandError;
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Manager, Runtime};
+use tauri_specta::Event as _;
 
+use crate::bindings::JotContinued;
 use crate::settings::Settings;
 
 /// The scheme the app paints in. `Auto` follows the system.
@@ -26,14 +28,13 @@ impl Appearance {
 }
 
 /// Convert shell failures without giving a missing resource the meaning of a deleted note.
-#[cfg(any(target_os = "macos", test))]
 pub(crate) fn tauri_error(error: tauri::Error) -> CommandError {
     let reason = match &error {
         tauri::Error::Io(error) | tauri::Error::CurrentDir(error) => CommandError::io_reason(error),
         tauri::Error::UnknownPath => "The app data folder is unavailable".into(),
         tauri::Error::WindowNotFound => "The window is no longer available".into(),
         tauri::Error::WebviewNotFound => "The webview is no longer available".into(),
-        // Both dispatch sites can fail when the runtime's event loop has closed.
+        // Dispatching to the runtime fails once its event loop has closed.
         tauri::Error::Runtime(_) => "The app's event loop is unavailable".into(),
         _ => {
             log::error!("unexpected shell failure: {error}");
@@ -48,6 +49,17 @@ pub(crate) fn tauri_error(error: tauri::Error) -> CommandError {
 #[specta::specta]
 pub fn show_capture<R: Runtime>(app: AppHandle<R>) {
     crate::open_capture(&app);
+}
+
+/// Bring up the main window, and open the jot there when one was saved.
+#[tauri::command]
+#[specta::specta]
+pub fn continue_jot<R: Runtime>(
+    app: AppHandle<R>,
+    jot: Option<JotContinued>,
+) -> Result<(), CommandError> {
+    crate::show_main(&app);
+    jot.map_or(Ok(()), |jot| jot.emit(&app).map_err(tauri_error))
 }
 
 #[tauri::command]

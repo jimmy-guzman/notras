@@ -135,6 +135,41 @@ describe("frontmatter", () => {
     });
   });
 
+  it("should read two rules as body rather than a block", () => {
+    const content = "---\n\ntitle: first thing\n\n---\n\nthe rest\n";
+    const parsed = parseNote(content);
+
+    expect(parsed.body).toBe(content);
+    expect(parsed.frontmatter.title).toBeUndefined();
+    expect(parsed.raw).toBeUndefined();
+  });
+
+  it.each([
+    ["a heading", "---\n\nTitle\n---\n\nbody\n"],
+    ["a fence", "---\n\n```yaml\n---\ntitle: x\n---\n```\n"],
+  ])("should read a rule before %s as body", (_, content) => {
+    const parsed = parseNote(content);
+
+    expect(parsed.body).toBe(content);
+    expect(parsed.raw).toBeUndefined();
+  });
+
+  it.each([
+    ["---\npinned: true\n\nauthor: me\n---\nbody\n"],
+    ["---\npinned: true\n\nauthor: me\n\n---\nbody\n"],
+  ])("should keep foreign keys in the block after unpinning %j", (content) => {
+    const unpinned = updateFrontmatter(content, () => ({ pinned: false }));
+
+    expect(parseNote(unpinned).body).toBe("body\n");
+    expect(parseNote(unpinned).raw?.lines[0]).toBe("author: me");
+  });
+
+  it("should remove a block left with only blank lines", () => {
+    expect(
+      updateFrontmatter("---\ntags: [a]\n\n---\nbody\n", () => ({ tags: [] }))
+    ).toBe("body\n");
+  });
+
   describe(composeNote, () => {
     it("should return the body alone when there is no frontmatter", () => {
       expect(composeNote(undefined, "# hi\n")).toBe("# hi\n");

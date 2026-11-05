@@ -1,6 +1,12 @@
-import type { MarkdownTokenizer } from "@tiptap/core";
+import type {
+  JSONContent,
+  MarkdownRendererHelpers,
+  MarkdownTokenizer,
+} from "@tiptap/core";
 import { renderTableToMarkdown, Table } from "@tiptap/extension-table";
 import { Lexer } from "marked";
+
+import { insertSentinel, SENTINEL } from "./sentinel";
 
 // marked's own table rule, sticky: it stops at the first line that is not a
 // row, where upstream searches on to the next blank line.
@@ -31,10 +37,43 @@ const table = upstream(Table);
 // two tables, one more per save.
 const TABLE_PADDING = /^\n|\n$/gu;
 
+function renderTable(node: JSONContent, helpers: MarkdownRendererHelpers) {
+  return renderTableToMarkdown(node, helpers).replaceAll(TABLE_PADDING, "");
+}
+
+/**
+ * The table as it reads without the sentinel, with the sentinel put back at its
+ * row and column. Left in a cell it widens the column, which moves every row
+ * below it and leaves the block unable to keep the text the file wrote.
+ */
+function renderSentinelTable(
+  node: JSONContent,
+  helpers: MarkdownRendererHelpers,
+  marked: string
+) {
+  const offset = marked.indexOf(SENTINEL);
+  const row = marked.slice(0, offset).split("\n").length - 1;
+  const column = offset - (marked.lastIndexOf("\n", offset) + 1);
+
+  const plain = renderTable(node, {
+    ...helpers,
+    renderChildren: (...args) =>
+      helpers.renderChildren(...args).replaceAll(SENTINEL, ""),
+  });
+
+  const rowStart = plain
+    .split("\n")
+    .slice(0, row)
+    .reduce((total, line) => total + line.length + 1, 0);
+
+  return insertSentinel(plain, rowStart + column);
+}
+
 /**
  * Through 3.32.1 upstream splits the whole remaining input at every block.
  *
- * TODO: drop the wrapper once `@tiptap/extension-table` bounds its own scan.
+ * TODO: drop the tokenizer override once `@tiptap/extension-table` bounds its
+ * own scan.
  */
 export const BoundedTable = Table.extend({
   markdownTokenizer: {
@@ -48,6 +87,11 @@ export const BoundedTable = Table.extend({
         : table.tokenize(found, tokens, lexer);
     },
   },
-  renderMarkdown: (node, helpers) =>
-    renderTableToMarkdown(node, helpers).replaceAll(TABLE_PADDING, ""),
+  renderMarkdown: (node, helpers) => {
+    const marked = renderTable(node, helpers);
+
+    return marked.split(SENTINEL).length === 2
+      ? renderSentinelTable(node, helpers, marked)
+      : marked;
+  },
 });

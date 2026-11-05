@@ -66,6 +66,11 @@ export const commands = {
 	 *  on a paper narrower than 8in.
 	 */
 	pdfLayoutWidth: () => __TAURI_INVOKE<number | null>("pdf_layout_width"),
+	/**  Bring up the main window, and open the jot there when one was saved. */
+	continueJot: (jot: {
+	caret: number,
+	path: string,
+} | null) => __TAURI_INVOKE<null>("continue_jot", { jot }),
 	getAppearance: () => __TAURI_INVOKE<Appearance>("get_appearance"),
 	/**
 	 *  Save the appearance, then paint it. A choice the next launch would forget
@@ -82,6 +87,7 @@ export const commands = {
 export const events = {
 	appQuit: makeEvent<AppQuit>("app-quit"),
 	indexStatus: makeEvent<IndexStatus>("index-status"),
+	jotContinued: makeEvent<JotContinued>("jot-continued"),
 	mutationWarnings: makeEvent<MutationWarnings>("mutation-warnings"),
 	notesChanged: makeEvent<NotesChanged>("notes-changed"),
 };
@@ -166,6 +172,15 @@ export type HubPill = {
 };
 
 export type IndexStatus = { state: "scanning" } | { state: "ready" } | { state: "failed"; reason: string };
+
+/**
+ *  A saved jot for the main window to open, with the caret where the writing
+ *  stopped, as an offset into the note's markdown.
+ */
+export type JotContinued = {
+	caret: number,
+	path: string,
+};
 
 export type Mention = {
 	lines: MentionLine[],

@@ -4,6 +4,7 @@ import { openUrl } from "@tauri-apps/plugin-opener";
 import type { Editor as TiptapEditor } from "@tiptap/core";
 import {
   Extension,
+  findParentNodeClosestToPos,
   getMarkRange,
   getTextBetween,
   getTextSerializersFromSchema,
@@ -474,10 +475,25 @@ function sourceOffset(
   state = editor.state
 ) {
   try {
-    return fileMarkdown(
-      converterOf(editor),
+    const converter = converterOf(editor);
+
+    const marked = fileMarkdown(
+      converter,
       state.apply(state.tr.insertText(SENTINEL, position)).doc
-    ).indexOf(SENTINEL);
+    );
+
+    const inTable =
+      findParentNodeClosestToPos(
+        state.doc.resolve(position),
+        (node) => node.type.name === "table"
+      ) !== undefined;
+
+    // A table that cannot keep the file's text renders with other padding, so
+    // an offset into that render says nothing about the file.
+    return inTable &&
+      marked.replace(SENTINEL, "") !== fileMarkdown(converter, state.doc)
+      ? -1
+      : marked.indexOf(SENTINEL);
   } catch {
     return -1;
   }
@@ -513,6 +529,27 @@ function positionInDocument(
   const clean = editor.schema.nodeFromJSON(manager.parse(content));
 
   return Math.min(findSentinel(marked) ?? 1, clean.content.size);
+}
+
+/** The last cell of the table row `offset` follows, or the end of the note. */
+function lostSelection(editor: TiptapEditor, content: string, offset: number) {
+  const { doc } = editor.state;
+  const row = content.slice(0, offset).trimEnd();
+
+  // A pipe in a link or a surplus cell loses the sentinel a second time.
+  const cell = row.endsWith("|")
+    ? findSentinel(
+        editor.schema.nodeFromJSON(
+          converterOf(editor).parse(
+            insertSentinel(content, row.slice(0, -1).trimEnd().length)
+          )
+        )
+      )
+    : null;
+
+  return cell === null
+    ? Selection.atEnd(doc)
+    : Selection.near(doc.resolve(Math.min(cell, doc.content.size)), -1);
 }
 
 export interface EditorHandle {
@@ -1192,10 +1229,24 @@ export function Editor(mountProps: EditorProps) {
     const pos =
       config.stripSentinel === true ? findSentinel(editor.state.doc) : null;
 
+    // Past a table's last pipe the parser drops the sentinel, and in a link it
+    // keeps it in an attribute, so `pos` cannot say whether the text holds one.
     const cleanBody =
-      pos === null
-        ? config.initialContent
-        : config.initialContent.replaceAll(SENTINEL, "");
+      config.stripSentinel === true
+        ? config.initialContent.replaceAll(SENTINEL, "")
+        : config.initialContent;
+
+    const lost = pos === null && cleanBody !== config.initialContent;
+
+    if (lost) {
+      suppressChangeRef.current = true;
+      editor
+        .chain()
+        .setMeta("addToHistory", false)
+        .setContent(cleanBody, { contentType: "markdown", emitUpdate: false })
+        .run();
+      suppressChangeRef.current = false;
+    }
 
     if (pos !== null) {
       // Remove the sentinel outside history and without notifying autosave;
@@ -1242,9 +1293,17 @@ export function Editor(mountProps: EditorProps) {
 
     const { doc } = editor.state;
 
+    const unplaced = lost
+      ? lostSelection(
+          editor,
+          cleanBody,
+          config.initialContent.indexOf(SENTINEL)
+        )
+      : Selection.atStart(doc);
+
     const selection =
       pos === null
-        ? Selection.atStart(doc)
+        ? unplaced
         : TextSelection.create(doc, Math.min(pos, doc.content.size));
 
     const chain = editor.chain();
