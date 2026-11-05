@@ -18,8 +18,8 @@ function spans(before: string[], source: string[]) {
   });
 }
 
-/** The source line standing where `row` stands, when the two line up. */
-function sourceRow(before: string[], source: string[], row: number) {
+/** The line standing where `row` stands, when the two line up. */
+function alignedRow(before: string[], source: string[], row: number) {
   let shift = 0;
 
   for (const span of spans(before, source)) {
@@ -37,6 +37,39 @@ function sourceRow(before: string[], source: string[], row: number) {
   }
 
   return row + shift;
+}
+
+/** Nothing on the row but space or a quote's markers. */
+const BLANK_ROW = /^[\s>]*$/u;
+
+function filledRows(lines: string[]) {
+  return lines.flatMap((line, index) =>
+    BLANK_ROW.test(line) ? [] : [{ index, text: line.replaceAll(/\s/gu, "") }]
+  );
+}
+
+/**
+ * The source line standing where `row` stands. A render can drop the file's
+ * blank lines and pad its rows, which anchors a diff on the wrong blank line,
+ * so rows that do not line up are compared without either.
+ */
+function sourceRow(before: string[], source: string[], row: number) {
+  const aligned = alignedRow(before, source, row);
+
+  if (aligned !== null) {
+    return aligned;
+  }
+
+  const rows = filledRows(before);
+  const sourceRows = filledRows(source);
+
+  const filled = alignedRow(
+    rows.map(({ text }) => text),
+    sourceRows.map(({ text }) => text),
+    rows.findIndex(({ index }) => index === row)
+  );
+
+  return filled === null ? null : (sourceRows[filled]?.index ?? null);
 }
 
 /**
@@ -145,4 +178,31 @@ export function carryChange(
   return from === null || to === null
     ? null
     : source.slice(0, from) + change.text + source.slice(to);
+}
+
+function rowIndent(line: string | undefined) {
+  return /^[\s>]*/u.exec(line ?? "")?.[0];
+}
+
+/**
+ * Whether the rows a carry rewrote stand at the indent of the rows they
+ * replaced. A carry writes the render's indent, which the file can spell
+ * differently, and an external reader leaves a row out of its table or list
+ * at any other indent. A change inside one row leaves that row's indent be.
+ */
+export function keepsRowIndents(source: string, carried: string) {
+  const sourceLines = source.split("\n");
+  const lines = carried.split("\n");
+
+  return spans(sourceLines, lines).every(
+    ({ from, length, sourceFrom, sourceLength }) =>
+      (length === 1 && sourceLength === 1) ||
+      lines
+        .slice(sourceFrom, sourceFrom + sourceLength)
+        .every(
+          (line) =>
+            rowIndent(line) ===
+            rowIndent(sourceLines[Math.min(from, sourceLines.length - 1)])
+        )
+  );
 }

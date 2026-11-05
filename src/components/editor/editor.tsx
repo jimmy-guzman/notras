@@ -42,6 +42,7 @@ import { commands } from "@/server/adapters/bindings";
 
 import type { WatchEmbed } from "./embed";
 import {
+  caretKey,
   converterOf,
   copiedMarkdown,
   createEditorExtensions,
@@ -494,7 +495,9 @@ function sourceOffset(
 
     const marked = fileMarkdown(
       converter,
-      state.apply(state.tr.insertText(SENTINEL, position)).doc
+      state.apply(
+        state.tr.insertText(SENTINEL, position).setMeta(caretKey, true)
+      ).doc
     );
 
     const inTable =

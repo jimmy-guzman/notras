@@ -3985,13 +3985,40 @@ describe("markdown written elsewhere", () => {
       "a cell the file spells differently",
       "|a|b|\n|-|-|\n|&lt;div&gt;|2|\n",
       "<div>",
+      "|a|b|\n|-|-|\n|&lt;d".length,
     ],
+    ["a paragraph the file spells differently", "&lt;div&gt;\n", "<div>", 5],
     [
       "a table in a list",
       "- item\n\n  |a|b|\n  |-|-|\n  |wide cell|2|\n",
       "wide cell",
+      "- item\n\n  |a|b|\n  |-|-|\n  |wi".length,
     ],
-  ])("should report no caret offset in %s", async (_, initialContent, text) => {
+    [
+      "a table after a paragraph in a list",
+      "- item\n\n  more\n\n  |a|b|\n  |-|-|\n  |wide cell|2|\n",
+      "wide cell",
+      "- item\n\n  more\n\n  |a|b|\n  |-|-|\n  |wi".length,
+    ],
+    [
+      "a table in a list in a quote",
+      "> - item\n>\n>   |a|b|\n>   |-|-|\n>   |wide cell|2|\n",
+      "wide cell",
+      "> - item\n>\n>   |a|b|\n>   |-|-|\n>   |wi".length,
+    ],
+    [
+      "a paragraph after a setext heading in a list",
+      "- item\n\n  Title\n  ---\n\n  &lt;div&gt;\n",
+      "<div>",
+      "- item\n\n  Title\n  ---\n\n  &lt;d".length,
+    ],
+    [
+      "a blank line of a fence after a table in a list",
+      "- item\n\n  |a|b|\n  |-|-|\n  |x|y|\n\n  ```\n  a\n\n  b\n  ```\n",
+      "a\n\nb",
+      "- item\n\n  |a|b|\n  |-|-|\n  |x|y|\n\n  ```\n  a\n".length,
+    ],
+  ])("should find the caret in %s", async (_, initialContent, text, offset) => {
     const { editor, handle } = await mount({ initialContent });
     const positions: number[] = [];
 
@@ -4004,7 +4031,173 @@ describe("markdown written elsewhere", () => {
       editor.commands.setTextSelection(positions[0] ?? -1);
     });
 
+    expect(handle.getCaretSourceOffset()).toBe(offset);
+  });
+
+  it.each([
+    [
+      "a table with a paragraph after it in a list",
+      "- item\n\n  |a|b|\n  |-|-|\n  |x|y|\n\n  tail\n",
+      "- item\n\n  |a|b|\n  |-|-|\n  |x".length,
+    ],
+    [
+      "a table with a paragraph after it in a list in a quote",
+      "> - item\n>\n>   |a|b|\n>   |-|-|\n>   |x|y|\n>\n> tail\n",
+      "> - item\n>\n>   |a|b|\n>   |-|-|\n>   |x".length,
+    ],
+    [
+      "a table with a paragraph and a fence after it in a list",
+      "- item\n\n  |a|b|\n  |-|-|\n  |x|y|\n\n  tail\n\n  ```\n  code\n  ```\n",
+      "- item\n\n  |a|b|\n  |-|-|\n  |x".length,
+    ],
+    [
+      "a table under a setext heading in a list",
+      "- item\n\n  Title\n  ---\n\n  |a|b|\n  |-|-|\n  |x|y|\n",
+      "- item\n\n  Title\n  ---\n\n  |a|b|\n  |-|-|\n  |x".length,
+    ],
+  ])(
+    "should find the caret after a cell in %s",
+    async (_, initialContent, offset) => {
+      const { editor, handle } = await mount({ initialContent });
+      const positions: number[] = [];
+
+      editor.state.doc.descendants((node, pos) => {
+        if (node.text === "x") {
+          positions.push(pos + 1);
+        }
+      });
+      act(() => {
+        editor.commands.setTextSelection(positions[0] ?? -1);
+      });
+
+      expect(handle.getCaretSourceOffset()).toBe(offset);
+    }
+  );
+
+  it("should report no caret offset in a cell the file spells in no shared text", async () => {
+    const { editor, handle } = await mount({
+      initialContent: "|a|b|\n|-|-|\n|&#60;&#62;|2|\n",
+    });
+
+    const positions: number[] = [];
+
+    editor.state.doc.descendants((node, pos) => {
+      if (node.text === "<>") {
+        positions.push(pos + 1);
+      }
+    });
+    act(() => {
+      editor.commands.setTextSelection(positions[0] ?? -1);
+    });
+
     expect(handle.getCaretSourceOffset()).toBe(-1);
+  });
+
+  it("should keep the file's text when a cell of a table in a list changes", async () => {
+    const { editor, handle } = await mount({
+      initialContent: "- item\n\n  |a|b|\n  |-|-|\n  |x|2|\n  |x|2|\n",
+    });
+
+    const positions: number[] = [];
+
+    editor.state.doc.descendants((node, pos) => {
+      if (node.text === "2") {
+        positions.push(pos);
+      }
+    });
+    act(() => {
+      const from = positions[0] ?? -1;
+
+      editor.commands.insertContentAt({ from, to: from + 1 }, "3");
+    });
+
+    expect(handle.getContent()).toBe(
+      "- item\n\n  |a|b|\n  |-|-|\n  |x|3|\n  |x|2|\n"
+    );
+  });
+
+  it.each([
+    ["an asterisk pair", " *\uE000*", "start \\*\uE000\\*\n"],
+    ["an underscore pair", " _\uE000_", "start \\_\uE000\\_\n"],
+    ["a wikilink's brackets", " [[\uE000]]", "start \\[\\[\uE000\\]\\]\n"],
+  ])(
+    "should keep the escapes of %s around a private use character",
+    async (_, typed, written) => {
+      const { editor, handle } = await mount({ initialContent: "start\n" });
+
+      act(() => {
+        editor.commands.insertContentAt(
+          editor.state.doc.content.size - 1,
+          typed
+        );
+      });
+
+      expect(handle.getContent()).toBe(written);
+    }
+  );
+
+  it("should keep every row's indent when a cell of a table in a list widens", async () => {
+    const { editor, handle } = await mount({
+      initialContent: "- item\n\n  |a|b|\n  |-|-|\n  |wide cell|2|\n",
+    });
+
+    const positions: number[] = [];
+
+    editor.state.doc.descendants((node, pos) => {
+      if (node.text === "wide cell") {
+        positions.push(pos + "wide cell".length);
+      }
+    });
+    act(() => {
+      editor.commands.insertContentAt(positions[0] ?? -1, "x");
+    });
+
+    expect(handle.getContent()).toBe(
+      "- item\n\n  |a | b   |\n  | ---------- | --- |\n  | wide cellx|2|\n"
+    );
+  });
+
+  it("should render a table in a list whole when a column goes and a row would lose its indent", async () => {
+    const { editor, handle } = await mount({
+      initialContent: "- item\n\n  |a|b|\n  |-|-|\n  |one|2|\n  |two|3|\n",
+    });
+
+    const positions: number[] = [];
+
+    editor.state.doc.descendants((node, pos) => {
+      if (node.text === "one") {
+        positions.push(pos);
+      }
+    });
+    act(() => {
+      editor.commands.setTextSelection(positions[0] ?? -1);
+      editor.commands.deleteColumn();
+    });
+
+    expect(handle.getContent()).toBe(
+      "- item\n  | b   |\n  | --- |\n  | 2   |\n  | 3   |\n"
+    );
+  });
+
+  it("should render a table in a list whole when the file indents its rows past the render", async () => {
+    const { editor, handle } = await mount({
+      initialContent: "-   item\n\n    |a|b|\n    |-|-|\n    |x|y|\n",
+    });
+
+    const positions: number[] = [];
+
+    editor.state.doc.descendants((node, pos) => {
+      if (node.text === "b") {
+        positions.push(pos + "b".length);
+      }
+    });
+    act(() => {
+      editor.commands.insertContentAt(positions[0] ?? -1, "widened");
+    });
+
+    expect(handle.getContent()).toBe(
+      "- item\n  | a   | bwidened |\n  | --- | -------- |\n  | x   | y        |\n"
+    );
   });
 
   it("should land an edit when the serializer throws while carrying it", async () => {
