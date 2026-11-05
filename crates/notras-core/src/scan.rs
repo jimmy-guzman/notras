@@ -72,15 +72,18 @@ impl Scan {
 
     /// An image has no index row to change, and neither has anything in the
     /// attachments store but a note, so each is reported as seen. A removed path
-    /// cannot say whether it was a folder, so the whole store counts. Taken up
-    /// front, since a folder change in the batch replaces the entries with a walk.
+    /// cannot say whether it was a folder, so the whole store counts. A folder the
+    /// index already holds has no row to change either, though its images may have.
+    /// Taken up front, since a folder change in the batch replaces the entries with
+    /// a walk.
     pub(crate) fn observed(root: &Path, paths: Vec<PathBuf>) -> Self {
         let seen = paths
             .iter()
             .filter_map(|path| {
                 let relative = index::relative_path(root, path)?;
                 let note = path.is_file() && index::is_note_file(path);
-                (is_image_path(&relative) || !(index::is_note_folder(&relative) || note))
+                let folder = path.is_dir() && !relative.is_empty();
+                (is_image_path(&relative) || folder || !(index::is_note_folder(&relative) || note))
                     .then(|| reported_folder_path(&relative))
             })
             .collect();
@@ -319,7 +322,10 @@ impl Scan {
         Ok(false)
     }
 
-    pub(crate) fn finish(self) -> ScanReport {
+    /// A path can be reported up front and again by the walk, so each lands once.
+    pub(crate) fn finish(mut self) -> ScanReport {
+        self.report.changed.sort_unstable();
+        self.report.changed.dedup();
         self.report
     }
 }
@@ -544,6 +550,39 @@ mod tests {
 
         fs::remove_dir_all(&shots).unwrap();
         assert_eq!(observe(vec![shots]), ["shots.md/"]);
+    }
+
+    #[test]
+    fn should_report_an_observed_folder_the_index_already_holds() {
+        let directory = tempfile::tempdir().unwrap();
+        fs::create_dir(directory.path().join("shots")).unwrap();
+        fs::create_dir(directory.path().join("shots.md")).unwrap();
+        let library = Library::open(directory.path(), &directory.path().join(".index")).unwrap();
+        let observe = |paths: Vec<std::path::PathBuf>| {
+            let mut scan = library.begin_observations(paths);
+            while !library.advance_scan(&mut scan).unwrap() {}
+            library.finish_scan(scan).unwrap()
+        };
+        let shots = library.directory().join("shots");
+        let named_like_a_note = library.directory().join("shots.md");
+        observe(vec![shots.clone()]);
+
+        fs::write(shots.join("photo.png"), [0]).unwrap();
+        fs::write(named_like_a_note.join("photo.png"), [0]).unwrap();
+
+        assert_eq!(observe(vec![shots]), ["shots"]);
+        assert_eq!(observe(vec![named_like_a_note]), ["shots.md/"]);
+    }
+
+    #[test]
+    fn should_not_report_the_library_root_when_it_is_observed() {
+        let directory = tempfile::tempdir().unwrap();
+        let library = Library::open(directory.path(), &directory.path().join(".index")).unwrap();
+        let mut scan = library.begin_observations(vec![library.directory().to_path_buf()]);
+
+        while !library.advance_scan(&mut scan).unwrap() {}
+
+        assert!(library.finish_scan(scan).unwrap().is_empty());
     }
 
     #[test]
