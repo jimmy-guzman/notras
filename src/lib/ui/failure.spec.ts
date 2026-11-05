@@ -34,9 +34,13 @@ describe(reasonOf, () => {
     expect(reasonOf(new Error("   "))).toBeUndefined();
   });
 
-  // A Tauri command rejects with whatever Rust returns, so this branch is the
-  // one the app reaches when a command fails before it runs.
-  it("should return nothing when the rejection is not an error", () => {
-    expect(reasonOf("write failed")).toBeUndefined();
+  // Tauri rejects with a bare string when a command fails before it runs,
+  // because its arguments did not parse.
+  it("should return the trimmed reason from a bare string rejection", () => {
+    expect(reasonOf("  write failed  ")).toBe("write failed");
+  });
+
+  it("should return nothing when a bare string rejection is blank", () => {
+    expect(reasonOf("   ")).toBeUndefined();
   });
 });

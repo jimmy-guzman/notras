@@ -51,14 +51,28 @@ export function CaptureWindow() {
   );
   useHotkey("Mod+F", find.open, { meta: { name: "find in note" } });
 
+  const runReported = async (task: () => Promise<void>) => {
+    try {
+      await task();
+    } catch (error) {
+      setMood("failed");
+      toast.add({
+        description: reasonOf(error),
+        title: "could not save the capture",
+        type: "error",
+      });
+    }
+  };
+
   // Esc, ⌘⏎, ⌘O, close and quit all write the jot, and two overlapping runs would
-  // write it twice, with the second copy taking a collision suffix.
+  // write it twice, with the second copy taking a collision suffix. A quit waits
+  // on this promise, so a rejection would stop it answering Rust.
   const runAlone = async (task: () => Promise<void>) => {
     if (busyRef.current !== null) {
       return;
     }
 
-    busyRef.current = task();
+    busyRef.current = runReported(task);
     await busyRef.current;
     busyRef.current = null;
   };
@@ -140,41 +154,46 @@ export function CaptureWindow() {
   };
 
   const saveAndQuit = async (ending: Ending) => {
-    const content = editorRef.current?.getContent() ?? "";
+    try {
+      const content = editorRef.current?.getContent() ?? "";
 
-    if (content.trim() !== "") {
-      try {
+      if (content.trim() !== "") {
         await createNote({ content });
-      } catch (error) {
-        setMood("failed");
-        toast.add(
-          ending === "restart"
-            ? {
-                description: `${reasonOf(error)}, so the update applies on next launch`,
-                title: "could not restart into the update",
-                type: "error",
-              }
-            : {
-                description: reasonOf(error),
-                title: "could not save the capture",
-                type: "error",
-              }
-        );
-
-        // A cancel Rust cannot hear ends in its backstop ending the app with
-        // the jot unsaved, so this one failure is said out loud.
-        try {
-          await commands.cancelQuit();
-        } catch (cancelError) {
-          toast.add({
-            description: reasonOf(cancelError),
-            title: "could not cancel the quit",
-            type: "error",
-          });
-        }
-
-        return;
       }
+    } catch (error) {
+      const reason = reasonOf(error);
+
+      setMood("failed");
+      toast.add(
+        ending === "restart"
+          ? {
+              description:
+                reason === undefined
+                  ? "The update applies on next launch"
+                  : `${reason}, so the update applies on next launch`,
+              title: "could not restart into the update",
+              type: "error",
+            }
+          : {
+              description: reason,
+              title: "could not save the capture",
+              type: "error",
+            }
+      );
+
+      // A cancel Rust cannot hear ends in its backstop ending the app with
+      // the jot unsaved, so this one failure is said out loud.
+      try {
+        await commands.cancelQuit();
+      } catch (cancelError) {
+        toast.add({
+          description: reasonOf(cancelError),
+          title: "could not cancel the quit",
+          type: "error",
+        });
+      }
+
+      return;
     }
 
     // Another window can still call the quit off, and a jot left on screen
