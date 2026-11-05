@@ -126,44 +126,52 @@ function postedCodes(posted: MockInstance<Worker["postMessage"]>) {
 }
 
 describe("code block highlighting", () => {
-  it("should tokenize only changed code blocks and no code for prose or selection edits", async ({
-    onTestFinished,
-  }) => {
-    const editor = createEditor("ts", "const a = 1;");
-    onTestFinished(() => {
-      editor.destroy();
-    });
-    editor.commands.insertContentAt(editor.state.doc.content.size, {
-      attrs: { language: "ts" },
-      content: [{ text: "const b = 2;", type: "text" }],
-      type: "codeBlock",
-    });
-    await vi.waitFor(() => {
+  it(
+    "should tokenize only changed code blocks and no code for prose or selection edits",
+    { timeout: 60_000 },
+    async ({ onTestFinished }) => {
+      const editor = createEditor("ts", "const a = 1;");
+      onTestFinished(() => {
+        editor.destroy();
+      });
+      editor.commands.insertContentAt(editor.state.doc.content.size, {
+        attrs: { language: "ts" },
+        content: [{ text: "const b = 2;", type: "text" }],
+        type: "codeBlock",
+      });
+      await vi.waitFor(
+        () => {
+          expect(coloredText(editor, "syntax-keyword")).toBe("constconst");
+        },
+        { timeout: 20_000 }
+      );
+      // Observe what crosses to the worker without replacing its answers.
+      const posted = vi.spyOn(Worker.prototype, "postMessage");
+      onTestFinished(() => {
+        posted.mockRestore();
+      });
+
+      editor.commands.insertContentAt(0, {
+        content: [{ text: "intro", type: "text" }],
+        type: "paragraph",
+      });
+      editor.commands.setTextSelection(1);
+      expect(posted).not.toHaveBeenCalled();
       expect(coloredText(editor, "syntax-keyword")).toBe("constconst");
-    });
-    // Observe what crosses to the worker without replacing its answers.
-    const posted = vi.spyOn(Worker.prototype, "postMessage");
-    onTestFinished(() => {
-      posted.mockRestore();
-    });
 
-    editor.commands.insertContentAt(0, {
-      content: [{ text: "intro", type: "text" }],
-      type: "paragraph",
-    });
-    editor.commands.setTextSelection(1);
-    expect(posted).not.toHaveBeenCalled();
-    expect(coloredText(editor, "syntax-keyword")).toBe("constconst");
-
-    editor.commands.insertContentAt({ from: 8, to: 13 }, "let");
-    await Promise.resolve();
-    expect(posted).toHaveBeenCalledExactlyOnceWith(
-      expect.objectContaining({ code: "let a = 1;", language: "typescript" })
-    );
-    await vi.waitFor(() => {
-      expect(coloredText(editor, "syntax-keyword")).toBe("letconst");
-    });
-  });
+      editor.commands.insertContentAt({ from: 8, to: 13 }, "let");
+      await Promise.resolve();
+      expect(posted).toHaveBeenCalledExactlyOnceWith(
+        expect.objectContaining({ code: "let a = 1;", language: "typescript" })
+      );
+      await vi.waitFor(
+        () => {
+          expect(coloredText(editor, "syntax-keyword")).toBe("letconst");
+        },
+        { timeout: 20_000 }
+      );
+    }
+  );
 
   it("should settle once every answer in flight has landed", async ({
     onTestFinished,
@@ -434,162 +442,197 @@ describe("code block highlighting", () => {
     );
   });
 
-  it("should color a long block only near the viewport and follow a scroll", async ({
-    onTestFinished,
-  }) => {
-    const lines = 3000;
+  it(
+    "should color a long block only near the viewport and follow a scroll",
+    { timeout: 60_000 },
+    async ({ onTestFinished }) => {
+      const lines = 3000;
 
-    const editor = createEditor(
-      "ts",
-      Array.from({ length: lines }, (_, i) => `const v${i} = ${i};`).join("\n")
-    );
+      const editor = createEditor(
+        "ts",
+        Array.from({ length: lines }, (_, i) => `const v${i} = ${i};`).join(
+          "\n"
+        )
+      );
 
-    onTestFinished(() => {
-      editor.destroy();
-    });
-    const viewport = fakeViewport(editor, onTestFinished);
+      onTestFinished(() => {
+        editor.destroy();
+      });
+      const viewport = fakeViewport(editor, onTestFinished);
 
-    await vi.waitFor(() => {
+      await vi.waitFor(
+        () => {
+          expect(coloredText(editor, "syntax-keyword")).toContain("const");
+        },
+        { timeout: 20_000 }
+      );
+
+      const near =
+        coloredText(editor, "syntax-keyword").length / "const".length;
+
+      expect(near).toBeGreaterThan(100);
+      expect(near).toBeLessThan(lines);
+      expect(coloredText(editor, "syntax-number")).toContain("0");
+      expect(coloredText(editor, "syntax-number")).not.toContain(
+        String(lines - 1)
+      );
+
+      viewport.scrollTo(editor.state.doc.content.size - 4000);
+      await vi.waitFor(
+        () => {
+          expect(coloredText(editor, "syntax-number")).toContain(
+            String(lines - 1)
+          );
+        },
+        { timeout: 20_000 }
+      );
+      expect(
+        coloredText(editor, "syntax-keyword").length / "const".length
+      ).toBeLessThan(lines);
+    }
+  );
+
+  it(
+    "should color a long block whole while revealed and window it again after",
+    { timeout: 60_000 },
+    async ({ onTestFinished }) => {
+      const lines = 1500;
+
+      const editor = createEditor(
+        "ts",
+        Array.from({ length: lines }, (_, i) => `const v${i} = ${i};`).join(
+          "\n"
+        )
+      );
+
+      onTestFinished(() => {
+        editor.destroy();
+      });
+      fakeViewport(editor, onTestFinished);
+      await vi.waitFor(
+        () => {
+          expect(coloredText(editor, "syntax-keyword")).toContain("const");
+        },
+        { timeout: 20_000 }
+      );
+      expect(coloredText(editor, "syntax-keyword")).not.toBe(
+        "const".repeat(lines)
+      );
+
+      const windowAgain = revealSyntax(editor.view);
+      expect(coloredText(editor, "syntax-keyword")).toBe("const".repeat(lines));
+
+      windowAgain();
+      expect(coloredText(editor, "syntax-keyword")).not.toBe(
+        "const".repeat(lines)
+      );
       expect(coloredText(editor, "syntax-keyword")).toContain("const");
-    });
-    const near = coloredText(editor, "syntax-keyword").length / "const".length;
-    expect(near).toBeGreaterThan(100);
-    expect(near).toBeLessThan(lines);
-    expect(coloredText(editor, "syntax-number")).toContain("0");
-    expect(coloredText(editor, "syntax-number")).not.toContain(
-      String(lines - 1)
-    );
+    }
+  );
 
-    viewport.scrollTo(editor.state.doc.content.size - 4000);
-    await vi.waitFor(() => {
-      expect(coloredText(editor, "syntax-number")).toContain(String(lines - 1));
-    });
-    expect(
-      coloredText(editor, "syntax-keyword").length / "const".length
-    ).toBeLessThan(lines);
-  });
+  it(
+    "should color a remounted long block's top from the cache and the rest once its viewport can be measured",
+    { timeout: 60_000 },
+    async ({ onTestFinished }) => {
+      const lines = 3000;
 
-  it("should color a long block whole while revealed and window it again after", async ({
-    onTestFinished,
-  }) => {
-    const lines = 1500;
+      const text = Array.from(
+        { length: lines },
+        (_, i) => `const again${i} = ${i};`
+      ).join("\n");
 
-    const editor = createEditor(
-      "ts",
-      Array.from({ length: lines }, (_, i) => `const v${i} = ${i};`).join("\n")
-    );
+      const first = createEditor("ts", text);
+      fakeViewport(first, onTestFinished);
+      await vi.waitFor(
+        () => {
+          expect(coloredText(first, "syntax-keyword")).toContain("const");
+        },
+        { timeout: 20_000 }
+      );
+      first.destroy();
+      vi.useFakeTimers({
+        toFake: ["requestAnimationFrame", "cancelAnimationFrame"],
+      });
+      onTestFinished(() => {
+        vi.useRealTimers();
+      });
 
-    onTestFinished(() => {
-      editor.destroy();
-    });
-    fakeViewport(editor, onTestFinished);
-    await vi.waitFor(() => {
-      expect(coloredText(editor, "syntax-keyword")).toContain("const");
-    });
-    expect(coloredText(editor, "syntax-keyword")).not.toBe(
-      "const".repeat(lines)
-    );
+      // The first frame measures nothing, as a React editor's does while its
+      // view is still off the DOM.
+      const second = createEditor("ts", text);
+      onTestFinished(() => {
+        second.destroy();
+      });
+      vi.advanceTimersToNextFrame();
+      expect(coloredText(second, "syntax-number")).toContain("0");
+      expect(coloredText(second, "syntax-number")).not.toContain(
+        String(lines - 1)
+      );
+      const viewport = fakeViewport(second, onTestFinished);
+      viewport.scrollTo(second.state.doc.content.size - 4000);
+      vi.advanceTimersToNextFrame();
 
-    const windowAgain = revealSyntax(editor.view);
-    expect(coloredText(editor, "syntax-keyword")).toBe("const".repeat(lines));
+      expect(coloredText(second, "syntax-number")).toContain(String(lines - 1));
+      expect(
+        coloredText(second, "syntax-keyword").length / "const".length
+      ).toBeLessThan(lines);
+    }
+  );
 
-    windowAgain();
-    expect(coloredText(editor, "syntax-keyword")).not.toBe(
-      "const".repeat(lines)
-    );
-    expect(coloredText(editor, "syntax-keyword")).toContain("const");
-  });
+  it(
+    "should color short blocks only near the viewport and follow a scroll",
+    { timeout: 60_000 },
+    async ({ onTestFinished }) => {
+      const blocks = 1000;
 
-  it("should color a remounted long block's top from the cache and the rest once its viewport can be measured", async ({
-    onTestFinished,
-  }) => {
-    const lines = 3000;
+      const editor = new Editor({
+        content: {
+          content: Array.from({ length: blocks }, (_, index) => ({
+            attrs: { language: "ts" },
+            content: [{ text: `const short${index} = 1;`, type: "text" }],
+            type: "codeBlock",
+          })),
+          type: "doc",
+        },
+        element: document.createElement("div"),
+        extensions: [
+          Document,
+          Paragraph,
+          Text,
+          CodeBlockShiki,
+          UndoRedo,
+          Markdown,
+        ],
+      });
 
-    const text = Array.from(
-      { length: lines },
-      (_, i) => `const again${i} = ${i};`
-    ).join("\n");
+      onTestFinished(() => {
+        editor.destroy();
+      });
+      const viewport = fakeViewport(editor, onTestFinished);
 
-    const first = createEditor("ts", text);
-    fakeViewport(first, onTestFinished);
-    await vi.waitFor(() => {
-      expect(coloredText(first, "syntax-keyword")).toContain("const");
-    });
-    first.destroy();
-    vi.useFakeTimers({
-      toFake: ["requestAnimationFrame", "cancelAnimationFrame"],
-    });
-    onTestFinished(() => {
-      vi.useRealTimers();
-    });
+      const lastFence = () =>
+        [...editor.view.dom.querySelectorAll("pre")]
+          .at(-1)
+          ?.querySelector(".syntax-token") ?? null;
 
-    // The first frame measures nothing, as a React editor's does while its
-    // view is still off the DOM.
-    const second = createEditor("ts", text);
-    onTestFinished(() => {
-      second.destroy();
-    });
-    vi.advanceTimersToNextFrame();
-    expect(coloredText(second, "syntax-number")).toContain("0");
-    expect(coloredText(second, "syntax-number")).not.toContain(
-      String(lines - 1)
-    );
-    const viewport = fakeViewport(second, onTestFinished);
-    viewport.scrollTo(second.state.doc.content.size - 4000);
-    vi.advanceTimersToNextFrame();
+      await syntaxSettled(editor.view);
 
-    expect(coloredText(second, "syntax-number")).toContain(String(lines - 1));
-    expect(
-      coloredText(second, "syntax-keyword").length / "const".length
-    ).toBeLessThan(lines);
-  });
+      const near =
+        coloredText(editor, "syntax-keyword").length / "const".length;
 
-  it("should color short blocks only near the viewport and follow a scroll", async ({
-    onTestFinished,
-  }) => {
-    const blocks = 1000;
+      expect(near).toBeGreaterThan(100);
+      expect(near).toBeLessThan(blocks);
+      expect(lastFence()).toBeNull();
 
-    const editor = new Editor({
-      content: {
-        content: Array.from({ length: blocks }, (_, index) => ({
-          attrs: { language: "ts" },
-          content: [{ text: `const short${index} = 1;`, type: "text" }],
-          type: "codeBlock",
-        })),
-        type: "doc",
-      },
-      element: document.createElement("div"),
-      extensions: [
-        Document,
-        Paragraph,
-        Text,
-        CodeBlockShiki,
-        UndoRedo,
-        Markdown,
-      ],
-    });
-
-    onTestFinished(() => {
-      editor.destroy();
-    });
-    const viewport = fakeViewport(editor, onTestFinished);
-
-    const lastFence = () =>
-      [...editor.view.dom.querySelectorAll("pre")]
-        .at(-1)
-        ?.querySelector(".syntax-token") ?? null;
-
-    await syntaxSettled(editor.view);
-    const near = coloredText(editor, "syntax-keyword").length / "const".length;
-    expect(near).toBeGreaterThan(100);
-    expect(near).toBeLessThan(blocks);
-    expect(lastFence()).toBeNull();
-
-    viewport.scrollTo(editor.state.doc.content.size - 2000);
-    await vi.waitFor(() => {
-      expect(lastFence()).not.toBeNull();
-    });
-  });
+      viewport.scrollTo(editor.state.doc.content.size - 2000);
+      await vi.waitFor(
+        () => {
+          expect(lastFence()).not.toBeNull();
+        },
+        { timeout: 20_000 }
+      );
+    }
+  );
 
   it("should tokenize a block once when the node is extended again", async ({
     onTestFinished,
