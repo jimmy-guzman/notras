@@ -707,6 +707,59 @@ describe("capture window", () => {
       ]);
     });
 
+    it("should hand off the caret in a table cell the file escapes", async () => {
+      const user = userEvent.setup();
+      const handed: unknown[] = [];
+      const written: string[] = [];
+      mockIPC((command, args) => {
+        if (command === "continue_jot") {
+          handed.push(args);
+
+          return null;
+        }
+
+        if (command === "create_note") {
+          const { options } = parse(
+            object({ options: object({ content: string() }) }),
+            args
+          );
+
+          written.push(options.content);
+
+          return { path: "jot.md", updatedAt: 1, warnings: [] };
+        }
+
+        return null;
+      });
+      const editor = await mountCapture();
+      act(() => {
+        editor.commands.setContent("|a|b|\n|-|-|\n|&lt;div&gt;|2|\n", {
+          contentType: "markdown",
+        });
+      });
+      const positions: number[] = [];
+      editor.state.doc.descendants((node, pos) => {
+        if (node.text === "<div>") {
+          positions.push(pos + "<d".length);
+        }
+      });
+      act(() => {
+        editor.commands.setTextSelection(positions[0] ?? -1);
+      });
+      await user.keyboard("{Control>}o{/Control}");
+      await waitFor(() => {
+        expect(handed).toHaveLength(1);
+      });
+      expect(handed).toStrictEqual([
+        {
+          jot: {
+            caret: (written[0]?.indexOf("&lt;div") ?? -1) + "&lt;d".length,
+            path: "jot.md",
+          },
+        },
+      ]);
+    });
+
     it("should show the chord that continues in notras", async () => {
       mockIPC(() => null);
       await mountCapture();
