@@ -164,6 +164,19 @@ describe("frontmatter", () => {
     expect(parseNote(unpinned).raw?.lines[0]).toBe("author: me");
   });
 
+  it.each([
+    ["---\ntags: [a]\n---\n---\ntags: [secret]\n---\nbody\n"],
+    ["---\ntags: [a]\n\n---\n---\ntags: [secret]\n---\nbody\n"],
+  ])(
+    "should keep body text that reads as a block after emptying %j",
+    (content) => {
+      const emptied = updateFrontmatter(content, () => ({ tags: [] }));
+
+      expect(parseNote(emptied).body).toBe("---\ntags: [secret]\n---\nbody\n");
+      expect(parseNote(emptied).frontmatter.tags).toStrictEqual([]);
+    }
+  );
+
   it("should remove a block left with only blank lines", () => {
     expect(
       updateFrontmatter("---\ntags: [a]\n\n---\nbody\n", () => ({ tags: [] }))

@@ -313,9 +313,12 @@ export function updateFrontmatter(
   // Removing the block is for one this update emptied. A block that arrived
   // empty had no owned keys to remove, so `---\n---` survives a no-op patch.
   // A block this rewrites keeps the delimiter the file used; one it creates
-  // gets the `---` notras authors.
+  // gets the `---` notras authors. A body that would read as a block of its own
+  // keeps an empty one ahead of it, or its text would turn into metadata.
   const raw =
-    blockLines.length === 0 && !arrivedEmpty
+    blockLines.length === 0 &&
+    !arrivedEmpty &&
+    parseNote(parsed.body).raw === undefined
       ? undefined
       : { close: parsed.raw?.close ?? "---", lines: blockLines };
 
