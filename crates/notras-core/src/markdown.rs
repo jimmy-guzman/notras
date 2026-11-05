@@ -905,9 +905,10 @@ fn editor_draws(text: &str, candidates: &[DrawnWikilink<'_>]) -> Vec<bool> {
 }
 
 /// The wikilinks and embeds the editor draws in `text`, and `text` with each
-/// of their bytes turned to `%`, so CommonMark reads them as plain text and
-/// opens no link, image or code span inside one. `%` is punctuation like the
-/// brackets it replaces, so emphasis beside a wikilink flanks the same way.
+/// of their bytes but spaces turned to `%`, so CommonMark reads them as plain
+/// text and opens no link, image or code span inside one. `%` is punctuation
+/// like the brackets it replaces, so emphasis beside a wikilink flanks the same
+/// way.
 /// Masking a wikilink can end a code span that hid a later one, so the
 /// decisions repeat until they settle.
 fn masked_wikilinks(text: &str) -> (Vec<DrawnWikilink<'_>>, String) {
@@ -916,19 +917,33 @@ fn masked_wikilinks(text: &str) -> (Vec<DrawnWikilink<'_>>, String) {
         return (candidates, text.to_owned());
     }
     let mut kept = vec![false; candidates.len()];
+    let mut dropped = vec![false; candidates.len()];
     let mut masked = text.to_owned();
 
-    // Each round that changes a decision is followed by another, and a note
-    // that never settles keeps the last round's.
-    for _ in 0..=candidates.len() {
-        let next = editor_draws(&masked, &candidates);
+    // A mask can build what hides its own wikilink, a definition's label for
+    // one, and the wikilink reads as drawn again once unmasked. A wikilink
+    // dropped once stays dropped, so every note settles. Only a settled round
+    // keeps no wikilink inside a link, where their spans would overlap.
+    loop {
+        let next: Vec<_> = editor_draws(&masked, &candidates)
+            .into_iter()
+            .zip(&dropped)
+            .map(|(draws, gone)| draws && !gone)
+            .collect();
         if next == kept {
             break;
+        }
+        for ((gone, was), now) in dropped.iter_mut().zip(&kept).zip(&next) {
+            *gone |= *was && !*now;
         }
         kept = next;
         let mut bytes = text.as_bytes().to_vec();
         for (link, _) in candidates.iter().zip(&kept).filter(|(_, kept)| **kept) {
-            bytes[link.span.clone()].fill(b'%');
+            // A space stays: it is what keeps `[a]([[b c]])` from being a link.
+            bytes[link.span.clone()]
+                .iter_mut()
+                .filter(|byte| !byte.is_ascii_whitespace())
+                .for_each(|byte| *byte = b'%');
         }
         masked = String::from_utf8(bytes).expect("a span starts and ends on an ASCII bracket");
     }
@@ -1564,6 +1579,17 @@ mod tests {
     /// so what the index records and what the editor renders as a pill can be
     /// diffed by eye.
     #[test]
+    fn should_keep_the_rest_of_a_note_whose_mask_hides_a_wikilink() {
+        // `(` leaves the destination invalid until the mask covers it, so this
+        // wikilink never settles as drawn.
+        let body = "*[a]([[b(c]])* [[d]]";
+
+        let found: Vec<&str> = wikilinks(body).iter().map(|link| link.target).collect();
+
+        assert_eq!(found, ["d"]);
+    }
+
+    #[test]
     fn should_find_the_wikilinks_the_editor_renders() {
         // Held one-per-line against rustfmt so this table stays diffable by eye
         // against its twin in `src/components/editor/wikilink.spec.ts`.
@@ -1579,6 +1605,13 @@ mod tests {
             ("[[a|alias]]", &["a|alias"]),
             ("[[a#h]]", &["a#h"]),
             ("[[ spaced ]]", &[" spaced "]),
+            // A space keeps a destination invalid, so the wikilink inside it is drawn.
+            ("*[a]([[b c]])*", &["b c"]),
+            ("*[a]([[b c]])* [[d]]", &["b c", "d"]),
+            ("_[a]([[b c]])_ [[d]]", &["b c", "d"]),
+            ("[label]([[Some Note]])", &["Some Note"]),
+            ("[a]([[b]])", &[]),
+            ("[a]([[b]]) [[c]]", &["c"]),
             ("[[**a**]]", &["**a**"]),
             ("[[a\\]]", &["a\\"]),
             // An embed links to its note, and an escaped `!` leaves a plain wikilink.
