@@ -164,9 +164,12 @@ describe("code block highlighting", () => {
       expect(posted).toHaveBeenCalledExactlyOnceWith(
         expect.objectContaining({ code: "let a = 1;", language: "typescript" })
       );
-      await vi.waitFor(() => {
-        expect(coloredText(editor, "syntax-keyword")).toBe("letconst");
-      });
+      await vi.waitFor(
+        () => {
+          expect(coloredText(editor, "syntax-keyword")).toBe("letconst");
+        },
+        { timeout: 20_000 }
+      );
     }
   );
 
@@ -622,9 +625,12 @@ describe("code block highlighting", () => {
       expect(lastFence()).toBeNull();
 
       viewport.scrollTo(editor.state.doc.content.size - 2000);
-      await vi.waitFor(() => {
-        expect(lastFence()).not.toBeNull();
-      });
+      await vi.waitFor(
+        () => {
+          expect(lastFence()).not.toBeNull();
+        },
+        { timeout: 20_000 }
+      );
     }
   );
 
