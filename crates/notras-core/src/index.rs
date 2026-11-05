@@ -169,6 +169,15 @@ pub fn record_folder(conn: &Connection, rel_path: &str) -> rusqlite::Result<bool
     )? == 1)
 }
 
+/// Whether the index holds a folder at this path.
+pub fn is_recorded_folder(conn: &Connection, rel_path: &str) -> rusqlite::Result<bool> {
+    conn.query_row(
+        "SELECT EXISTS(SELECT 1 FROM folder WHERE path = ?1)",
+        [rel_path],
+        |row| row.get(0),
+    )
+}
+
 /// Forget a folder, answering whether the index held it.
 pub fn remove_folder(conn: &Connection, rel_path: &str) -> rusqlite::Result<bool> {
     Ok(conn.execute("DELETE FROM folder WHERE path = ?1", [rel_path])? == 1)
@@ -313,7 +322,13 @@ pub(crate) fn index_note(
             remove(conn, rel_path)?;
             return Ok(true);
         }
-        Err(error) if error.kind() == io::ErrorKind::NotFound => {
+        // A file in place of a parent folder means the note is gone, as a missing one does.
+        Err(error)
+            if matches!(
+                error.kind(),
+                io::ErrorKind::NotFound | io::ErrorKind::NotADirectory
+            ) =>
+        {
             remove(conn, rel_path)?;
             return Ok(true);
         }
