@@ -21,6 +21,16 @@ enum Entry {
     Observed(PathBuf),
 }
 
+/// A folder named like a note keeps a trailing slash in the report, so a reader
+/// of the report does not take it for a note.
+fn reported_folder_path(relative: &str) -> String {
+    if index::is_note_file(Path::new(relative)) {
+        join(relative, "")
+    } else {
+        relative.to_owned()
+    }
+}
+
 /// A resumable scan of one library. The host serializes each step with file
 /// mutations; no document bytes are retained between steps.
 #[derive(Debug)]
@@ -67,11 +77,11 @@ impl Scan {
     pub(crate) fn observed(root: &Path, paths: Vec<PathBuf>) -> Self {
         let seen = paths
             .iter()
-            .filter_map(|path| index::relative_path(root, path))
-            .filter(|relative| {
-                is_image_path(relative)
-                    || !(index::is_note_folder(relative)
-                        || index::is_note_file(Path::new(relative)))
+            .filter_map(|path| {
+                let relative = index::relative_path(root, path)?;
+                let note = path.is_file() && index::is_note_file(path);
+                (is_image_path(&relative) || !(index::is_note_folder(&relative) || note))
+                    .then(|| reported_folder_path(&relative))
             })
             .collect();
         Self {
@@ -135,7 +145,7 @@ impl Scan {
             return Ok(());
         }
         if index::record_folder(conn, relative)? {
-            self.report.changed.push(relative.to_owned());
+            self.report.changed.push(reported_folder_path(relative));
         }
         self.folders.insert(relative.to_owned());
         Ok(())
@@ -163,7 +173,7 @@ impl Scan {
                 continue;
             }
             if index::remove_folder(conn, &path)? {
-                self.report.changed.push(path);
+                self.report.changed.push(reported_folder_path(&path));
             }
         }
         Ok(())
@@ -245,11 +255,18 @@ impl Scan {
                     let Some(relative) = index::relative_path(&self.root, &path) else {
                         return Ok(false);
                     };
-                    if index::is_note_file(&path) {
-                        self.file(conn, root, &relative)?;
-                    } else if path.is_dir() || !path.exists() {
+                    let note = index::is_note_file(&path);
+                    // The store records no folders, so a path gone from it may have been one.
+                    let unknown_removal =
+                        !path.exists() && !(note && index::is_note_folder(&relative));
+                    if path.is_dir()
+                        || unknown_removal
+                        || index::is_recorded_folder(conn, &relative)?
+                    {
                         self.entries = vec![Entry::Root];
                         self.full = true;
+                    } else if note {
+                        self.file(conn, root, &relative)?;
                     }
                 }
             }
@@ -462,6 +479,148 @@ mod tests {
             library.read_view().unwrap().list_folders().unwrap(),
             ["fresh", "renamed"]
         );
+    }
+
+    #[test]
+    fn should_index_a_folder_named_like_a_note_renamed_into_the_library() {
+        let directory = tempfile::tempdir().unwrap();
+        let outside = tempfile::tempdir().unwrap();
+        fs::create_dir(outside.path().join("archive.md")).unwrap();
+        fs::write(outside.path().join("archive.md/inner.md"), "# Inner").unwrap();
+        let library = Library::open(directory.path(), &directory.path().join(".index")).unwrap();
+        let archive = library.directory().join("archive.md");
+
+        fs::rename(outside.path().join("archive.md"), &archive).unwrap();
+        let mut scan = library.begin_observations(vec![archive]);
+        while !library.advance_scan(&mut scan).unwrap() {}
+        let mut changed = library.finish_scan(scan).unwrap();
+        changed.sort();
+
+        assert_eq!(changed, ["archive.md/", "archive.md/inner.md"]);
+        assert_eq!(
+            library.read_view().unwrap().list_folders().unwrap(),
+            ["archive.md"]
+        );
+    }
+
+    #[test]
+    fn should_forget_a_folder_named_like_a_note_moved_out_of_the_library() {
+        let directory = tempfile::tempdir().unwrap();
+        let outside = tempfile::tempdir().unwrap();
+        fs::create_dir(directory.path().join("archive.md")).unwrap();
+        fs::write(directory.path().join("archive.md/inner.md"), "# Inner").unwrap();
+        let library = Library::open(directory.path(), &directory.path().join(".index")).unwrap();
+        let mut scan = library.begin_scan(false);
+        while !library.advance_scan(&mut scan).unwrap() {}
+        library.finish_scan(scan).unwrap();
+        let archive = library.directory().join("archive.md");
+
+        fs::rename(&archive, outside.path().join("archive.md")).unwrap();
+        let mut moved_scan = library.begin_observations(vec![archive]);
+        while !library.advance_scan(&mut moved_scan).unwrap() {}
+        let mut changed = library.finish_scan(moved_scan).unwrap();
+        changed.sort();
+
+        assert_eq!(changed, ["archive.md/", "archive.md/inner.md"]);
+        let view = library.read_view().unwrap();
+        assert!(view.list_folders().unwrap().is_empty());
+        assert!(view.list_notes(&Default::default()).unwrap().is_empty());
+    }
+
+    #[test]
+    fn should_report_a_folder_named_like_a_note_holding_only_images_as_a_folder() {
+        let directory = tempfile::tempdir().unwrap();
+        fs::create_dir(directory.path().join("shots.md")).unwrap();
+        fs::write(directory.path().join("shots.md/photo.png"), [0]).unwrap();
+        let library = Library::open(directory.path(), &directory.path().join(".index")).unwrap();
+        let shots = library.directory().join("shots.md");
+        let observe = |paths: Vec<std::path::PathBuf>| {
+            let mut scan = library.begin_observations(paths);
+            while !library.advance_scan(&mut scan).unwrap() {}
+            library.finish_scan(scan).unwrap()
+        };
+
+        assert_eq!(observe(vec![shots.clone()]), ["shots.md/"]);
+
+        fs::remove_dir_all(&shots).unwrap();
+        assert_eq!(observe(vec![shots]), ["shots.md/"]);
+    }
+
+    #[test]
+    fn should_report_a_folder_named_like_a_note_moved_through_the_attachments_store() {
+        let directory = tempfile::tempdir().unwrap();
+        fs::create_dir_all(directory.path().join("attachments")).unwrap();
+        let outside = tempfile::tempdir().unwrap();
+        fs::create_dir(outside.path().join("shots.md")).unwrap();
+        fs::write(outside.path().join("shots.md/inner.md"), "# Inner").unwrap();
+        let library = Library::open(directory.path(), &directory.path().join(".index")).unwrap();
+        let shots = library.directory().join("attachments/shots.md");
+        let observe = |paths: Vec<std::path::PathBuf>| {
+            let mut scan = library.begin_observations(paths);
+            while !library.advance_scan(&mut scan).unwrap() {}
+            library.finish_scan(scan).unwrap()
+        };
+
+        fs::rename(outside.path().join("shots.md"), &shots).unwrap();
+        assert!(observe(vec![shots.clone()]).contains(&"attachments/shots.md/".into()));
+
+        fs::remove_dir_all(&shots).unwrap();
+        assert!(observe(vec![shots]).contains(&"attachments/shots.md/".into()));
+        assert!(library
+            .read_view()
+            .unwrap()
+            .list_notes(&Default::default())
+            .unwrap()
+            .is_empty());
+    }
+
+    #[test]
+    fn should_index_a_note_that_replaces_a_folder_of_the_same_name() {
+        let directory = tempfile::tempdir().unwrap();
+        fs::create_dir(directory.path().join("archive.md")).unwrap();
+        fs::write(directory.path().join("archive.md/inner.md"), "# Inner").unwrap();
+        let library = Library::open(directory.path(), &directory.path().join(".index")).unwrap();
+        let mut scan = library.begin_scan(false);
+        while !library.advance_scan(&mut scan).unwrap() {}
+        library.finish_scan(scan).unwrap();
+        let archive = library.directory().join("archive.md");
+
+        fs::remove_dir_all(&archive).unwrap();
+        fs::write(&archive, "# Archive").unwrap();
+        let mut replaced_scan = library.begin_observations(vec![archive]);
+        while !library.advance_scan(&mut replaced_scan).unwrap() {}
+        library.finish_scan(replaced_scan).unwrap();
+
+        let view = library.read_view().unwrap();
+        assert!(view.list_folders().unwrap().is_empty());
+        let notes = view.list_notes(&Default::default()).unwrap();
+        assert_eq!(notes.len(), 1);
+        assert_eq!(notes[0].path, "archive.md");
+    }
+
+    #[test]
+    fn should_not_walk_the_library_for_a_deleted_note() {
+        let directory = tempfile::tempdir().unwrap();
+        fs::write(directory.path().join("gone.md"), "# Gone").unwrap();
+        let library = Library::open(directory.path(), &directory.path().join(".index")).unwrap();
+        let mut scan = library.begin_scan(false);
+        while !library.advance_scan(&mut scan).unwrap() {}
+        library.finish_scan(scan).unwrap();
+        let gone = library.directory().join("gone.md");
+        // A walk would find this note, which no observation names.
+        fs::write(directory.path().join("unobserved.md"), "# Unobserved").unwrap();
+
+        fs::remove_file(&gone).unwrap();
+        let mut deleted_scan = library.begin_observations(vec![gone]);
+        while !library.advance_scan(&mut deleted_scan).unwrap() {}
+
+        assert_eq!(library.finish_scan(deleted_scan).unwrap(), ["gone.md"]);
+        assert!(library
+            .read_view()
+            .unwrap()
+            .list_notes(&Default::default())
+            .unwrap()
+            .is_empty());
     }
 
     #[test]

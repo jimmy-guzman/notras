@@ -13,6 +13,7 @@ pub struct AppQuit {
 }
 
 /// Relative paths whose saved content or index rows changed; empty means the library.
+/// A folder named like a note ends in a slash.
 #[derive(Clone, Deserialize, Serialize, specta::Type, tauri_specta::Event)]
 pub struct NotesChanged {
     pub paths: Vec<String>,

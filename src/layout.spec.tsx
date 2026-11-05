@@ -1422,6 +1422,7 @@ describe("layout", () => {
 
   it.each([
     { change: "its path", paths: ["attachments/a.png"] },
+    { change: "a folder named like a note", paths: ["archive.md/"] },
     { change: "no paths", paths: [] },
   ])(
     "should show an image when a change naming $change lands during a walk",

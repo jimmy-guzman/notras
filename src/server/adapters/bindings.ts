@@ -257,7 +257,10 @@ export type NoteSearch = {
 	query: string,
 };
 
-/**  Relative paths whose saved content or index rows changed; empty means the library. */
+/**
+ *  Relative paths whose saved content or index rows changed; empty means the library.
+ *  A folder named like a note ends in a slash.
+ */
 export type NotesChanged = {
 	paths: string[],
 };
