@@ -704,6 +704,172 @@ describe("embeds", () => {
     ).toHaveAttribute("src", "asset://localhost/notes/attachments/shot.png");
   });
 
+  it("should draw no resize handle on an embedded image", async () => {
+    await mount({
+      initialContent: "![[photo.png]]",
+      watchEmbed: (_title, show) => {
+        show({
+          body: "![photo.png](attachments/photo.png)",
+          image: true,
+          resolveImageSrc: (src) => ({ failure: "", src }),
+        });
+
+        return () => {};
+      },
+    });
+
+    const image = await screen.findByRole("img", { name: "photo.png" });
+
+    expect(image.parentElement?.querySelector(".image-handle")).toBeNull();
+  });
+
+  it.each([
+    { content: "![[a.png]]![[b.png]]", name: "another embed" },
+    { content: "![[a.png]][[Note]]", name: "a wikilink" },
+  ])(
+    "should open the selected image embed with ⌘⇧O when $name follows it",
+    async ({ content }) => {
+      const onWikilinkClick = vi.fn<(title: string) => void>();
+
+      const { editor } = await mount({
+        initialContent: content,
+        onWikilinkClick,
+        watchEmbed: (title, show) => {
+          show({
+            body: `![${title}](attachments/${title})`,
+            image: true,
+            resolveImageSrc: (src) => ({
+              failure: "",
+              src: `asset://localhost/notes/${src}`,
+            }),
+          });
+
+          return () => {};
+        },
+      });
+
+      const image = await screen.findByRole("img", { name: "a.png" });
+
+      Object.defineProperty(image, "naturalWidth", { value: 1 });
+
+      act(() => {
+        editor.commands.setNodeSelection(1);
+        editor.commands.keyboardShortcut("Mod-Shift-o");
+      });
+
+      expect(
+        within(await screen.findByRole("dialog")).getByRole("img", {
+          name: "a.png",
+        })
+      ).toBeInTheDocument();
+      expect(onWikilinkClick).not.toHaveBeenCalled();
+    }
+  );
+
+  it("should follow no link on a click on an image embed", async () => {
+    const onWikilinkClick = vi.fn<(title: string) => void>();
+
+    const { editor } = await mount({
+      initialContent: "![[photo.png]]",
+      onWikilinkClick,
+      watchEmbed: (_title, show) => {
+        show({
+          body: "![photo.png](attachments/photo.png)",
+          image: true,
+          resolveImageSrc: (src) => ({ failure: "", src }),
+        });
+
+        return () => {};
+      },
+    });
+
+    const image = await screen.findByRole("img", { name: "photo.png" });
+
+    expect(clickAt(editor, image, 1, 1)).toBeFalsy();
+    expect(onWikilinkClick).not.toHaveBeenCalled();
+    expect(image.closest(".embed")).not.toHaveAttribute("data-wikilink");
+  });
+
+  it("should open a shown image embed in the viewer with ⌘⇧O beside it", async () => {
+    const onWikilinkClick = vi.fn<(title: string) => void>();
+
+    const { editor } = await mount({
+      initialContent: "![[photo.png]]",
+      onWikilinkClick,
+      watchEmbed: (_title, show) => {
+        show({
+          body: "![photo.png](attachments/photo.png)",
+          image: true,
+          resolveImageSrc: (src) => ({
+            failure: "",
+            src: `asset://localhost/notes/${src}`,
+          }),
+        });
+
+        return () => {};
+      },
+    });
+
+    const image = await screen.findByRole("img", { name: "photo.png" });
+
+    Object.defineProperty(image, "naturalWidth", { value: 1 });
+
+    act(() => {
+      editor.commands.setTextSelection(1);
+      editor.commands.keyboardShortcut("Mod-Shift-o");
+    });
+
+    expect(
+      within(await screen.findByRole("dialog")).getByRole("img", {
+        name: "photo.png",
+      })
+    ).toHaveAttribute("src", "asset://localhost/notes/attachments/photo.png");
+    expect(onWikilinkClick).not.toHaveBeenCalled();
+  });
+
+  it("should stay quiet on a click or ⌘⇧O when an image embed's image is missing", async () => {
+    const onWikilinkClick = vi.fn<(title: string) => void>();
+
+    const { editor } = await mount({
+      initialContent: "![[gone.png]]",
+      onWikilinkClick,
+      watchEmbed: (_title, show) => {
+        show({ failure: 'No image is named "gone.png"', image: true });
+
+        return () => {};
+      },
+    });
+
+    expect(
+      clickAt(editor, screen.getByText('No image is named "gone.png"'), 1, 1)
+    ).toBeFalsy();
+    act(() => {
+      editor.commands.setTextSelection(1);
+      editor.commands.keyboardShortcut("Mod-Shift-o");
+    });
+
+    expect(onWikilinkClick).not.toHaveBeenCalled();
+  });
+
+  it("should open a note embed's note when its body could not be read", async () => {
+    const onWikilinkClick = vi.fn<(title: string) => void>();
+
+    const { editor } = await mount({
+      initialContent: "![[Atlas]]",
+      onWikilinkClick,
+      watchEmbed: (_title, show) => {
+        show({ failure: "No such file" });
+
+        return () => {};
+      },
+    });
+
+    expect(
+      clickAt(editor, screen.getByText("No such file"), 1, 1)
+    ).toBeTruthy();
+    expect(onWikilinkClick).toHaveBeenCalledExactlyOnceWith("Atlas");
+  });
+
   it("should leave a press on a control in the embedded note to that control", async () => {
     const { editor } = await mount({
       initialContent: "![[Atlas]]",
@@ -2678,6 +2844,35 @@ describe("copy", () => {
       expect(handle.getContent().trimEnd()).toBe(`a ![pic](${destination}) b`);
     }
   );
+
+  it.each([
+    "attachments/my%2520photo.png",
+    "attachments/50%2525.png",
+    "attachments/10%25ad.png",
+    "attachments/a%28b.png",
+  ])("should keep the name on disk of an image pasted as %s", async (path) => {
+    const { editor } = await mount({
+      documentPath: () => "a.md",
+      initialContent: `a ![pic](${path}) b`,
+    });
+
+    const copied = copyBetween(
+      editor,
+      rangeOf(editor, "a").from,
+      rangeOf(editor, "b").to
+    );
+
+    const { editor: pasted, handle } = await mount({
+      documentPath: () => "b.md",
+      initialContent: "",
+    });
+
+    pasted.view.dom.dispatchEvent(
+      new ClipboardEvent("paste", { clipboardData: copied })
+    );
+
+    expect(handle.getContent().trimEnd()).toBe(`a ![pic](${path}) b`);
+  });
 
   it.each([
     ["words from a list item", "- first words", "words", "words", "words"],

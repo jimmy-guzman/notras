@@ -27,6 +27,7 @@ export const commands = {
 	getNotesDir: () => __TAURI_INVOKE<string>("get_notes_dir"),
 	indexStatus: () => __TAURI_INVOKE<IndexStatus>("index_status"),
 	listFolders: () => __TAURI_INVOKE<string[]>("list_folders"),
+	listImages: () => __TAURI_INVOKE<ImageList>("list_images"),
 	listNotes: (filters: NoteFilters) => __TAURI_INVOKE<NoteMeta[]>("list_notes", { filters }),
 	listTags: () => __TAURI_INVOKE<CountedTag[]>("list_tags"),
 	readGraph: (target: GraphTarget) => __TAURI_INVOKE<GraphResult>("read_graph", { target }),
@@ -169,6 +170,16 @@ export type Hub = { kind: "folder"; folder: string } | { kind: "tag"; tag: strin
 export type HubPill = {
 	count: number,
 	hub: Hub,
+};
+
+/**
+ *  What a walk found, and the folders it could not list, whose images a miss
+ *  cannot rule out.
+ */
+export type ImageList = {
+	/**  Relative paths, in no promised order. */
+	paths: string[],
+	unreadable: string[],
 };
 
 export type IndexStatus = { state: "scanning" } | { state: "ready" } | { state: "failed"; reason: string };

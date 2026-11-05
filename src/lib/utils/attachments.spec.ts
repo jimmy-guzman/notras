@@ -1,10 +1,11 @@
 import { describe, expect, it } from "vitest";
 
+import imageNames from "../../../fixtures/image-names.json";
 import {
   attachmentDestination,
   attachmentLink,
   decodeAttachmentPath,
-  encodeAttachmentPath,
+  isImageName,
 } from "./attachments";
 
 describe(attachmentLink, () => {
@@ -63,6 +64,32 @@ describe(attachmentLink, () => {
       "![draft (1) #2.png](attachments/draft%20(1)%20%232.png)"
     );
   });
+
+  it.each(["a(b.png", "a)b.png", "a)b(c.png"])(
+    "should encode the parens in %s, which would not balance",
+    (name) => {
+      expect(attachmentDestination(name, "note.md")).toMatch(/%28|%29/u);
+      expect(attachmentDestination(name, "note.md")).not.toMatch(/[()]/u);
+    }
+  );
+
+  it.each(["my%20photo.png", "50%25.png", "a(b.png", "a)b.png"])(
+    "should write %s so it decodes back to the name on disk",
+    (name) => {
+      expect(
+        decodeAttachmentPath(attachmentDestination(`img/${name}`, "note.md"))
+      ).toBe(`img/${name}`);
+    }
+  );
+});
+
+describe(isImageName, () => {
+  it.each(imageNames)(
+    "should read $name as image: $image",
+    ({ image, name }) => {
+      expect(isImageName(name)).toBe(image);
+    }
+  );
 });
 
 describe("attachment paths", () => {
@@ -76,7 +103,7 @@ describe("attachment paths", () => {
   });
 
   it("should leave the path separators readable", () => {
-    expect(encodeAttachmentPath("attachments/my shot.png")).toBe(
+    expect(attachmentDestination("attachments/my shot.png", "note.md")).toBe(
       "attachments/my%20shot.png"
     );
   });
@@ -84,7 +111,9 @@ describe("attachment paths", () => {
   it("should decode back to the name on disk", () => {
     const path = "attachments/Screenshot 2026-08-26 at 6.25.40 AM.png";
 
-    expect(decodeAttachmentPath(encodeAttachmentPath(path))).toBe(path);
+    expect(decodeAttachmentPath(attachmentDestination(path, "note.md"))).toBe(
+      path
+    );
   });
 
   it("should read a hand-written path with a bare percent as itself", () => {
@@ -97,11 +126,5 @@ describe("attachment paths", () => {
     expect(decodeAttachmentPath("attachments/100% a%20b.png")).toBe(
       "attachments/100% a b.png"
     );
-  });
-
-  it("should encode an already encoded path to itself", () => {
-    const encoded = encodeAttachmentPath("attachments/my shot.png");
-
-    expect(encodeAttachmentPath(encoded)).toBe(encoded);
   });
 });

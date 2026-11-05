@@ -707,12 +707,14 @@ body.dragging .ProseMirror .selected-text,
   text-decoration-color: currentcolor;
 }
 
-/* An embed holds another note's body, so it sits apart from the note's own
-   text on the hairline the table and quote rules use, and a click anywhere on
-   it opens that note. */
 .ProseMirror .embed[data-shown] {
   display: block;
   margin-block-start: var(--typeset-flow);
+}
+/* An embed that holds another note's body sits apart from the note's own text
+   on the hairline the table and quote rules use, and a click anywhere on it
+   opens that note. */
+.ProseMirror .embed[data-shown][data-wikilink] {
   padding: 0.75rem 1rem;
   cursor: pointer;
   border: 1px solid var(--typeset-rule);
@@ -731,7 +733,7 @@ body.dragging .ProseMirror .selected-text,
 .ProseMirror .embed-body .ProseMirror > :first-child {
   margin-block-start: 0;
 }
-.ProseMirror .ProseMirror-selectednode.embed[data-shown],
+.ProseMirror .ProseMirror-selectednode.embed[data-shown][data-wikilink],
 .ProseMirror .ProseMirror-selectednode.embed > .embed-failure {
   outline: 2px solid var(--ring);
 }

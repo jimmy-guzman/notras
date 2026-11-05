@@ -22,10 +22,19 @@ function titleOf(attrs: Attrs | undefined) {
   return attrs.title;
 }
 
-/** What an embed shows: its note's body and how its images load, or why it cannot show one. */
-type EmbedShown =
-  | { body: string; resolveImageSrc: (src: string) => ImageSource }
-  | { failure: string };
+/**
+ * What an embed shows: its note's body, how its images load and what its own
+ * embeds show, or why it cannot show one. An `image` embed has no note behind
+ * it to open.
+ */
+type EmbedShown = { image?: boolean } & (
+  | {
+      body: string;
+      resolveImageSrc: (src: string) => ImageSource;
+      watchInner?: WatchEmbed;
+    }
+  | { failure: string }
+);
 
 /**
  * Calls `show` with what the embed of a title shows, at once and again
@@ -65,13 +74,16 @@ function EmbeddedBody({
 /**
  * The embed as its note's body, drawn read-only by an editor of its own, as the
  * reason it cannot show one, or as the pill until either is known. The inner
- * editor takes `extensionsFor`'s extensions, which draw an embed as its pill,
- * so an embed inside an embedded note stays a pill and no chain of embeds can
- * loop back on itself.
+ * editor takes `extensionsFor`'s extensions, which draw its embeds through
+ * `watchInner`, or as pills without one. A `watchInner` shows images and leaves
+ * notes as pills, so no chain of embeds can loop back on itself.
  */
 export function embedNodeView(
   watch: WatchEmbed,
-  extensionsFor: (resolveImageSrc: (src: string) => ImageSource) => Extensions
+  extensionsFor: (
+    resolveImageSrc: (src: string) => ImageSource,
+    watchInner: WatchEmbed | undefined
+  ) => Extensions
 ): NodeViewRenderer {
   return ({ node: mounted }) => {
     const dom = document.createElement("span");
@@ -87,6 +99,12 @@ export function embedNodeView(
     const show = (shown: EmbedShown | null) => {
       const drawn = shown !== null && !("failure" in shown);
 
+      if (shown?.image === true) {
+        delete dom.dataset.wikilink;
+      } else {
+        dom.dataset.wikilink = titleOf(node.attrs);
+      }
+
       shows += 1;
       const read = shows;
 
@@ -94,7 +112,10 @@ export function embedNodeView(
         drawn
           ? createElement(EmbeddedBody, {
               body: shown.body,
-              extensions: extensionsFor(shown.resolveImageSrc),
+              extensions: extensionsFor(
+                shown.resolveImageSrc,
+                shown.watchInner
+              ),
               // A new read is a new editor, since the editor takes its content once.
               key: read,
               // React commits the body a task after this render; marking the
@@ -117,7 +138,6 @@ export function embedNodeView(
     const watchTitle = () => {
       const title = titleOf(node.attrs);
 
-      dom.dataset.wikilink = title;
       pill.textContent = title;
       unwatch?.();
       unwatch = watch(title, show);
@@ -165,7 +185,8 @@ export function embedNodeView(
 /**
  * `![[note title]]` as an inline atom that serializes back to `![[title]]`.
  * It carries `data-wikilink`, so a click opens it and the link hover reads it
- * the way they do a pill.
+ * the way they do a pill. An image embed drops it in its node view, leaving a
+ * click to select it as any image.
  */
 export const Embed = Node.create({
   addAttributes() {

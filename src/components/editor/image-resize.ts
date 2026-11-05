@@ -115,7 +115,13 @@ export function imageNodeView(
     failure.className = "image-failure";
     failure.contentEditable = "false";
     failure.append(icon("failed"), reason);
-    dom.append(image, failure, toolbar, handle);
+    dom.append(image, failure, toolbar);
+
+    // A read-only editor, an embedded note's among them, saves no width.
+    if (view.editable) {
+      dom.append(handle);
+    }
+
     applyAttributes(dom, image, reason, node.attrs, resolveSrc);
 
     const markLoaded = () => {

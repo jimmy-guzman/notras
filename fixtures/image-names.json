@@ -1,0 +1,15 @@
+[
+  { "image": true, "name": "photo.png" },
+  { "image": true, "name": "cover.PNG" },
+  { "image": true, "name": "photo.final.JPEG" },
+  { "image": true, "name": "shot.jpg" },
+  { "image": true, "name": "clip.gif" },
+  { "image": true, "name": "map.svg" },
+  { "image": true, "name": "wide.webp" },
+  { "image": true, "name": "img/photo.png" },
+  { "image": true, "name": ".png" },
+  { "image": false, "name": "photo.png.md" },
+  { "image": false, "name": "ticket.pdf" },
+  { "image": false, "name": "png" },
+  { "image": false, "name": "map.ſvg" }
+]

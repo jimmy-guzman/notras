@@ -16,8 +16,9 @@ import { toast } from "@/components/ui/toast";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { WorkspaceError } from "@/components/workspace-error";
 import { Workspace } from "@/components/workspace/workspace";
+import { isNotePath } from "@/core/links";
 import { applyIndexStatus } from "@/data/index-status";
-import { noteQueries, notesDirQuery } from "@/data/queries";
+import { invalidateImages, noteQueries, notesDirQuery } from "@/data/queries";
 import { startupQuery } from "@/data/restore-session";
 import { disposeLater } from "@/lib/dispose-later";
 import { flushPendingWrites } from "@/lib/pending-flush";
@@ -123,6 +124,11 @@ function MainWindow() {
   useEffect(() => {
     const unlisten = events.notesChanged.listen((event) => {
       const { paths } = event.payload;
+
+      // First, so an embed the refresh below reads again finds the new list.
+      if (paths.length === 0 || !paths.every((path) => isNotePath(path))) {
+        invalidateImages(queryClient);
+      }
 
       if (paths.length === 0) {
         void queryClient.invalidateQueries({ queryKey: noteQueries.all });

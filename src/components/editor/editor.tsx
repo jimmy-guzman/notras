@@ -14,6 +14,7 @@ import type { Node as ProseMirrorNode, Schema } from "@tiptap/pm/model";
 import type { EditorState, Transaction } from "@tiptap/pm/state";
 import { NodeSelection, Selection, TextSelection } from "@tiptap/pm/state";
 import { AddMarkStep, RemoveMarkStep } from "@tiptap/pm/transform";
+import type { EditorView } from "@tiptap/pm/view";
 import { EditorContent, useEditor } from "@tiptap/react";
 import { useLayoutEffect, useRef, useState } from "react";
 
@@ -36,7 +37,6 @@ import { reasonOf } from "@/lib/ui/failure";
 import {
   attachmentDestination,
   decodeAttachmentPath,
-  encodeAttachmentPath,
 } from "@/lib/utils/attachments";
 import { commands } from "@/server/adapters/bindings";
 
@@ -84,6 +84,21 @@ function noteTitleAt(state: EditorState, head: number) {
   const node = opensNote(after) ? after : before;
 
   return opensNote(node) ? String(node?.attrs.title ?? "") : "";
+}
+
+/**
+ * The embed the caret sits in or beside when no note stands behind it, whether
+ * its image drew or is missing, read the way `noteTitleAt` picks its node.
+ */
+function imageEmbedAt(view: EditorView, head: number) {
+  const { doc } = view.state;
+  const pos = opensNote(doc.nodeAt(head)) ? head : head - 1;
+  const embed = pos < 0 ? null : doc.nodeAt(pos);
+  const dom = embed?.type.name === "embed" ? view.nodeDOM(pos) : null;
+
+  return dom instanceof HTMLElement && !Object.hasOwn(dom.dataset, "wikilink")
+    ? dom
+    : null;
 }
 
 /**
@@ -136,7 +151,7 @@ function librarySrc(src: string, from: string) {
 
   const folded = foldPath(decodeAttachmentPath(src), from);
 
-  return "path" in folded ? encodeAttachmentPath(folded.path) : src;
+  return "path" in folded ? attachmentDestination(folded.path, "") : src;
 }
 
 /**
@@ -755,7 +770,12 @@ export function Editor(mountProps: EditorProps) {
             return true;
           }
 
-          const { head } = selection;
+          // A selected node's head is its end, which reads as the node after it.
+          const head =
+            selection instanceof NodeSelection
+              ? selection.from
+              : selection.head;
+
           const attrs = instance.getAttributes("link");
           const href = hasString(attrs, "href") ? attrs.href : "";
 
@@ -766,6 +786,21 @@ export function Editor(mountProps: EditorProps) {
               config.onNoteLinkClick,
               config.onFileLinkClick
             );
+
+            return true;
+          }
+
+          const embed = imageEmbedAt(instance.view, head);
+
+          if (embed !== null) {
+            // The inner editor's paragraph leads with a separator `img` of its own.
+            const image = viewableImage(embed.querySelector("[data-image]"));
+
+            if (image === null) {
+              return false;
+            }
+
+            setViewer(viewerStateFor(image));
 
             return true;
           }
@@ -819,7 +854,7 @@ export function Editor(mountProps: EditorProps) {
 
         const target =
           event.target instanceof Element
-            ? (event.target.closest<HTMLElement>(".embed") ??
+            ? (event.target.closest<HTMLElement>(".embed[data-wikilink]") ??
               event.target.closest<HTMLElement>("a[href], [data-wikilink]"))
             : null;
 
@@ -948,7 +983,7 @@ export function Editor(mountProps: EditorProps) {
         mouseout: (_view, event) => {
           const target =
             event.target instanceof Element
-              ? (event.target.closest(".embed") ??
+              ? (event.target.closest(".embed[data-wikilink]") ??
                 event.target.closest("a[href], [data-wikilink]"))
               : null;
 
@@ -968,7 +1003,7 @@ export function Editor(mountProps: EditorProps) {
         mouseover: (view, event) => {
           const target =
             event.target instanceof Element
-              ? (event.target.closest<HTMLElement>(".embed") ??
+              ? (event.target.closest<HTMLElement>(".embed[data-wikilink]") ??
                 event.target.closest<HTMLElement>("a[href], [data-wikilink]"))
               : null;
 

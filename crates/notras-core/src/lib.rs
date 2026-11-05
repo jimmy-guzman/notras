@@ -7,6 +7,7 @@
 mod application;
 mod conflicts;
 mod frontmatter;
+mod images;
 mod index;
 mod markdown;
 mod note_file;
@@ -27,6 +28,7 @@ pub use application::{
     OpenKind, PathMutationReceipt, PendingOpen, SaveName, SaveOutcome,
 };
 pub use conflicts::{clear_conflict, read_conflict, stash_conflict, ConflictStash};
+pub use images::{ImageList, ImageWalk};
 pub use queries::{
     CountedTag, GraphResult, GraphTarget, NoteFilters, NoteMeta, NoteSearch, Picture, ReadView,
     SearchFilter,

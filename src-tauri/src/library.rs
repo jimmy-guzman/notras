@@ -4,7 +4,7 @@ use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::{Arc, Condvar, Mutex, MutexGuard, OnceLock, RwLock};
 
 use crate::bindings::IndexStatus;
-use notras_core::{CommandError, Library, ReadView, Scan};
+use notras_core::{CommandError, ImageList, Library, ReadView, Scan};
 
 type Completion = Arc<OnceLock<Result<(), CommandError>>>;
 
@@ -298,6 +298,20 @@ impl LibraryOwner {
             return Err(std::io::Error::other("The selected library changed").into());
         }
         result
+    }
+
+    /// List the library's images without the operation guard, so a large library
+    /// cannot hold up a save. Reject a result if its library was replaced meanwhile.
+    pub fn list_images(&self) -> Result<ImageList, CommandError> {
+        let (generation, walk) = {
+            let library = self.read();
+            (library.generation(), library.image_walk()?)
+        };
+        let images = walk.list()?;
+        if self.read().generation() != generation {
+            return Err(std::io::Error::other("The selected library changed").into());
+        }
+        Ok(images)
     }
 
     fn run_scan(&self, kind: ScanKind, expected: Option<u64>) -> Result<ScanChanges, CommandError> {

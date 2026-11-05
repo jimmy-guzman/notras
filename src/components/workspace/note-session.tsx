@@ -93,7 +93,7 @@ import {
   useOutlineHost,
 } from "@/lib/ui/note-panel";
 import { focusGraph, hideGraph, useGraphMode } from "@/lib/ui/view";
-import { decodeAttachmentPath } from "@/lib/utils/attachments";
+import { decodeAttachmentPath, isImageName } from "@/lib/utils/attachments";
 import type { OpenKind } from "@/server/adapters/bindings";
 
 function bodyPrefix(raw: string) {
@@ -620,57 +620,77 @@ function SessionBuffer({ active, file, stash, tab }: SessionBufferProps) {
     }
   }, [tab.path]);
 
-  const watchEmbed: WatchEmbed = (title, show) => {
-    const optionsFor = (from: string) => ({
-      ...noteQueries.embed(title, from),
-      notifyOnChangeProps: EMBED_CHANGES,
-    });
+  // An embed inside an embedded note resolves from that note's folder, and
+  // only an image draws there, so no chain of embeds can loop back on itself.
+  const watchEmbedFrom =
+    (embedded: string | null): WatchEmbed =>
+    (title, show) => {
+      const optionsFor = (from: string) => ({
+        ...noteQueries.embed(title, embedded ?? from),
+        notifyOnChangeProps: EMBED_CHANGES,
+      });
 
-    const observer = new QueryObserver(
-      queryClient,
-      optionsFor(live.current.path)
-    );
+      const observer = new QueryObserver(
+        queryClient,
+        optionsFor(live.current.path)
+      );
 
-    const shownFor = ({
-      data,
-      error,
-    }: ReturnType<typeof observer.getCurrentResult>) => {
-      if (error !== null) {
-        return { failure: error.message };
-      }
+      const shownFor = ({
+        data,
+        error,
+      }: ReturnType<typeof observer.getCurrentResult>) => {
+        const name = title.trim();
+        const image = isImageName(name);
 
-      if (data === undefined) {
-        return null;
-      }
+        if (error !== null) {
+          return {
+            failure: error.message,
+            image: image && resolveWikilink(title) === undefined,
+          };
+        }
 
-      if (data === null) {
-        return { failure: `No note is named "${title.trim().toLowerCase()}"` };
-      }
+        if (data === undefined) {
+          return null;
+        }
 
-      return {
-        body: data.body,
-        resolveImageSrc: (src: string) =>
-          imageSrc(src, "note", data.path, notesDir),
+        if (data === null) {
+          return {
+            failure: `No ${image ? "image" : "note"} is named "${name.toLowerCase()}"`,
+            image,
+          };
+        }
+
+        return {
+          body: data.body,
+          image: data.image,
+          resolveImageSrc: (src: string) =>
+            imageSrc(src, "note", data.path, notesDir),
+          watchInner: ((inner, showInner) =>
+            watchEmbedFrom(data.path)(inner, (shown) => {
+              showInner(shown?.image === true ? shown : null);
+            })) satisfies WatchEmbed,
+        };
+      };
+
+      const follow = (path: string) => {
+        observer.setOptions(optionsFor(path));
+      };
+
+      embedFollowers.current.add(follow);
+      show(shownFor(observer.getCurrentResult()));
+
+      // oxlint-disable-next-line react-doctor/effect-needs-cleanup -- the returned function releases it, and the node view calls that on destroy
+      const unsubscribe = observer.subscribe((result) => {
+        show(shownFor(result));
+      });
+
+      return () => {
+        embedFollowers.current.delete(follow);
+        unsubscribe();
       };
     };
 
-    const follow = (path: string) => {
-      observer.setOptions(optionsFor(path));
-    };
-
-    embedFollowers.current.add(follow);
-    show(shownFor(observer.getCurrentResult()));
-
-    // oxlint-disable-next-line react-doctor/effect-needs-cleanup -- the returned function releases it, and the node view calls that on destroy
-    const unsubscribe = observer.subscribe((result) => {
-      show(shownFor(result));
-    });
-
-    return () => {
-      embedFollowers.current.delete(follow);
-      unsubscribe();
-    };
-  };
+  const watchEmbed = watchEmbedFrom(null);
 
   const openFileLink = async (href: string) => {
     try {

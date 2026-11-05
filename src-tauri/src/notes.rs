@@ -9,8 +9,9 @@ use crate::settings::Settings;
 use crate::state::AppState;
 use crate::watcher;
 use notras_core::{
-    self, CommandError, ConflictStash, CreateNote, DeleteReceipt, Library, MutationReceipt,
-    MutationWarning, NoteFile, OpenKind, PathMutationReceipt, PendingOpen, SaveName, SaveOutcome,
+    self, CommandError, ConflictStash, CreateNote, DeleteReceipt, ImageList, Library,
+    MutationReceipt, MutationWarning, NoteFile, OpenKind, PathMutationReceipt, PendingOpen,
+    SaveName, SaveOutcome,
 };
 use notras_core::{
     CountedTag, GraphResult, GraphTarget, Mention, NoteFilters, NoteMeta, NoteSearch,
@@ -177,6 +178,12 @@ pub async fn find_mentions<R: Runtime>(
 
 #[tauri::command]
 #[specta::specta]
+pub async fn list_images<R: Runtime>(app: AppHandle<R>) -> Result<ImageList, CommandError> {
+    run_blocking(move || app.state::<AppState>().library.list_images()).await
+}
+
+#[tauri::command]
+#[specta::specta]
 pub async fn list_notes<R: Runtime>(
     app: AppHandle<R>,
     filters: NoteFilters,
@@ -336,7 +343,9 @@ pub async fn reindex_all<R: Runtime>(app: AppHandle<R>) -> Result<Vec<String>, C
     run_blocking(move || {
         let state = app.state::<AppState>();
         let result = state.library.rebuild()?;
-        emit_changed(&app, result.generation, result.paths.clone());
+        // No paths means the whole library, which a rebuild's note paths leave
+        // short of what the index does not hold, such as the image list.
+        emit_changed(&app, result.generation, Vec::new());
         Ok(result.paths)
     })
     .await

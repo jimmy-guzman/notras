@@ -6,6 +6,7 @@ use cap_fs_ext::DirExt;
 use cap_std::fs::{Dir, ReadDir};
 use rusqlite::{Connection, OptionalExtension};
 
+use crate::images::is_image_path;
 use crate::index::{self, IndexError, ScanReport};
 use crate::relative_path::{join, RelativePath};
 
@@ -59,10 +60,27 @@ impl Scan {
         }
     }
 
+    /// An image has no index row to change, and neither has anything in the
+    /// attachments store but a note, so each is reported as seen. A removed path
+    /// cannot say whether it was a folder, so the whole store counts. Taken up
+    /// front, since a folder change in the batch replaces the entries with a walk.
     pub(crate) fn observed(root: &Path, paths: Vec<PathBuf>) -> Self {
+        let seen = paths
+            .iter()
+            .filter_map(|path| index::relative_path(root, path))
+            .filter(|relative| {
+                is_image_path(relative)
+                    || !(index::is_note_folder(relative)
+                        || index::is_note_file(Path::new(relative)))
+            })
+            .collect();
         Self {
             entries: paths.into_iter().rev().map(Entry::Observed).collect(),
             full: false,
+            report: ScanReport {
+                changed: seen,
+                failures: Vec::new(),
+            },
             ..Self::new(root, false)
         }
     }
@@ -320,6 +338,96 @@ mod tests {
             library.read_view().unwrap().list_folders().unwrap(),
             ["images", "projects", "projects/empty"]
         );
+    }
+
+    #[test]
+    fn should_report_an_image_added_or_removed_outside_the_app() {
+        let directory = tempfile::tempdir().unwrap();
+        fs::create_dir(directory.path().join("attachments")).unwrap();
+        let library = Library::open(directory.path(), &directory.path().join(".index")).unwrap();
+        let image = library.directory().join("attachments/photo.png");
+        let observe = |paths: Vec<std::path::PathBuf>| {
+            let mut scan = library.begin_observations(paths);
+            while !library.advance_scan(&mut scan).unwrap() {}
+            library.finish_scan(scan).unwrap()
+        };
+
+        fs::write(&image, [0]).unwrap();
+        assert_eq!(observe(vec![image.clone()]), ["attachments/photo.png"]);
+
+        fs::remove_file(&image).unwrap();
+        assert_eq!(observe(vec![image]), ["attachments/photo.png"]);
+    }
+
+    #[test]
+    fn should_report_a_folder_moved_into_or_out_of_the_attachments_store() {
+        let directory = tempfile::tempdir().unwrap();
+        fs::create_dir_all(directory.path().join("attachments")).unwrap();
+        fs::create_dir(directory.path().join("pics")).unwrap();
+        fs::write(directory.path().join("pics/photo.png"), [0]).unwrap();
+        let library = Library::open(directory.path(), &directory.path().join(".index")).unwrap();
+        let root = library.directory();
+        let observe = |paths: Vec<std::path::PathBuf>| {
+            let mut scan = library.begin_observations(paths);
+            while !library.advance_scan(&mut scan).unwrap() {}
+            library.finish_scan(scan).unwrap()
+        };
+
+        fs::rename(root.join("pics"), root.join("attachments/pics")).unwrap();
+        assert_eq!(
+            observe(vec![root.join("attachments/pics")]),
+            ["attachments/pics"]
+        );
+
+        fs::rename(root.join("attachments/pics"), root.join("elsewhere")).unwrap();
+        assert!(observe(vec![root.join("attachments/pics")]).contains(&"attachments/pics".into()));
+    }
+
+    #[test]
+    fn should_stay_quiet_about_an_unchanged_note_in_the_attachments_store() {
+        let directory = tempfile::tempdir().unwrap();
+        fs::create_dir(directory.path().join("attachments")).unwrap();
+        fs::write(directory.path().join("attachments/n.md"), "# N").unwrap();
+        let library = Library::open(directory.path(), &directory.path().join(".index")).unwrap();
+        let note = library.directory().join("attachments/n.md");
+        let observe = |paths: Vec<std::path::PathBuf>| {
+            let mut scan = library.begin_observations(paths);
+            while !library.advance_scan(&mut scan).unwrap() {}
+            library.finish_scan(scan).unwrap()
+        };
+
+        assert_eq!(observe(vec![note.clone()]), ["attachments/n.md"]);
+        assert!(observe(vec![note]).is_empty());
+    }
+
+    #[test]
+    fn should_report_an_image_seen_in_the_same_batch_as_a_removed_file() {
+        let directory = tempfile::tempdir().unwrap();
+        fs::write(directory.path().join("photo.png"), [0]).unwrap();
+        let library = Library::open(directory.path(), &directory.path().join(".index")).unwrap();
+        let root = library.directory();
+
+        let mut scan =
+            library.begin_observations(vec![root.join("gone.txt"), root.join("photo.png")]);
+        while !library.advance_scan(&mut scan).unwrap() {}
+
+        assert_eq!(library.finish_scan(scan).unwrap(), ["photo.png"]);
+    }
+
+    #[test]
+    fn should_stay_quiet_about_a_hidden_image_and_other_files() {
+        let directory = tempfile::tempdir().unwrap();
+        fs::create_dir(directory.path().join(".trash")).unwrap();
+        fs::write(directory.path().join(".trash/old.png"), [0]).unwrap();
+        fs::write(directory.path().join("ticket.pdf"), [0]).unwrap();
+        let library = Library::open(directory.path(), &directory.path().join(".index")).unwrap();
+        let root = library.directory();
+
+        let mut scan =
+            library.begin_observations(vec![root.join(".trash/old.png"), root.join("ticket.pdf")]);
+        while !library.advance_scan(&mut scan).unwrap() {}
+
+        assert!(library.finish_scan(scan).unwrap().is_empty());
     }
 
     #[test]
