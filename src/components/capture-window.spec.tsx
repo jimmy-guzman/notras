@@ -196,6 +196,45 @@ describe("capture window", () => {
         expect(document.body.textContent).toContain("The disk is full");
       });
     });
+
+    it("should report a jot it cannot read and save it on the next esc", async () => {
+      const user = userEvent.setup();
+      const calls: string[] = [];
+      mockIPC(
+        (command) => {
+          calls.push(command);
+
+          return command === "create_note"
+            ? { path: "jot.md", updatedAt: 1, warnings: [] }
+            : null;
+        },
+        { shouldMockEvents: true }
+      );
+      const editor = await mountCapture();
+      act(() => {
+        editor.commands.insertContent("keep this thought");
+      });
+      const converter = editor.markdown;
+      editor.markdown = undefined;
+      await user.keyboard("{Escape}");
+      await waitFor(() => {
+        expect(document.body.textContent).toContain(
+          "could not save the capture"
+        );
+        expect(document.body.textContent).toContain(
+          "The editor has no Markdown converter"
+        );
+      });
+      expect(calls).toStrictEqual([]);
+      expect(document.querySelector(".ProseMirror")?.textContent).toBe(
+        "keep this thought"
+      );
+      editor.markdown = converter;
+      await user.keyboard("{Escape}");
+      await waitFor(() => {
+        expect(calls).toStrictEqual(["create_note", "plugin:window|hide"]);
+      });
+    });
   });
 
   describe("closing and quitting", () => {
@@ -337,6 +376,93 @@ describe("capture window", () => {
         expect(document.body.textContent).toContain(
           "The disk is full, so the update applies on next launch"
         );
+      });
+    });
+
+    it("should say the update waits when a failed save gives no reason", async () => {
+      const refused = vi.fn<() => Promise<never>>().mockRejectedValue({
+        kind: "failed",
+        message: "   ",
+      });
+
+      mockIPC(
+        async (command) => {
+          if (command === "create_note") {
+            return await refused();
+          }
+
+          return null;
+        },
+        { shouldMockEvents: true }
+      );
+      const editor = await mountCapture();
+      act(() => {
+        editor.commands.insertContent("keep this thought");
+      });
+      await emit("app-quit", { ending: "restart" });
+      await waitFor(() => {
+        expect(document.body.textContent).toContain(
+          "could not restart into the update"
+        );
+        expect(document.body.textContent).toContain(
+          "The update applies on next launch"
+        );
+      });
+      expect(document.body.textContent).not.toContain("undefined");
+    });
+
+    it("should call off the quit when the jot cannot be read", async () => {
+      const calls: string[] = [];
+      mockIPC(
+        (command) => {
+          calls.push(command);
+
+          return null;
+        },
+        { shouldMockEvents: true }
+      );
+      const editor = await mountCapture();
+      act(() => {
+        editor.commands.insertContent("keep this thought");
+      });
+      editor.markdown = undefined;
+      await emit("app-quit", { ending: "exit" });
+      await waitFor(() => {
+        expect(calls).toStrictEqual(["cancel_quit"]);
+        expect(document.body.textContent).toContain(
+          "The editor has no Markdown converter"
+        );
+      });
+      expect(document.querySelector(".ProseMirror")?.textContent).toBe(
+        "keep this thought"
+      );
+    });
+
+    it("should still call off a quit after an esc failed to read the jot", async () => {
+      const user = userEvent.setup();
+      const calls: string[] = [];
+      mockIPC(
+        (command) => {
+          calls.push(command);
+
+          return null;
+        },
+        { shouldMockEvents: true }
+      );
+      const editor = await mountCapture();
+      act(() => {
+        editor.commands.insertContent("keep this thought");
+      });
+      editor.markdown = undefined;
+      await user.keyboard("{Escape}");
+      await waitFor(() => {
+        expect(document.body.textContent).toContain(
+          "could not save the capture"
+        );
+      });
+      await emit("app-quit", { ending: "exit" });
+      await waitFor(() => {
+        expect(calls).toStrictEqual(["cancel_quit"]);
       });
     });
 
@@ -508,6 +634,30 @@ describe("capture window", () => {
       expect(calls.filter((command) => command === "create_note")).toHaveLength(
         1
       );
+    });
+
+    it("should show the reason when the main window refuses a bare string", async () => {
+      const user = userEvent.setup();
+
+      const refused = vi
+        .fn<() => Promise<never>>()
+        .mockRejectedValue("invalid args for command continue_jot");
+
+      mockIPC(async (command) => {
+        if (command === "continue_jot") {
+          return await refused();
+        }
+
+        return null;
+      });
+      await mountCapture();
+      await user.keyboard("{Control>}o{/Control}");
+      await waitFor(() => {
+        expect(document.body.textContent).toContain("could not open notras");
+        expect(document.body.textContent).toContain(
+          "invalid args for command continue_jot"
+        );
+      });
     });
 
     it("should open a jot at its end when the caret offset cannot be read", async () => {
