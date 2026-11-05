@@ -1727,6 +1727,403 @@ describe(NoteSession, () => {
     );
   });
 
+  it.each([
+    "photo.png",
+    "photo (1).png",
+    "my%20photo.png",
+    "50%25.png",
+    "a(b.png",
+    "a)b.png",
+  ])("should show the image an embed names as %s", async (name) => {
+    mockConvertFileSrc("macos");
+    mockIPC(
+      withDisk((command) => {
+        if (command === "list_images") {
+          return { paths: [`attachments/${name}`], unreadable: [] };
+        }
+
+        throw new Error(`unexpected command: ${command}`);
+      })
+    );
+
+    const client = new QueryClient({
+      defaultOptions: {
+        queries: { retry: false, staleTime: Number.POSITIVE_INFINITY },
+      },
+    });
+
+    client.setQueryData(notesDirQuery.queryKey, "/notes");
+    client.setQueryData(noteQueries.list().queryKey, []);
+    client.setQueryData(
+      tabOpeningQuery("t11", "note", "trips/host.md").queryKey,
+      {
+        file: {
+          content: `![[${name}]]`,
+          revision: "r0",
+          updatedAt: new Date(1),
+        },
+        stash: null,
+      }
+    );
+    onTestFinished(() => {
+      client.clear();
+    });
+    render(
+      <QueryClientProvider client={client}>
+        <NoteSession
+          active
+          tab={{ id: "t11", kind: "note", path: "trips/host.md" }}
+        />
+      </QueryClientProvider>
+    );
+    await editor("t11");
+
+    const image = await screen.findByRole("img", { name });
+
+    expect(decodeURIComponent(image.getAttribute("src") ?? "")).toContain(
+      `/notes/attachments/${name}`
+    );
+  });
+
+  it("should draw an image inside an embedded note from that note's folder, and leave a note there as a pill", async () => {
+    mockConvertFileSrc("macos");
+
+    const atlas = {
+      createdAt: 1,
+      folder: "trips",
+      path: "trips/atlas.md",
+      pinned: false,
+      snippet: null,
+      tags: [],
+      title: "Atlas",
+      updatedAt: 1,
+    };
+
+    const deeper = {
+      ...atlas,
+      folder: "",
+      path: "deeper.md",
+      title: "Deeper",
+    };
+
+    mockIPC(
+      withDisk((command) => {
+        if (command === "list_images") {
+          return {
+            paths: ["home/photo.png", "trips/photo.png"],
+            unreadable: [],
+          };
+        }
+
+        throw new Error(`unexpected command: ${command}`);
+      })
+    );
+
+    const client = new QueryClient({
+      defaultOptions: {
+        queries: { retry: false, staleTime: Number.POSITIVE_INFINITY },
+      },
+    });
+
+    client.setQueryData(notesDirQuery.queryKey, "/notes");
+    client.setQueryData(noteQueries.list().queryKey, [
+      { ...atlas, createdAt: new Date(1), updatedAt: new Date(1) },
+      { ...deeper, createdAt: new Date(1), updatedAt: new Date(1) },
+    ]);
+    disk.set("trips/atlas.md", {
+      content: "![[photo.png]]\n\nsee ![[Deeper]]",
+      revision: "r0",
+      updatedAt: 1,
+    });
+    disk.set("deeper.md", {
+      content: "deeper body",
+      revision: "r0",
+      updatedAt: 1,
+    });
+    client.setQueryData(
+      tabOpeningQuery("t16", "note", "home/host.md").queryKey,
+      {
+        file: {
+          content: "![[Atlas]]",
+          revision: "r0",
+          updatedAt: new Date(1),
+        },
+        stash: null,
+      }
+    );
+    onTestFinished(() => {
+      client.clear();
+    });
+    render(
+      <QueryClientProvider client={client}>
+        <NoteSession
+          active
+          tab={{ id: "t16", kind: "note", path: "home/host.md" }}
+        />
+      </QueryClientProvider>
+    );
+    await editor("t16");
+
+    const image = await screen.findByRole("img", { name: "photo.png" });
+
+    expect(decodeURIComponent(image.getAttribute("src") ?? "")).toContain(
+      "/notes/trips/photo.png"
+    );
+    await expect(
+      screen.findByText("deeper body", {}, { timeout: 300 })
+    ).rejects.toThrow("Unable to find");
+  });
+
+  it("should show an image found beside a folder that could not be read", async () => {
+    mockConvertFileSrc("macos");
+    mockIPC(
+      withDisk((command) => {
+        if (command === "list_images") {
+          return { paths: ["attachments/photo.png"], unreadable: ["locked"] };
+        }
+
+        throw new Error(`unexpected command: ${command}`);
+      })
+    );
+
+    const client = new QueryClient({
+      defaultOptions: {
+        queries: { retry: false, staleTime: Number.POSITIVE_INFINITY },
+      },
+    });
+
+    client.setQueryData(notesDirQuery.queryKey, "/notes");
+    client.setQueryData(noteQueries.list().queryKey, []);
+    client.setQueryData(tabOpeningQuery("t15", "note", "host.md").queryKey, {
+      file: {
+        content: "![[photo.png]]",
+        revision: "r0",
+        updatedAt: new Date(1),
+      },
+      stash: null,
+    });
+    onTestFinished(() => {
+      client.clear();
+    });
+    render(
+      <QueryClientProvider client={client}>
+        <NoteSession
+          active
+          tab={{ id: "t15", kind: "note", path: "host.md" }}
+        />
+      </QueryClientProvider>
+    );
+    await editor("t15");
+
+    expect(
+      await screen.findByRole("img", { name: "photo.png" })
+    ).toBeInTheDocument();
+  });
+
+  it("should open no note from an image embed the library could not list, and still open a note whose read failed", async () => {
+    const listed = {
+      createdAt: 1,
+      folder: "",
+      path: "locked.png.md",
+      pinned: false,
+      snippet: null,
+      tags: [],
+      title: "locked.png",
+      updatedAt: 1,
+    };
+
+    mockIPC(
+      withDisk((command) => {
+        if (command === "list_images") {
+          throw Object.assign(new Error("Permission denied"), {
+            kind: "failed",
+          });
+        }
+
+        throw new Error(`unexpected command: ${command}`);
+      })
+    );
+
+    const client = new QueryClient({
+      defaultOptions: {
+        queries: { retry: false, staleTime: Number.POSITIVE_INFINITY },
+      },
+    });
+
+    client.setQueryData(notesDirQuery.queryKey, "/notes");
+    client.setQueryData(noteQueries.list().queryKey, [
+      { ...listed, createdAt: new Date(1), updatedAt: new Date(1) },
+    ]);
+    client.setQueryData(tabOpeningQuery("t14", "note", "host.md").queryKey, {
+      file: {
+        content: "![[gone.png]]\n\n![[locked.png]]",
+        revision: "r0",
+        updatedAt: new Date(1),
+      },
+      stash: null,
+    });
+    onTestFinished(() => {
+      client.clear();
+    });
+    render(
+      <QueryClientProvider client={client}>
+        <NoteSession
+          active
+          tab={{ id: "t14", kind: "note", path: "host.md" }}
+        />
+        <Toaster />
+      </QueryClientProvider>
+    );
+    const instance = await editor("t14");
+
+    await screen.findByText("Permission denied");
+    await screen.findByText("No such file");
+
+    act(() => {
+      instance.commands.setTextSelection(1);
+      instance.commands.keyboardShortcut("Mod-Shift-o");
+    });
+    act(() => {
+      instance.commands.setTextSelection(4);
+      instance.commands.keyboardShortcut("Mod-Shift-o");
+    });
+
+    await waitFor(() => {
+      expect(
+        getTabState().tabs.some(
+          (entry) => entry.kind === "note" && entry.path === "locked.png.md"
+        )
+      ).toBeTruthy();
+    });
+    expect(
+      screen.queryByText('No note is named "gone.png"')
+    ).not.toBeInTheDocument();
+  });
+
+  it("should show a note named like an image before any image", async () => {
+    const listed = {
+      createdAt: 1,
+      folder: "",
+      path: "photo.png.md",
+      pinned: false,
+      snippet: null,
+      tags: [],
+      title: "photo.png",
+      updatedAt: 1,
+    };
+
+    mockIPC(
+      withDisk((command) => {
+        throw new Error(`unexpected command: ${command}`);
+      })
+    );
+
+    const client = new QueryClient({
+      defaultOptions: {
+        queries: { retry: false, staleTime: Number.POSITIVE_INFINITY },
+      },
+    });
+
+    client.setQueryData(notesDirQuery.queryKey, "/notes");
+    client.setQueryData(noteQueries.list().queryKey, [
+      { ...listed, createdAt: new Date(1), updatedAt: new Date(1) },
+    ]);
+    disk.set("photo.png.md", {
+      content: "a note, not a picture",
+      revision: "r0",
+      updatedAt: 1,
+    });
+    client.setQueryData(tabOpeningQuery("t12", "note", "host.md").queryKey, {
+      file: {
+        content: "![[photo.png]]",
+        revision: "r0",
+        updatedAt: new Date(1),
+      },
+      stash: null,
+    });
+    onTestFinished(() => {
+      client.clear();
+    });
+    render(
+      <QueryClientProvider client={client}>
+        <NoteSession
+          active
+          tab={{ id: "t12", kind: "note", path: "host.md" }}
+        />
+      </QueryClientProvider>
+    );
+    await editor("t12");
+
+    await waitFor(() =>
+      expect(screen.getByText("a note, not a picture")).toBeInTheDocument()
+    );
+  });
+
+  it("should say in an embed's place that no image has its name, or which folder it could not read", async () => {
+    let unreadable: string[] = [];
+
+    mockIPC(
+      withDisk((command) => {
+        if (command === "list_images") {
+          return { paths: [], unreadable };
+        }
+
+        if (command === "list_notes") {
+          return [];
+        }
+
+        throw new Error(`unexpected command: ${command}`);
+      })
+    );
+
+    const client = new QueryClient({
+      defaultOptions: {
+        queries: { retry: false, staleTime: Number.POSITIVE_INFINITY },
+      },
+    });
+
+    client.setQueryData(notesDirQuery.queryKey, "/notes");
+    client.setQueryData(noteQueries.list().queryKey, []);
+    client.setQueryData(tabOpeningQuery("t13", "note", "host.md").queryKey, {
+      file: {
+        content: "![[Gone.png]]",
+        revision: "r0",
+        updatedAt: new Date(1),
+      },
+      stash: null,
+    });
+    onTestFinished(() => {
+      client.clear();
+    });
+    render(
+      <QueryClientProvider client={client}>
+        <NoteSession
+          active
+          tab={{ id: "t13", kind: "note", path: "host.md" }}
+        />
+      </QueryClientProvider>
+    );
+    await editor("t13");
+
+    await waitFor(() =>
+      expect(
+        screen.getByText('No image is named "gone.png"')
+      ).toBeInTheDocument()
+    );
+
+    unreadable = ["locked"];
+
+    await act(async () => {
+      await client.invalidateQueries({ queryKey: noteQueries.all });
+    });
+
+    await waitFor(() =>
+      expect(
+        screen.getByText("Could not read these folders: locked")
+      ).toBeInTheDocument()
+    );
+  });
+
   it("should resolve an embed from the note's new folder after it moves", async () => {
     mockIPC(
       withDisk((command) => {

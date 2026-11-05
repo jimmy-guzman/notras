@@ -2,7 +2,7 @@ use std::collections::{BTreeMap, BTreeSet, HashMap};
 
 use serde::{Deserialize, Serialize};
 
-use crate::{frontmatter, index, markdown, queries::NoteMeta};
+use crate::{frontmatter, images::is_image_path, index, markdown, queries::NoteMeta};
 
 #[derive(Clone, Debug, Deserialize)]
 pub struct NoteLink {
@@ -363,7 +363,9 @@ pub fn graph(
     let mut dangling = Vec::new();
     for link in links.iter().filter(|link| link.path == path) {
         let Some(note) = resolver.resolve(link) else {
-            if !dangling.contains(&link.target) {
+            // An image is a file the link shows, not a note waiting to be written.
+            let image = is_image_path(link.target.trim_matches(frontmatter::is_space));
+            if !image && !dangling.contains(&link.target) {
                 dangling.push(link.target.clone());
             }
             continue;
@@ -499,6 +501,27 @@ mod tests {
                 case["expected"]
             );
         }
+    }
+
+    #[test]
+    fn should_leave_an_image_out_of_the_links_with_no_note() {
+        let link = |target: &str| NoteLink {
+            at: 0,
+            context: String::new(),
+            kind: "wikilink".into(),
+            line: 1,
+            path: "a.md".into(),
+            target: target.into(),
+        };
+
+        let picture = graph(
+            "a.md",
+            &[link("photo.png"), link(" Cover.JPG "), link("Nowhere")],
+            &[],
+            &[],
+        );
+
+        assert_eq!(picture.dangling, ["Nowhere"]);
     }
 
     #[test]

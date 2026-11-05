@@ -1,12 +1,59 @@
-import { QueryClient } from "@tanstack/react-query";
+import { QueryClient, QueryObserver } from "@tanstack/react-query";
 import { clearMocks, mockIPC } from "@tauri-apps/api/mocks";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, onTestFinished, vi } from "vitest";
 
 import { getNote } from "@/data/get-note";
 import { noteQueries, tabOpeningQuery } from "@/data/queries";
 
 describe("queries", () => {
   afterEach(clearMocks);
+
+  describe("embed", () => {
+    it("should finish an embed whose first read joined a list refresh another change cancelled", async () => {
+      const heldList = Promise.withResolvers<[]>();
+
+      let holdList = false;
+
+      mockIPC(async (command) => {
+        if (command === "list_notes") {
+          return holdList ? await heldList.promise : [];
+        }
+
+        if (command === "list_images") {
+          return { paths: ["attachments/a.png"], unreadable: [] };
+        }
+
+        throw new Error(`unexpected command: ${command}`);
+      });
+
+      const client = new QueryClient({
+        defaultOptions: {
+          queries: { retry: false, staleTime: Number.POSITIVE_INFINITY },
+        },
+      });
+
+      const notes = new QueryObserver(client, noteQueries.list());
+
+      const embed = new QueryObserver(
+        client,
+        noteQueries.embed("a.png", "note.md")
+      );
+
+      onTestFinished(notes.subscribe(vi.fn<() => void>()));
+      await client.query(noteQueries.list());
+
+      holdList = true;
+
+      void client.invalidateQueries({ queryKey: noteQueries.index });
+      onTestFinished(embed.subscribe(vi.fn<() => void>()));
+      void client.invalidateQueries({ queryKey: noteQueries.index });
+      heldList.resolve([]);
+
+      await vi.waitFor(() => {
+        expect(embed.getCurrentResult().data?.image).toBeTruthy();
+      });
+    });
+  });
 
   describe("saved query boundary", () => {
     it("should read file content and revision and preserve missing-file failures", async () => {

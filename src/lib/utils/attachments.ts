@@ -2,17 +2,14 @@ import { decode, encode } from "mdurl";
 
 import { noteFolder } from "@/core/notes";
 
-const IMAGE_EXTENSION = /\.(?:gif|jpe?g|png|svg|webp)$/iu;
+const IMAGE_EXTENSION = /\.(?:gif|jpe?g|png|svg|webp)$/u;
 
-/**
- * A path becomes a destination percent-encoded, the separators apart, since a
- * bare one ends at the first space.
- */
-export function encodeAttachmentPath(relativePath: string) {
-  return encode(relativePath, `/${encode.componentChars}`);
+/** Lowered first: an `i` flag would fold a long s into `svg`, which Rust refuses. */
+export function isImageName(name: string) {
+  return IMAGE_EXTENSION.test(name.toLowerCase());
 }
 
-/** The inverse: `convertFileSrc` encodes again, so a `src` reaches it decoded. */
+/** Undoes `attachmentDestination`'s encoding: `convertFileSrc` encodes again, so a `src` reaches it decoded. */
 export function decodeAttachmentPath(src: string) {
   return decode(src, decode.componentChars);
 }
@@ -40,9 +37,27 @@ export function escapeMarkdownTitle(text: string) {
   return text.replaceAll(/["\\]/gu, "\\$&");
 }
 
+function parensBalance(path: string) {
+  let depth = 0;
+
+  for (const char of path) {
+    depth += Number(char === "(") - Number(char === ")");
+
+    if (depth < 0) {
+      return false;
+    }
+  }
+
+  return depth === 0;
+}
+
 /**
  * A library path as the note at `from` writes it: one `..` per folder the
- * note sits in, since a destination resolves against the note.
+ * note sits in, since a destination resolves against the note. Encoded with
+ * only the separators and unreserved marks left bare, since a space ends a bare
+ * destination, and with no escape kept, since the path is a name on disk and a
+ * `%` in it is a percent sign. Parens stay readable unless they would not
+ * balance, which is the one case that breaks a bare destination.
  */
 export function attachmentDestination(relativePath: string, from: string) {
   const climb = noteFolder(from)
@@ -50,7 +65,9 @@ export function attachmentDestination(relativePath: string, from: string) {
     .filter((segment) => segment !== "")
     .map(() => "..");
 
-  return encodeAttachmentPath([...climb, relativePath].join("/"));
+  const path = [...climb, relativePath].join("/");
+
+  return encode(path, parensBalance(path) ? "/-_.!~*'()" : "/-_.!~*'", false);
 }
 
 /** The markdown a dropped file inserts into the note at `from`: an embed for an image, a link otherwise. */
@@ -59,7 +76,7 @@ export function attachmentLink(relativePath: string, from: string) {
   const label = escapeMarkdownLabel(name);
   const destination = attachmentDestination(relativePath, from);
 
-  return IMAGE_EXTENSION.test(relativePath)
+  return isImageName(relativePath)
     ? `![${label}](${destination})`
     : `[${label}](${destination})`;
 }

@@ -7,6 +7,7 @@ import {
   isNotePath,
   isRelativeDestination,
   linkResolver,
+  resolveImage,
 } from "./links";
 import type { NoteMeta } from "./notes";
 import { noteFolder, noteTitle } from "./notes";
@@ -62,6 +63,52 @@ describe("linkResolver, by title", () => {
     const resolve = linkResolver([meta("todo.md")]);
 
     expect(resolve.title("missing", "index.md")).toBeUndefined();
+  });
+});
+
+describe(resolveImage, () => {
+  it("should find an image by its filename in any folder", () => {
+    expect(resolveImage(["attachments/photo.png"], "photo.png", "a.md")).toBe(
+      "attachments/photo.png"
+    );
+  });
+
+  it("should prefer the image in the note's own folder", () => {
+    const images = ["a/photo.png", "b/photo.png"];
+
+    expect(resolveImage(images, "photo.png", "b/note.md")).toBe("b/photo.png");
+  });
+
+  it("should settle a tie elsewhere by path order", () => {
+    const images = ["z/photo.png", "a/photo.png"];
+
+    expect(resolveImage(images, "photo.png", "note.md")).toBe("a/photo.png");
+  });
+
+  it("should ignore case and the space around the name", () => {
+    expect(resolveImage(["img/Photo.PNG"], " photo.png ", "a.md")).toBe(
+      "img/Photo.PNG"
+    );
+  });
+
+  it("should find a screenshot whose name holds a space a person cannot type", () => {
+    const screenshot = "attachments/Screenshot at 7.00.51 AM.png";
+
+    expect(
+      resolveImage([screenshot], "Screenshot at 7.00.51 AM.png", "a.md")
+    ).toBe(screenshot);
+  });
+
+  it("should match a path on its last segments", () => {
+    const images = ["a/photo.png", "trips/img/photo.png"];
+
+    expect(resolveImage(images, "img/photo.png", "a/note.md")).toBe(
+      "trips/img/photo.png"
+    );
+  });
+
+  it("should not match the tail of a longer filename", () => {
+    expect(resolveImage(["my-photo.png"], "photo.png", "a.md")).toBeUndefined();
   });
 });
 

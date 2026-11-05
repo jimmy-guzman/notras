@@ -13,8 +13,9 @@ use crate::state::AppState;
 pub type NotesWatcher = Debouncer<RecommendedWatcher, RecommendedCache>;
 
 /// Watch the notes directory for external writers (editors, git, AI agents).
-/// Our own writes are indexed synchronously by the commands; the mtime skip in
-/// `index_note` keeps those from echoing back out as change events.
+/// Our own note writes are indexed synchronously by the commands; the mtime skip
+/// in `index_note` keeps those from echoing back out as change events. An image
+/// has no row to skip on, so one is reported whoever wrote it.
 pub fn start<R: Runtime>(
     app: AppHandle<R>,
     notes_dir: PathBuf,

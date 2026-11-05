@@ -65,6 +65,7 @@ pub fn builder<R: Runtime>() -> tauri_specta::Builder<R> {
             notes::get_notes_dir::<tauri::Wry>,
             notes::index_status::<tauri::Wry>,
             notes::list_folders::<tauri::Wry>,
+            notes::list_images::<tauri::Wry>,
             notes::list_notes::<tauri::Wry>,
             notes::list_tags::<tauri::Wry>,
             notes::read_graph::<tauri::Wry>,
@@ -259,6 +260,78 @@ mod tests {
                 "{destination}"
             );
         }
+    }
+
+    #[test]
+    fn should_list_images_on_the_wire() {
+        let directory = tempfile::tempdir().unwrap();
+        fs::create_dir(directory.path().join("attachments")).unwrap();
+        fs::write(directory.path().join("attachments/shot.png"), [0]).unwrap();
+        fs::write(directory.path().join("a.md"), "![[shot.png]]").unwrap();
+        let contract = builder::<tauri::test::MockRuntime>();
+        let app = tauri::test::mock_builder()
+            .manage(AppState {
+                library: crate::library::LibraryOwner::new(
+                    Library::open(directory.path(), &directory.path().join(".index")).unwrap(),
+                    |_| {},
+                ),
+                watcher: Mutex::new(None),
+                pending_open: Mutex::new(vec![]),
+                quit: QuitHandshake::default(),
+            })
+            .invoke_handler(contract.invoke_handler())
+            .build(tauri::test::mock_context(tauri::test::noop_assets()))
+            .unwrap();
+        let window = tauri::WebviewWindowBuilder::new(&app, "main", Default::default())
+            .build()
+            .unwrap();
+
+        assert_eq!(
+            invoke(&window, "list_images", json!({})).unwrap(),
+            json!({"paths": ["attachments/shot.png"], "unreadable": []})
+        );
+    }
+
+    #[test]
+    fn should_announce_a_reindex_as_a_change_to_the_whole_library() {
+        let directory = tempfile::tempdir().unwrap();
+        fs::write(directory.path().join("a.md"), "# A").unwrap();
+        let contract = builder::<tauri::test::MockRuntime>();
+        let app = tauri::test::mock_builder()
+            .manage(AppState {
+                library: crate::library::LibraryOwner::new(
+                    Library::open(directory.path(), &directory.path().join(".index")).unwrap(),
+                    |_| {},
+                ),
+                watcher: Mutex::new(None),
+                pending_open: Mutex::new(vec![]),
+                quit: QuitHandshake::default(),
+            })
+            .invoke_handler(contract.invoke_handler())
+            .build(tauri::test::mock_context(tauri::test::noop_assets()))
+            .unwrap();
+        contract.mount_events(&app);
+        let window = tauri::WebviewWindowBuilder::new(&app, "main", Default::default())
+            .build()
+            .unwrap();
+        let (sender, changes) = mpsc::channel();
+        let listener = app.listen("notes-changed", move |event| {
+            sender
+                .send(serde_json::from_str::<Value>(event.payload()).unwrap())
+                .unwrap();
+        });
+
+        assert_eq!(
+            invoke(&window, "reindex_all", json!({})).unwrap(),
+            json!(["a.md"])
+        );
+        assert_eq!(
+            changes
+                .recv_timeout(std::time::Duration::from_secs(5))
+                .unwrap(),
+            json!({"paths": []})
+        );
+        app.unlisten(listener);
     }
 
     #[test]

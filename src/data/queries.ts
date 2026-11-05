@@ -1,4 +1,5 @@
-import { queryOptions } from "@tanstack/react-query";
+import { CancelledError, queryOptions } from "@tanstack/react-query";
+import type { QueryClient } from "@tanstack/react-query";
 
 import type { NoteFilters } from "@/core/notes";
 import type { NoteSearch } from "@/core/search";
@@ -12,7 +13,7 @@ import { getMentions } from "./get-mentions";
 import { getNotes } from "./get-notes";
 import { nativeCommand } from "./native-command";
 import { getNotesDir } from "./notes-dir";
-import { readEmbeddedNote } from "./read-embedded-note";
+import { readEmbedded } from "./read-embedded";
 import { readSessionFile } from "./read-session-file";
 import { searchNotes } from "./search-notes";
 
@@ -34,18 +35,53 @@ const list = (filters?: NoteFilters) =>
     queryKey: [...index, "list", filters ?? null] as const,
   });
 
+/**
+ * One walk of the library that every image embed shares. Outside the index
+ * prefix, since a note's save cannot change it. No `meta.what`: a failure
+ * reaches the embed that asked, which says why in its place.
+ */
+const images = () =>
+  queryOptions({
+    queryFn: async () =>
+      await nativeCommand(async () => await commands.listImages()),
+    queryKey: [...all, "images"] as const,
+  });
+
+/**
+ * Has the next read of the image list walk the library again. A walk already
+ * running would clear the invalidated mark and hand back the old list, and no
+ * refetch type restarts a first walk, so it is cancelled silently. Nothing
+ * replaces it here: only embeds read the list, and each retries a cancelled
+ * read, which starts the next walk.
+ */
+export function invalidateImages(client: QueryClient): void {
+  const { queryKey } = images();
+
+  void client.cancelQueries({ queryKey }, { revert: false, silent: true });
+  void client.invalidateQueries({ queryKey, refetchType: "none" });
+}
+
 /** Keyed generic to specific: every invalidation is one prefix. */
 export const noteQueries = {
   all,
   /**
-   * The note an embed in `from` shows, or null when its title names none.
-   * Under the index prefix, so a write to any note reads it again.
+   * The note or image an embed in `from` shows, or null when its title names
+   * neither. Under the index prefix, so a write to any note reads it again.
    */
   embed: (title: string, from: string) =>
     queryOptions({
       queryFn: async ({ client }) =>
-        await readEmbeddedNote(await client.query(list()), title, from),
+        await readEmbedded(
+          await client.query(list()),
+          title,
+          from,
+          async () => await client.query(images())
+        ),
       queryKey: [...index, "embed", from, title] as const,
+      // A read of a list or walk cancelled under it reads again; with
+      // no data of its own, nothing else restarts the embed.
+      retry: (_failures, error) => error instanceof CancelledError,
+      retryDelay: 0,
     }),
   folders: () =>
     queryOptions({

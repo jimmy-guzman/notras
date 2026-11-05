@@ -1,6 +1,11 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { emit } from "@tauri-apps/api/event";
-import { clearMocks, mockIPC, mockWindows } from "@tauri-apps/api/mocks";
+import {
+  clearMocks,
+  mockConvertFileSrc,
+  mockIPC,
+  mockWindows,
+} from "@tauri-apps/api/mocks";
 import {
   act,
   fireEvent,
@@ -1301,5 +1306,483 @@ describe("layout", () => {
       expect(calls).toContain("cancel_quit");
     });
     expect(calls).not.toContain("quit_app");
+  });
+
+  it("should list the library's images again for a changed file but not for a saved note", async () => {
+    localStorage.setItem(
+      "tabs",
+      JSON.stringify({
+        activeId: "first",
+        carets: {},
+        tabs: [{ id: "first", kind: "note", path: "first.md" }],
+      })
+    );
+    mockWindows("main");
+    let walks = 0;
+    let noteLists = 0;
+    mockIPC(
+      (command) => {
+        if (command === "list_images") {
+          walks += 1;
+
+          return { paths: [], unreadable: [] };
+        }
+
+        if (command === "list_notes") {
+          noteLists += 1;
+
+          return [];
+        }
+
+        if (command === "classify_open_paths") {
+          return [{ kind: "note", path: "first.md" }];
+        }
+
+        if (command === "get_notes_dir") {
+          return "/notes";
+        }
+
+        if (command === "index_status") {
+          return { state: "ready" };
+        }
+
+        if (command === "list_tags") {
+          return [];
+        }
+
+        if (command === "read_conflict") {
+          return null;
+        }
+
+        if (command === "read_note") {
+          return {
+            content: "# First\n\nNothing here\n\n![[a.png]]",
+            revision: "r1",
+            updatedAt: 1,
+          };
+        }
+
+        if (
+          command === "take_pending_open" ||
+          command === "find_mentions" ||
+          command === "pending_open_files"
+        ) {
+          return [];
+        }
+
+        if (command.startsWith("plugin:")) {
+          return null;
+        }
+
+        throw new Error(`unexpected command: ${command}`);
+      },
+      { shouldMockEvents: true }
+    );
+
+    const client = new QueryClient({
+      defaultOptions: {
+        queries: { retry: false, staleTime: Number.POSITIVE_INFINITY },
+      },
+    });
+
+    onTestFinished(() => {
+      for (const tab of getTabState().tabs) {
+        closeTab(tab.id);
+      }
+
+      client.clear();
+      clearMocks();
+      localStorage.removeItem("tabs");
+    });
+    render(
+      <QueryClientProvider client={client}>
+        <Layout />
+      </QueryClientProvider>
+    );
+
+    expect(
+      await screen.findByText('No image is named "a.png"')
+    ).toBeInTheDocument();
+    expect(walks).toBe(1);
+
+    const listedBefore = noteLists;
+
+    await emit("notes-changed", { paths: ["first.md"] });
+    await waitFor(() => {
+      expect(noteLists).toBeGreaterThan(listedBefore);
+    });
+
+    expect(walks).toBe(1);
+
+    await emit("notes-changed", { paths: ["first.md", "attachments/a.png"] });
+    await waitFor(() => {
+      expect(walks).toBe(2);
+    });
+  });
+
+  it.each([
+    { change: "its path", paths: ["attachments/a.png"] },
+    { change: "no paths", paths: [] },
+  ])(
+    "should show an image when a change naming $change lands during a walk",
+    async ({ paths }) => {
+      localStorage.setItem(
+        "tabs",
+        JSON.stringify({
+          activeId: "first",
+          carets: {},
+          tabs: [{ id: "first", kind: "note", path: "first.md" }],
+        })
+      );
+      mockWindows("main");
+      mockConvertFileSrc("macos");
+
+      const heldWalk = Promise.withResolvers<{
+        paths: string[];
+        unreadable: string[];
+      }>();
+
+      let walks = 0;
+
+      mockIPC(
+        async (command) => {
+          if (command === "list_images") {
+            walks += 1;
+
+            if (walks === 1) {
+              return { paths: [], unreadable: [] };
+            }
+
+            return walks === 2
+              ? await heldWalk.promise
+              : { paths: ["attachments/a.png"], unreadable: [] };
+          }
+
+          if (command === "classify_open_paths") {
+            return [{ kind: "note", path: "first.md" }];
+          }
+
+          if (command === "get_notes_dir") {
+            return "/notes";
+          }
+
+          if (command === "index_status") {
+            return { state: "ready" };
+          }
+
+          if (command === "list_notes" || command === "list_tags") {
+            return [];
+          }
+
+          if (command === "read_conflict") {
+            return null;
+          }
+
+          if (command === "read_note") {
+            return {
+              content: "# First\n\nNothing here\n\n![[a.png]]",
+              revision: "r1",
+              updatedAt: 1,
+            };
+          }
+
+          if (
+            command === "take_pending_open" ||
+            command === "find_mentions" ||
+            command === "pending_open_files"
+          ) {
+            return [];
+          }
+
+          if (command.startsWith("plugin:")) {
+            return null;
+          }
+
+          throw new Error(`unexpected command: ${command}`);
+        },
+        { shouldMockEvents: true }
+      );
+
+      const client = new QueryClient({
+        defaultOptions: {
+          queries: { retry: false, staleTime: Number.POSITIVE_INFINITY },
+        },
+      });
+
+      onTestFinished(() => {
+        for (const tab of getTabState().tabs) {
+          closeTab(tab.id);
+        }
+
+        client.clear();
+        clearMocks();
+        localStorage.removeItem("tabs");
+      });
+      render(
+        <QueryClientProvider client={client}>
+          <Layout />
+        </QueryClientProvider>
+      );
+
+      expect(
+        await screen.findByText('No image is named "a.png"')
+      ).toBeInTheDocument();
+
+      await emit("notes-changed", { paths: ["attachments/b.png"] });
+      await waitFor(() => {
+        expect(walks).toBe(2);
+      });
+
+      await emit("notes-changed", { paths });
+      heldWalk.resolve({ paths: [], unreadable: [] });
+
+      expect(
+        await screen.findByRole("img", { name: "a.png" })
+      ).toBeInTheDocument();
+    }
+  );
+
+  it.each([
+    { case: "one embed", embeds: "![[a.png]]", held: 1, images: ["a.png"] },
+    {
+      case: "two embeds",
+      embeds: "![[a.png]]\n\n![[b.png]]",
+      held: 1,
+      images: ["a.png", "b.png"],
+    },
+    {
+      case: "two changes",
+      embeds: "![[a.png]]",
+      held: 2,
+      images: ["a.png"],
+    },
+  ])(
+    "should show an image that lands during the first walk with $case",
+    async ({ embeds, held, images }) => {
+      localStorage.setItem(
+        "tabs",
+        JSON.stringify({
+          activeId: "first",
+          carets: {},
+          tabs: [{ id: "first", kind: "note", path: "first.md" }],
+        })
+      );
+      mockWindows("main");
+      mockConvertFileSrc("macos");
+
+      const heldWalk = Promise.withResolvers<{
+        paths: string[];
+        unreadable: string[];
+      }>();
+
+      let walks = 0;
+
+      mockIPC(
+        async (command) => {
+          if (command === "list_images") {
+            walks += 1;
+
+            return walks <= held
+              ? await heldWalk.promise
+              : {
+                  paths: ["attachments/a.png", "attachments/b.png"],
+                  unreadable: [],
+                };
+          }
+
+          if (command === "classify_open_paths") {
+            return [{ kind: "note", path: "first.md" }];
+          }
+
+          if (command === "get_notes_dir") {
+            return "/notes";
+          }
+
+          if (command === "index_status") {
+            return { state: "ready" };
+          }
+
+          if (command === "list_notes" || command === "list_tags") {
+            return [];
+          }
+
+          if (command === "read_conflict") {
+            return null;
+          }
+
+          if (command === "read_note") {
+            return {
+              content: `# First\n\nNothing here\n\n${embeds}`,
+              revision: "r1",
+              updatedAt: 1,
+            };
+          }
+
+          if (
+            command === "take_pending_open" ||
+            command === "find_mentions" ||
+            command === "pending_open_files"
+          ) {
+            return [];
+          }
+
+          if (command.startsWith("plugin:")) {
+            return null;
+          }
+
+          throw new Error(`unexpected command: ${command}`);
+        },
+        { shouldMockEvents: true }
+      );
+
+      const client = new QueryClient({
+        defaultOptions: {
+          queries: { retry: false, staleTime: Number.POSITIVE_INFINITY },
+        },
+      });
+
+      onTestFinished(() => {
+        for (const tab of getTabState().tabs) {
+          closeTab(tab.id);
+        }
+
+        client.clear();
+        clearMocks();
+        localStorage.removeItem("tabs");
+      });
+      render(
+        <QueryClientProvider client={client}>
+          <Layout />
+        </QueryClientProvider>
+      );
+
+      await waitFor(() => {
+        expect(walks).toBe(1);
+      });
+      await emit("notes-changed", { paths: ["attachments/a.png"] });
+      await waitFor(() => {
+        expect(walks).toBeGreaterThanOrEqual(held);
+      });
+
+      if (held === 2) {
+        await emit("notes-changed", { paths: ["attachments/a.png"] });
+      }
+
+      heldWalk.resolve({ paths: [], unreadable: [] });
+
+      await Promise.all(
+        images.map(async (name) => {
+          expect(await screen.findByRole("img", { name })).toBeInTheDocument();
+        })
+      );
+    }
+  );
+
+  it("should say why in an embed's place when the walk replacing the first one fails", async () => {
+    localStorage.setItem(
+      "tabs",
+      JSON.stringify({
+        activeId: "first",
+        carets: {},
+        tabs: [{ id: "first", kind: "note", path: "first.md" }],
+      })
+    );
+    mockWindows("main");
+
+    const heldWalk = Promise.withResolvers<{
+      paths: string[];
+      unreadable: string[];
+    }>();
+
+    let walks = 0;
+
+    mockIPC(
+      async (command) => {
+        if (command === "list_images") {
+          walks += 1;
+
+          if (walks === 1) {
+            return await heldWalk.promise;
+          }
+
+          throw Object.assign(new Error("Permission denied"), {
+            kind: "failed",
+          });
+        }
+
+        if (command === "classify_open_paths") {
+          return [{ kind: "note", path: "first.md" }];
+        }
+
+        if (command === "get_notes_dir") {
+          return "/notes";
+        }
+
+        if (command === "index_status") {
+          return { state: "ready" };
+        }
+
+        if (command === "list_notes" || command === "list_tags") {
+          return [];
+        }
+
+        if (command === "read_conflict") {
+          return null;
+        }
+
+        if (command === "read_note") {
+          return {
+            content: "# First\n\nNothing here\n\n![[a.png]]",
+            revision: "r1",
+            updatedAt: 1,
+          };
+        }
+
+        if (
+          command === "take_pending_open" ||
+          command === "find_mentions" ||
+          command === "pending_open_files"
+        ) {
+          return [];
+        }
+
+        if (command.startsWith("plugin:")) {
+          return null;
+        }
+
+        throw new Error(`unexpected command: ${command}`);
+      },
+      { shouldMockEvents: true }
+    );
+
+    const client = new QueryClient({
+      defaultOptions: {
+        queries: { retry: false, staleTime: Number.POSITIVE_INFINITY },
+      },
+    });
+
+    onTestFinished(() => {
+      for (const tab of getTabState().tabs) {
+        closeTab(tab.id);
+      }
+
+      client.clear();
+      clearMocks();
+      localStorage.removeItem("tabs");
+    });
+    render(
+      <QueryClientProvider client={client}>
+        <Layout />
+      </QueryClientProvider>
+    );
+
+    await waitFor(() => {
+      expect(walks).toBe(1);
+    });
+
+    await emit("notes-changed", { paths: ["attachments/a.png"] });
+    heldWalk.resolve({ paths: [], unreadable: [] });
+
+    expect(await screen.findByText("Permission denied")).toBeInTheDocument();
   });
 });

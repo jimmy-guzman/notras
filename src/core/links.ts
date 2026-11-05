@@ -152,6 +152,39 @@ function namesOf(meta: NoteMeta) {
   ]);
 }
 
+const SPACES = /\s+/gu;
+
+/** A macOS screenshot name holds a narrow no-break space a person cannot type. */
+function imageKey(path: string) {
+  return path.toLowerCase().replaceAll(SPACES, " ");
+}
+
+/**
+ * The library image a wikilink target names, by its filename or the end of its
+ * path, since another app writes `img/photo.png` where two images share a name.
+ * Case and the kind of space aside, the way a title matches, and the same
+ * folder then path order settle a tie.
+ */
+export function resolveImage(images: string[], target: string, from: string) {
+  const wanted = imageKey(target.trim());
+  const fromFolder = noteFolder(from);
+
+  return images
+    .filter((path) => {
+      const key = imageKey(path);
+
+      return key === wanted || key.endsWith(`/${wanted}`);
+    })
+    .toSorted((left, right) => {
+      const byFolder =
+        Number(noteFolder(right) === fromFolder) -
+        Number(noteFolder(left) === fromFolder);
+
+      return byFolder || comparePaths(left, right);
+    })
+    .at(0);
+}
+
 /**
  * A title can come from a heading, so it is not unique, and a link written
  * against a filename has to keep working: hence both names, and the title
