@@ -71,7 +71,7 @@ import type { SaveImage } from "./markdown-paste";
 import { MoveSelectionKeys } from "./move-selection-keys";
 import { SelectionHighlight } from "./selection-highlight";
 import { SlashMenu } from "./slash-menu";
-import { carryChange } from "./source-change";
+import { carryChange, keepsRowIndents } from "./source-change";
 import { TableNodeView } from "./table-node-view";
 import { isSafeUrl } from "./urls";
 import { Wikilink } from "./wikilink";
@@ -577,6 +577,16 @@ interface RenderedBlock {
  */
 const rendered = new WeakMap<Node, RenderedBlock>();
 
+/** Marks the throwaway transaction that puts the caret's sentinel in a block. */
+export const caretKey = new PluginKey("caretSentinel");
+
+/**
+ * The forms a block read back in before the caret's sentinel went in. The
+ * sentinel can break up what the block spells, like a tag, and the caret must
+ * not change the form the block is written in.
+ */
+const caretForms = new WeakMap<Node, Set<Form>>();
+
 /**
  * A form reads back when it writes the same as the escaped one. Both are
  * followed by the note's definitions, which a bracket left bare could
@@ -652,13 +662,15 @@ function renderBlock(
     escaped,
     forms,
     previous,
-    readsBack: new Set(
-      FORMS.filter(
-        (form) =>
-          forms[form] === escaped ||
-          reparses(manager, definitions, forms[form], escaped)
-      )
-    ),
+    readsBack:
+      caretForms.get(node) ??
+      new Set(
+        FORMS.filter(
+          (form) =>
+            forms[form] === escaped ||
+            reparses(manager, definitions, forms[form], escaped)
+        )
+      ),
   };
 
   rendered.set(node, block);
@@ -991,6 +1003,21 @@ function editedBlock(old: readonly Node[], now: readonly Node[]) {
     : -1;
 }
 
+function keepCaretForms(manager: MarkdownConverter, before: Node, after: Node) {
+  const old = before.content.content;
+  const at = editedBlock(old, after.content.content);
+  const was = old[at];
+  const node = after.maybeChild(at);
+
+  if (was !== undefined && node !== null) {
+    caretForms.set(
+      node,
+      renderBlock(manager, was, old[at - 1], definitionsOf(manager, before))
+        .readsBack
+    );
+  }
+}
+
 /** Whether a gap still keeps its two blocks apart once one of them changed. */
 function staysApart(
   parse: BlockParser,
@@ -1001,6 +1028,14 @@ function staysApart(
   nodes: Node[]
 ) {
   return isLoose(gap) || readsAs(parse, same, text, at, nodes);
+}
+
+/** Whether a carry leaves the rows of a table nested in `block` at their indent. */
+function keepsNestedTables(block: Node, source: string, carried: string) {
+  return (
+    findChildren(block, (child) => child.type.name === "table").length === 0 ||
+    keepsRowIndents(source, carried)
+  );
 }
 
 /**
@@ -1037,7 +1072,11 @@ function carrySource(manager: MarkdownConverter, before: Node, after: Node) {
       ? (parsed, block) => parsed.eq(block)
       : isSameBlockButDestinations;
 
-  if (text === null || !readsAs(parse, same, text, at, [node])) {
+  if (
+    text === null ||
+    !readsAs(parse, same, text, at, [node]) ||
+    !keepsNestedTables(was, source.text, text)
+  ) {
     return;
   }
 
@@ -1287,6 +1326,10 @@ const NoteMarkdown = Markdown.extend<
                 if (transaction.getMeta(rereadKey) === true) {
                   keepRereadSources(before.doc, after.doc);
                 } else {
+                  if (transaction.getMeta(caretKey) === true) {
+                    keepCaretForms(converterOf(editor), before.doc, after.doc);
+                  }
+
                   carrySource(converterOf(editor), before.doc, after.doc);
                 }
               } catch {

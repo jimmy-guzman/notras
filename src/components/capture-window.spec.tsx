@@ -8,6 +8,7 @@ import { object, parse, string } from "valibot";
 import { describe, expect, it, vi } from "vitest";
 
 import { CaptureWindow } from "@/components/capture-window";
+import { SENTINEL } from "@/components/editor/sentinel";
 import { chordGlyph } from "@/lib/ui/shortcuts";
 
 async function mountCapture() {
@@ -684,6 +685,54 @@ describe("capture window", () => {
       });
       const editor = await mountCapture();
       act(() => {
+        editor.commands.setContent(`|a|b|\n|-|-|\n|${SENTINEL}xy|2|\n`, {
+          contentType: "markdown",
+        });
+      });
+      const positions: number[] = [];
+      editor.state.doc.descendants((node, pos) => {
+        if (node.text === `${SENTINEL}xy`) {
+          positions.push(pos + `${SENTINEL}x`.length);
+        }
+      });
+      act(() => {
+        editor.commands.setTextSelection(positions[0] ?? -1);
+      });
+      await user.keyboard("{Control>}o{/Control}");
+      await waitFor(() => {
+        expect(handed).toHaveLength(1);
+      });
+      expect(handed).toStrictEqual([
+        { jot: { caret: written[0]?.length, path: "jot.md" } },
+      ]);
+    });
+
+    it("should hand off the caret in a table cell the file escapes", async () => {
+      const user = userEvent.setup();
+      const handed: unknown[] = [];
+      const written: string[] = [];
+      mockIPC((command, args) => {
+        if (command === "continue_jot") {
+          handed.push(args);
+
+          return null;
+        }
+
+        if (command === "create_note") {
+          const { options } = parse(
+            object({ options: object({ content: string() }) }),
+            args
+          );
+
+          written.push(options.content);
+
+          return { path: "jot.md", updatedAt: 1, warnings: [] };
+        }
+
+        return null;
+      });
+      const editor = await mountCapture();
+      act(() => {
         editor.commands.setContent("|a|b|\n|-|-|\n|&lt;div&gt;|2|\n", {
           contentType: "markdown",
         });
@@ -701,8 +750,18 @@ describe("capture window", () => {
       await waitFor(() => {
         expect(handed).toHaveLength(1);
       });
+
+      const saved =
+        "| a           | b   |\n| ----------- | --- |\n| &lt;div&gt; | 2   |";
+
+      expect(written).toStrictEqual([saved]);
       expect(handed).toStrictEqual([
-        { jot: { caret: written[0]?.length, path: "jot.md" } },
+        {
+          jot: {
+            caret: saved.indexOf("&lt;div") + "&lt;d".length,
+            path: "jot.md",
+          },
+        },
       ]);
     });
 
