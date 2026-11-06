@@ -20,6 +20,13 @@ const cases: [markdown: string, targets: string[]][] = [
   ["[[a|alias]]", ["a|alias"]],
   ["[[a#h]]", ["a#h"]],
   ["[[ spaced ]]", [" spaced "]],
+  // A space keeps a destination invalid, so the wikilink inside it is drawn.
+  ["*[a]([[b c]])*", ["b c"]],
+  ["*[a]([[b c]])* [[d]]", ["b c", "d"]],
+  ["_[a]([[b c]])_ [[d]]", ["b c", "d"]],
+  ["[label]([[Some Note]])", ["Some Note"]],
+  ["[a]([[b]])", []],
+  ["[a]([[b]]) [[c]]", ["c"]],
   ["[[**a**]]", ["**a**"]],
   ["[[a\\]]", ["a\\"]],
   // An embed links to its note, and an escaped `!` leaves a plain wikilink.
