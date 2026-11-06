@@ -750,10 +750,15 @@ describe("capture window", () => {
       await waitFor(() => {
         expect(handed).toHaveLength(1);
       });
+
+      const saved =
+        "| a           | b   |\n| ----------- | --- |\n| &lt;div&gt; | 2   |";
+
+      expect(written).toStrictEqual([saved]);
       expect(handed).toStrictEqual([
         {
           jot: {
-            caret: (written[0]?.indexOf("&lt;div") ?? -1) + "&lt;d".length,
+            caret: saved.indexOf("&lt;div") + "&lt;d".length,
             path: "jot.md",
           },
         },
