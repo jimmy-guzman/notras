@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.12.3](https://github.com/jimmy-guzman/notras/compare/v0.12.2...v0.12.3) (2026-11-06)
+
+
+### Features
+
+* **editor:** ✨ show an image where ![[photo.png]] sits ([#492](https://github.com/jimmy-guzman/notras/issues/492)) ([16d7466](https://github.com/jimmy-guzman/notras/commit/16d7466abcf74420cf594b63081b6c30b12b04f8))
+* **ui:** ✨ continue a jot in notras with ⌘O ([#485](https://github.com/jimmy-guzman/notras/issues/485)) ([6445ae0](https://github.com/jimmy-guzman/notras/commit/6445ae0d0cacd461383456e49e67e993456f1bdc))
+
+
+### Bug Fixes
+
+* **editor:** 🐛 keep the caret in tables in a list ([#496](https://github.com/jimmy-guzman/notras/issues/496)) ([5828d36](https://github.com/jimmy-guzman/notras/commit/5828d368f5571e403572c9ad6cd3e040b71a72cc))
+* **notes:** 🐛 index folders named like a note ([#495](https://github.com/jimmy-guzman/notras/issues/495)) ([ebf45de](https://github.com/jimmy-guzman/notras/commit/ebf45def79df33966592842273b57b74ec943860))
+* **notes:** 🐛 stop a crash on a link around a wikilink ([#504](https://github.com/jimmy-guzman/notras/issues/504)) ([9ef882e](https://github.com/jimmy-guzman/notras/commit/9ef882ec1512e3739919d4a49b8a1ba9cc555aaa))
+* **ui:** 🐛 recover the jot window after a failure ([#494](https://github.com/jimmy-guzman/notras/issues/494)) ([e7a3d0d](https://github.com/jimmy-guzman/notras/commit/e7a3d0d01f49d480358e33a8743cfde51f47adcb))
+
 ## [0.12.2](https://github.com/jimmy-guzman/notras/compare/v0.12.1...v0.12.2) (2026-11-04)
 
 

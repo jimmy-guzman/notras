@@ -1,6 +1,6 @@
 {
   "name": "notras",
-  "version": "0.12.2",
+  "version": "0.12.3",
   "private": true,
   "description": "Write another note.",
   "type": "module",
