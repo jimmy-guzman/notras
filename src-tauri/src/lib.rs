@@ -106,19 +106,16 @@ pub(crate) fn show_main<R: Runtime>(app: &AppHandle<R>) {
 }
 
 pub(crate) fn end_quit<R: Runtime>(app: &AppHandle<R>, ending: Ending) {
+    // A quit macOS holds outranks a restart: refusing it would stop a logout, and
+    // an installed update still applies on the next launch.
+    #[cfg(target_os = "macos")]
+    if termination::answer(&app.state::<AppState>().quit, true) {
+        return;
+    }
+
     match ending {
-        Ending::Exit => {
-            #[cfg(target_os = "macos")]
-            if termination::answer(&app.state::<AppState>().quit, true) {
-                return;
-            }
-            app.exit(0);
-        }
-        Ending::Restart => {
-            #[cfg(target_os = "macos")]
-            termination::answer(&app.state::<AppState>().quit, false);
-            app.request_restart();
-        }
+        Ending::Exit => app.exit(0),
+        Ending::Restart => app.request_restart(),
     }
 }
 

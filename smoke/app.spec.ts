@@ -539,6 +539,84 @@ describe("native smoke", () => {
     }
   });
 
+  it("should let a quit macOS holds end a waiting restart", async () => {
+    const { artifacts, binary } = inject("smoke");
+
+    const session = await startWdioSession({
+      browserName: "tauri",
+      "tauri:options": { application: binary },
+      "wdio:tauriServiceOptions": {
+        captureBackendLogs: true,
+        captureFrontendLogs: true,
+        driverProvider: "embedded",
+        logDir: artifacts,
+        startTimeout: 30_000,
+      },
+    });
+
+    try {
+      // The first test left the seeded note open, and this launch restores it.
+      await session
+        .$('[contenteditable="true"]')
+        .waitForDisplayed({ timeout: 30_000 });
+      const main = await session.getWindowHandle();
+      await session.execute(async () => {
+        await window.__TAURI__?.core?.invoke?.("show_capture");
+      });
+      await expect
+        .poll(
+          async () => {
+            const handles = await session.getWindowHandles();
+
+            return handles.length;
+          },
+          { timeout: 15_000 }
+        )
+        .toBeGreaterThan(1);
+
+      const handles = await session.getWindowHandles();
+
+      await session.switchToWindow(
+        handles.find((handle) => handle !== main) ?? main
+      );
+      await session.$('[contenteditable="true"]').waitForDisplayed({
+        timeout: 15_000,
+      });
+      // A window that never answers keeps the restart waiting on the backstop.
+      await session.execute(() => {
+        // Late enough that the driver hears back before the page stops.
+        setTimeout(() => {
+          for (;;) {
+            // Never yields, so the window cannot answer the restart.
+          }
+        }, 500);
+      });
+      await sleep(1500);
+      await session.switchToWindow(main);
+      await session.execute(() => {
+        void window.__TAURI__?.core?.invoke?.("restart_app");
+      });
+
+      const processId = await processIdOf(binary);
+      await askMacOSToQuit(processId);
+
+      await expect
+        .poll(() => isRunning(processId), { timeout: 15_000 })
+        .toBe(false);
+      await sleep(3000);
+      await expect(processIdOf(binary)).rejects.toThrow("Command failed");
+    } catch (error) {
+      await writeFile(
+        path.join(artifacts, "failure.txt"),
+        `Held restart: ${String(error)}`
+      );
+
+      throw error;
+    } finally {
+      await cleanupWdioSession(session);
+    }
+  });
+
   it("should end a quit a frozen window never answers", async () => {
     const { artifacts, binary } = inject("smoke");
 
