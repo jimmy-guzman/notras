@@ -63,6 +63,9 @@ function EmbeddedBody({
     content: body,
     contentType: "markdown",
     editable: false,
+    // The note's own editor selects the embed. A selection here would keep its
+    // ring after a click elsewhere, since nothing moves this editor's selection.
+    editorProps: { handleClick: () => true },
     extensions,
   });
 

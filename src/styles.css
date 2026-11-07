@@ -515,6 +515,14 @@ body.dragging .ProseMirror .selected-text,
   color: var(--muted-foreground);
   text-decoration: line-through;
 }
+/* Text decoration stops at an inline-block, so a shown embed restates it. */
+.ProseMirror
+  ul[data-type="taskList"]
+  > li[data-checked="true"]
+  > div
+  .embed[data-shown] {
+  text-decoration: line-through;
+}
 /* A task item's content sits in the node view's `div`, so Typeset's
    `li > ul, li > ol, li > blockquote` step never reaches a block nested under a
    task row and the block keeps `--typeset-flow`, the gap that separates
@@ -616,6 +624,15 @@ body.dragging .ProseMirror .selected-text,
   max-width: 100%;
   vertical-align: bottom;
 }
+/* A list marker follows the line's baseline, which `bottom` drops to the foot
+   of an image. Only an image alone in its paragraph moves, since text beside
+   one rides the same baseline. */
+.ProseMirror
+  li
+  .ProseMirror-separator:first-child
+  + [data-image]:has(+ .ProseMirror-separator + .ProseMirror-trailingBreak) {
+  vertical-align: top;
+}
 .ProseMirror .ProseMirror-selectednode :is(img, .image-failure) {
   outline: 2px solid var(--ring);
 }
@@ -707,18 +724,70 @@ body.dragging .ProseMirror .selected-text,
   text-decoration-color: currentcolor;
 }
 
+/* Inline-block, as `[data-image]` is: ProseMirror keeps a separator before an
+   atom that opens a paragraph and after one that closes it, and beside a block
+   each one stands on an empty line of its own. Top-aligned so a list marker
+   stays at the head of a tall embed. */
 .ProseMirror .embed[data-shown] {
-  display: block;
-  margin-block-start: var(--typeset-flow);
+  position: relative;
+  display: inline-block;
+  width: 100%;
+  vertical-align: top;
+}
+/* The caret beside an atom that fills its line stands in the column's margin,
+   a line tall so a tall embed does not draw a bar the height of the note. Before
+   the atom it sits at the head, and after it at the foot, where typing lands. */
+.ProseMirror:focus:has(
+    .embed[data-shown][data-caret],
+    .ProseMirror-separator:first-child
+      + [data-image][data-caret]
+      + .ProseMirror-separator
+      + .ProseMirror-trailingBreak
+  ) {
+  caret-color: transparent;
+}
+.ProseMirror:focus
+  :is(
+    .embed[data-shown],
+    .ProseMirror-separator:first-child
+      + [data-image]:has(+ .ProseMirror-separator + .ProseMirror-trailingBreak)
+  )[data-caret]::after {
+  position: absolute;
+  inset-inline-start: -0.375rem;
+  inset-block-start: 0;
+  width: 2px;
+  height: 1lh;
+  content: "";
+  background: var(--foreground);
+  animation: atom-caret-blink 1s steps(1) infinite;
+}
+.ProseMirror:focus
+  :is(
+    .embed[data-shown],
+    .ProseMirror-separator:first-child
+      + [data-image]:has(+ .ProseMirror-separator + .ProseMirror-trailingBreak)
+  )[data-caret="after"]::after {
+  inset-block: auto 0;
+  inset-inline: auto -0.375rem;
+}
+@keyframes atom-caret-blink {
+  50% {
+    opacity: 0;
+  }
 }
 /* An embed that holds another note's body sits apart from the note's own text
    on the hairline the table and quote rules use, and a click anywhere on it
-   opens that note. */
+   opens that note. An image embed sits as a plain image does, with no margin. */
 .ProseMirror .embed[data-shown][data-wikilink] {
+  margin-block-start: var(--typeset-flow);
   padding: 0.75rem 1rem;
   cursor: pointer;
   border: 1px solid var(--typeset-rule);
   border-radius: var(--radius-md);
+}
+/* The paragraph supplies the space above an embed that opens it. */
+.ProseMirror .ProseMirror-separator:first-child + .embed[data-shown] {
+  margin-block-start: 0;
 }
 .ProseMirror .embed:not([data-shown]) > .embed-body,
 .ProseMirror .embed:is([data-shown], [data-failed]) > .wikilink {
@@ -1199,6 +1268,18 @@ body.dragging .ProseMirror .selected-text,
     height: var(--keep-with-next, 0px);
     margin-block-end: calc(-1 * var(--keep-with-next, 0px));
     content: "";
+  }
+  /* WebKit cuts an inline-block at the page edge, through an image or a table
+     row, where a block breaks between them. Paper has no caret, so the
+     separators that keep an embed off `block` on screen can go. */
+  .print-sheet .ProseMirror .embed[data-shown] {
+    display: block;
+  }
+  .print-sheet .ProseMirror-separator:has(+ .embed[data-shown]),
+  .print-sheet
+    .embed[data-shown]
+    ~ :is(.ProseMirror-separator, .ProseMirror-trailingBreak) {
+    display: none !important;
   }
   /* The fence keeps the dark card, so `.typeset`'s ink is restated on it. The
      chip stays with the prose, on `--muted` since `--card` is a shade off

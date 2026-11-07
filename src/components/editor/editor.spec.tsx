@@ -943,6 +943,149 @@ describe("embeds", () => {
     expect(embed).toHaveAttribute("data-shown");
   });
 
+  it("should mark the embed the caret sits beside, and only while it does", async () => {
+    const { editor } = await mount({
+      initialContent: "![[Atlas]]\n\nnext",
+      watchEmbed: (_title, show) => {
+        show({
+          body: "arrived",
+          resolveImageSrc: (src) => ({ failure: "", src }),
+        });
+
+        return () => {};
+      },
+    });
+
+    await screen.findByText("arrived");
+    const embed = editor.view.dom.querySelector(".embed");
+
+    act(() => {
+      editor.commands.setTextSelection(1);
+    });
+
+    expect(embed).toHaveAttribute("data-caret", "before");
+
+    act(() => {
+      editor.commands.setTextSelection(2);
+    });
+
+    expect(embed).toHaveAttribute("data-caret", "after");
+
+    act(() => {
+      editor.commands.setNodeSelection(1);
+    });
+
+    expect(embed).not.toHaveAttribute("data-caret");
+
+    act(() => {
+      editor.commands.setTextSelection(5);
+    });
+
+    expect(embed).not.toHaveAttribute("data-caret");
+  });
+
+  it("should keep a click out of an embed's read-only editor, so no ring outlives it", async () => {
+    const { editor } = await mount({
+      initialContent: "![[Atlas]]",
+      watchEmbed: (_title, show) => {
+        show({
+          body: "arrived",
+          resolveImageSrc: (src) => ({ failure: "", src }),
+        });
+
+        return () => {};
+      },
+    });
+
+    await screen.findByText("arrived");
+    const inner = editor.view.dom.querySelector(".embed-body .ProseMirror");
+
+    if (
+      inner === null ||
+      !("editor" in inner) ||
+      !(inner.editor instanceof TiptapEditor)
+    ) {
+      throw new Error("the embed drew no editor");
+    }
+
+    const { view } = inner.editor;
+
+    expect(
+      view.someProp("handleClick", (handler) =>
+        handler(view, 1, new MouseEvent("mouseup"))
+      )
+    ).toBeTruthy();
+  });
+
+  it("should mark nothing inside an embed's read-only editor", async () => {
+    const { editor } = await mount({
+      initialContent: "![[Atlas]]",
+      watchEmbed: (_title, show) => {
+        show({
+          body: "![shot](shot.png)",
+          image: true,
+          resolveImageSrc: (src) => ({ failure: "", src }),
+        });
+
+        return () => {};
+      },
+    });
+
+    await waitFor(() => {
+      expect(
+        editor.view.dom.querySelector(".embed-body [data-image]")
+      ).not.toBeNull();
+    });
+
+    expect(
+      editor.view.dom.querySelector(".embed-body [data-caret]")
+    ).toBeNull();
+  });
+
+  it("should draw a hard break after an embed where the print sheet removes it", async () => {
+    const { editor } = await mount({
+      initialContent: "![[Atlas]]  \nnext",
+      watchEmbed: (_title, show) => {
+        show({
+          body: "arrived",
+          resolveImageSrc: (src) => ({ failure: "", src }),
+        });
+
+        return () => {};
+      },
+    });
+
+    await screen.findByText("arrived");
+
+    expect(
+      editor.view.dom.querySelector(
+        ".embed[data-shown] + .ProseMirror-separator + br"
+      )
+    ).not.toBeNull();
+  });
+
+  it("should open a paragraph with the separator the embed's margin rule reads", async () => {
+    const { editor } = await mount({
+      initialContent: "![[Atlas]]",
+      watchEmbed: (_title, show) => {
+        show({
+          body: "arrived",
+          resolveImageSrc: (src) => ({ failure: "", src }),
+        });
+
+        return () => {};
+      },
+    });
+
+    await screen.findByText("arrived");
+
+    expect(
+      editor.view.dom.querySelector(
+        ".ProseMirror-separator:first-child + .embed[data-shown]"
+      )
+    ).not.toBeNull();
+  });
+
   it("should give an embedded code block its copy button but no language picker", async () => {
     await mount({
       initialContent: "```ts\nconst host = 1;\n```\n\n![[Atlas]]",
@@ -2524,7 +2667,71 @@ describe("title menu", () => {
     });
     await user.keyboard("see ![[[[groc{Enter}");
 
-    expect(handle.getContent()).toBe("see ![[grocery list]] ");
+    expect(handle.getContent()).toBe("see ![[grocery list]]\n\n");
+  });
+
+  it.each([
+    ["a bullet", "- xx\n- yy", "- xx ![[grocery list]]\n- zz\n- yy"],
+    [
+      "an ordered item",
+      "1. xx\n2. yy",
+      "1. xx ![[grocery list]]\n2. zz\n3. yy",
+    ],
+    [
+      "a task",
+      "- [ ] xx\n- [ ] yy",
+      "- [ ] xx ![[grocery list]]\n- [ ] zz\n- [ ] yy",
+    ],
+  ])(
+    "should start the next item after an embed picked at the end of %s",
+    async (_kind, initialContent, expected) => {
+      const { editor, handle } = await mount({
+        initialContent,
+        titles: () => ["grocery list"],
+      });
+
+      const user = userEvent.setup();
+
+      act(() => {
+        editor.commands.focus(5);
+      });
+      await user.keyboard(" ![[[[groc{Enter}zz");
+
+      expect(handle.getContent()).toBe(expected);
+    }
+  );
+
+  it("should keep one block around an embed picked mid-line", async () => {
+    const { editor, handle } = await mount({
+      initialContent: "see for details",
+      titles: () => ["grocery list"],
+    });
+
+    const user = userEvent.setup();
+
+    act(() => {
+      editor.commands.focus(4);
+    });
+    await user.keyboard(" ![[[[groc{Enter}");
+
+    expect(editor.state.doc.childCount).toBe(1);
+    expect(handle.getContent()).toBe("see ![[grocery list]] for details");
+  });
+
+  it("should carry on typing below an embed from the title menu", async () => {
+    const { editor, handle } = await mount({
+      initialContent: "",
+      titles: () => ["grocery list"],
+    });
+
+    const user = userEvent.setup();
+
+    act(() => {
+      editor.commands.focus("end");
+    });
+    await user.keyboard("![[[[groc{Enter}next");
+
+    expect(handle.getContent()).toBe("![[grocery list]]\n\nnext");
   });
 
   it("should leave out a title holding a bracket", async () => {

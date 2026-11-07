@@ -59,6 +59,7 @@ import {
   escapeMarkdownTitle,
 } from "@/lib/utils/attachments";
 
+import { AtomCaret } from "./atom-caret";
 import { CaretAfterBreak } from "./caret-after-break";
 import { codeBlockNodeView, editingCodeBlock } from "./code-block-node-view";
 import { CodeBlockTab } from "./code-block-tab";
@@ -1464,6 +1465,7 @@ export function createEditorExtensions(
       name: "keepTab",
       priority: 1,
     }),
+    AtomCaret,
     CaretAfterBreak,
     DragSelection,
     Embed.extend({

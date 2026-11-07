@@ -467,6 +467,83 @@ describe("paper palette", () => {
 
     expect(blockOf(print, ".print-sheet")).toContain("zoom: 0.9375;");
   });
+
+  it("should break a shown embed across pages as a block, where the screen keeps it inline", () => {
+    const print = source.slice(source.indexOf("@media print"));
+
+    expect(blockOf(source, ".ProseMirror .embed[data-shown]")).toContain(
+      "display: inline-block;"
+    );
+    expect(
+      blockOf(print, ".print-sheet .ProseMirror .embed[data-shown]")
+    ).toContain("display: block;");
+  });
+
+  it("should hide what ProseMirror keeps beside a shown embed only on paper", () => {
+    const print = source.slice(source.indexOf("@media print"));
+
+    expect(print).toContain(
+      ".print-sheet .ProseMirror-separator:has(+ .embed[data-shown]),"
+    );
+    expect(
+      blockOf(
+        print,
+        "~ :is(.ProseMirror-separator, .ProseMirror-trailingBreak)"
+      )
+    ).toContain("display: none !important;");
+  });
+});
+
+describe("shown embeds", () => {
+  it("should fill the line and hold a list marker at the embed's head", () => {
+    const embed = blockOf(source, ".ProseMirror .embed[data-shown]");
+
+    expect(embed).toContain("width: 100%;");
+    expect(embed).toContain("vertical-align: top;");
+  });
+
+  it("should hide the native caret where the margin caret stands in for it", () => {
+    expect(source).toContain(".embed[data-shown][data-caret],");
+    expect(
+      blockOf(
+        source,
+        ".ProseMirror:focus:has(\n    .embed[data-shown][data-caret],\n    .ProseMirror-separator:first-child\n      + [data-image][data-caret]\n      + .ProseMirror-separator\n      + .ProseMirror-trailingBreak\n  )"
+      )
+    ).toContain("caret-color: transparent;");
+  });
+
+  it("should space only a note embed, and only after text", () => {
+    expect(blockOf(source, ".ProseMirror .embed[data-shown]")).not.toContain(
+      "margin-block-start"
+    );
+    expect(
+      blockOf(source, ".ProseMirror .embed[data-shown][data-wikilink]")
+    ).toContain("margin-block-start: var(--typeset-flow);");
+    expect(
+      blockOf(
+        source,
+        ".ProseMirror .ProseMirror-separator:first-child + .embed[data-shown]"
+      )
+    ).toContain("margin-block-start: 0;");
+  });
+
+  it("should strike a shown embed in a checked task", () => {
+    expect(
+      blockOf(
+        source,
+        '.ProseMirror\n  ul[data-type="taskList"]\n  > li[data-checked="true"]\n  > div\n  .embed[data-shown]'
+      )
+    ).toContain("text-decoration: line-through;");
+  });
+
+  it("should lift only an image alone in its paragraph in a list", () => {
+    expect(
+      blockOf(
+        source,
+        ".ProseMirror\n  li\n  .ProseMirror-separator:first-child\n  + [data-image]:has(+ .ProseMirror-separator + .ProseMirror-trailingBreak)"
+      )
+    ).toContain("vertical-align: top;");
+  });
 });
 
 describe("reading typography", () => {
