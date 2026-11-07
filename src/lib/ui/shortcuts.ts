@@ -115,7 +115,7 @@ export function useHotkey(
  * symbols, which separate themselves, but the word labels everywhere else run
  * together without one, so `Mod+Shift+K` would read `ctrlshiftk`.
  */
-export function chordGlyph(hotkey: string) {
+export function chordGlyph(hotkey: HotkeyChord) {
   const platform = detectPlatform();
 
   return formatForDisplay(hotkey, {
