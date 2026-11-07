@@ -112,6 +112,168 @@ describe("export pdf", () => {
     expect(surface.isConnected).toBeTruthy();
   });
 
+  it.each([
+    [
+      "between embeds",
+      '<span class="embed" data-shown>a</span>\n<span class="embed" data-shown>b</span>',
+      ["a", "b"],
+    ],
+    [
+      "in a selection",
+      '<span class="embed" data-shown>a</span><span class="selected-text">\n</span><span class="embed" data-shown>b</span>',
+      ["a", "b"],
+    ],
+    [
+      "before text",
+      '<span class="embed" data-shown>a</span>\ntail',
+      ["a", "tail"],
+    ],
+    [
+      "before an unshown embed",
+      '<span class="embed" data-shown>a</span>\n<span class="embed">b</span>',
+      ["a", "b"],
+    ],
+    [
+      "after a space",
+      '<span class="embed" data-shown>a</span> \ntail',
+      ["a", "tail"],
+    ],
+    [
+      "as a lone space",
+      '<span class="embed" data-shown>a</span> <span class="embed" data-shown>b</span>',
+      ["a", "b"],
+    ],
+    [
+      "as a hard break",
+      '<span class="embed" data-shown>a</span><img class="ProseMirror-separator" alt=""><br>tail',
+      ["a", "", "tail"],
+    ],
+    [
+      "as a hard break after a bold embed",
+      '<strong><span class="embed" data-shown>a</span></strong><img class="ProseMirror-separator" alt=""><br>tail',
+      ["a", "", "tail"],
+    ],
+    [
+      "at the head of bold selected text",
+      '<span class="embed" data-shown>a</span><strong><span class="selected-text">\nfoo</span></strong>',
+      ["a", "foo"],
+    ],
+    [
+      "after a bold embed",
+      '<strong><span class="embed" data-shown>a</span></strong>\nfoo',
+      ["a", "foo"],
+    ],
+    [
+      "after an underlined embed",
+      '<u><span class="embed" data-shown>a</span></u>\nfoo',
+      ["a", "foo"],
+    ],
+    [
+      "as an indented line",
+      '<span class="embed" data-shown>a</span>\n  <span class="embed" data-shown>b</span>',
+      ["a", "b"],
+    ],
+    [
+      "as a hard break inside a mark",
+      '<span class="embed" data-shown>a</span><strong><img class="ProseMirror-separator" alt=""><br>tail</strong>',
+      ["a", "tail"],
+    ],
+    [
+      "as a hard break behind a space",
+      '<span class="embed" data-shown>a</span> <br>tail',
+      ["a", "tail"],
+    ],
+  ])(
+    "should print no empty line after a shown embed %s",
+    async (_case, html, expected) => {
+      let printed: (string | null)[] | undefined;
+
+      mockIPC((command) => {
+        if (command === "plugin:dialog|save") {
+          return "/exports/hello.pdf";
+        }
+
+        if (command === "pdf_layout_width") {
+          return 672;
+        }
+
+        const paragraph = document.querySelector(".print-sheet p");
+
+        printed = [...(paragraph?.childNodes ?? [])].map(
+          (node) => node.textContent
+        );
+
+        return null;
+      });
+
+      const surface = surfaceOf(`<p>${html}</p>`);
+      const written = surface.textContent;
+
+      await exportPdf(surface, "hello", "Hello", async () => {});
+
+      expect(printed).toStrictEqual(expected);
+      expect(surface.textContent).toBe(written);
+    }
+  );
+
+  it("should keep a hard break after the newline that follows a shown embed", async () => {
+    let printed: string[] | undefined;
+
+    mockIPC((command) => {
+      if (command === "plugin:dialog|save") {
+        return "/exports/hello.pdf";
+      }
+
+      if (command === "pdf_layout_width") {
+        return 672;
+      }
+
+      const paragraph = document.querySelector(".print-sheet p");
+
+      printed = [...(paragraph?.childNodes ?? [])].map((node) => node.nodeName);
+
+      return null;
+    });
+
+    const surface = surfaceOf(
+      '<p><span class="embed" data-shown>a</span>\n<br>tail</p>'
+    );
+
+    await exportPdf(surface, "hello", "Hello", async () => {});
+
+    expect(printed).toStrictEqual(["SPAN", "BR", "#text"]);
+  });
+
+  it("should keep a space before text after a shown embed and the newline after an unshown one", async () => {
+    let printed: (string | null)[] | undefined;
+
+    mockIPC((command) => {
+      if (command === "plugin:dialog|save") {
+        return "/exports/hello.pdf";
+      }
+
+      if (command === "pdf_layout_width") {
+        return 672;
+      }
+
+      const paragraph = document.querySelector(".print-sheet p");
+
+      printed = [...(paragraph?.childNodes ?? [])].map(
+        (node) => node.textContent
+      );
+
+      return null;
+    });
+
+    const surface = surfaceOf(
+      '<p><span class="embed" data-shown>a</span> and <span class="embed">b</span>\nc</p>'
+    );
+
+    await exportPdf(surface, "hello", "Hello", async () => {});
+
+    expect(printed).toStrictEqual(["a", " and ", "b", "\nc"]);
+  });
+
   it("should shrink a table wider than the column to fit the page", async () => {
     let zoom: string | undefined;
 

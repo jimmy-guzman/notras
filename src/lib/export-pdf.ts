@@ -57,6 +57,77 @@ function keepHeadings(sheet: HTMLElement) {
   }
 }
 
+/** A mark or a selection's span around inline content, which an embed is not. */
+const WRAPPERS = "a, code, em, s, span:not(.embed), strong, u";
+
+/** Nothing but space, or a space and the line it ends. */
+const BLANK_LINE = /^\s+$|^[^\S\n]*\n/u;
+
+function nodeAfter(node: Node): Node | null {
+  const parent = node.parentElement;
+
+  return (
+    node.nextSibling ??
+    (parent?.matches(WRAPPERS) === true ? nodeAfter(parent) : null)
+  );
+}
+
+function firstLeaf(node: Node | null): Node | null {
+  return node instanceof Element && node.matches(WRAPPERS)
+    ? firstLeaf(node.firstChild)
+    : node;
+}
+
+function removeWithEmptyWrappers(node: ChildNode) {
+  const parent = node.parentElement;
+
+  node.remove();
+
+  if (parent?.matches(WRAPPERS) === true && parent.firstChild === null) {
+    removeWithEmptyWrappers(parent);
+  }
+}
+
+/**
+ * Removes what would stand on a line of its own after `node`. A space alone can
+ * hide a hard break behind it, where a newline has already ended the line.
+ */
+function removeBlankLineAfter(node: Node) {
+  const leaf = firstLeaf(nodeAfter(node));
+
+  if (leaf instanceof HTMLBRElement) {
+    removeWithEmptyWrappers(leaf);
+  } else if (
+    leaf instanceof Element &&
+    leaf.matches(".ProseMirror-separator")
+  ) {
+    removeBlankLineAfter(leaf);
+  } else if (leaf instanceof Text) {
+    const endsLine = leaf.data.includes("\n");
+
+    leaf.data = leaf.data.replace(BLANK_LINE, "");
+
+    if (leaf.data === "") {
+      if (!endsLine) {
+        removeBlankLineAfter(leaf);
+      }
+
+      removeWithEmptyWrappers(leaf);
+    }
+  }
+}
+
+/**
+ * Print returns a shown embed to `block`, where a hard break or a blank line
+ * right after it would stand on an empty line of its own. A mark can wrap the
+ * embed or what follows it, as a selection's span can.
+ */
+function removeBlankLinesAfterEmbeds(sheet: HTMLElement) {
+  for (const embed of sheet.querySelectorAll(".embed[data-shown]")) {
+    removeBlankLineAfter(embed);
+  }
+}
+
 /** Settles once the editor's image has loaded or failed, after its node view drew the outcome. */
 async function settled(image: HTMLImageElement) {
   if (image.complete) {
@@ -140,6 +211,7 @@ export async function exportPdf(
     element.classList.remove(...STATE_CLASSES);
   }
 
+  removeBlankLinesAfterEmbeds(sheet);
   document.body.append(sheet);
 
   try {

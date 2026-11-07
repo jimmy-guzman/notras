@@ -68,16 +68,35 @@ export const Wikilink = Node.create<WikilinkOptions>({
         const embeds =
           instance.state.doc.textBetween(range.from - 1, range.from) === "!";
 
-        instance
-          .chain()
-          .focus()
-          .insertContentAt(
-            embeds ? { from: range.from - 1, to: range.to } : range,
-            [
-              { attrs: { title }, type: embeds ? "embed" : this.name },
-              { text: " ", type: "text" },
-            ]
-          )
+        const chain = instance.chain().focus();
+
+        if (embeds) {
+          const $to = instance.state.doc.resolve(range.to);
+
+          const inserted = chain.insertContentAt(
+            { from: range.from - 1, to: range.to },
+            { attrs: { title }, type: "embed" }
+          );
+
+          // An embed fills its line, so typing carries on below it. A space
+          // would wrap onto a line of its own and leave the caret beside it.
+          ($to.pos === $to.end()
+            ? inserted.first(({ commands }) => [
+                () => commands.splitListItem("listItem"),
+                () => commands.splitListItem("taskItem"),
+                () => commands.splitBlock(),
+              ])
+            : inserted
+          ).run();
+
+          return;
+        }
+
+        chain
+          .insertContentAt(range, [
+            { attrs: { title }, type: this.name },
+            { text: " ", type: "text" },
+          ])
           .run();
       },
       items: ({ query }) =>
