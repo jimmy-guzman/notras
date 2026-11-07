@@ -28,7 +28,7 @@ On first launch notras creates `~/notras` and builds the index. Change the folde
 | `pnpm fix`            | lint and format, auto-fixing                       |
 | `pnpm test`           | run tests (Vitest, watches)                        |
 | `pnpm coverage`       | tests with coverage                                |
-| `pnpm smoke`          | native launch, edit and restart smoke test (macOS) |
+| `pnpm smoke`          | native edit, relaunch and quit smoke tests (macOS) |
 | `pnpm screenshots`    | regenerate the README screenshots (macOS)          |
 | `pnpm knip`           | unused code/deps, test-only exports                |
 | `pnpm icons`          | generate the icon family and README hero           |
@@ -61,9 +61,9 @@ cargo install cargo-llvm-cov --locked --version 0.9.1
 
 ## Native smoke test
 
-`pnpm smoke` builds and launches an isolated native application on macOS. One test opens a seeded note from home, edits it, reads the saved Markdown file, restarts the process, and checks the text in the restored tab. Run it from a desktop session with the normal development prerequisites installed. Its build output and diagnostics live under `target/smoke/`. The required macOS Rust CI job runs the same command and retains failure artifacts for seven days.
+`pnpm smoke` builds and launches an isolated native application on macOS. One test opens a seeded note from home, edits it, reads the saved Markdown file, restarts the process, and checks the text in the restored tab. The others quit through a posted ⌘Q or the Apple event the Dock sends, and check that an edit and a jot reach disk, that a quit which cannot save leaves the app open and shows the window, and that the backstop ends a quit a frozen window never answers. Run it from a desktop session with the normal development prerequisites installed. Its build output and diagnostics live under `target/smoke/`. The required macOS Rust CI job runs the same command and retains failure artifacts for seven days.
 
-The smoke test covers the combined webview, IPC and file persistence path. It does not establish keyboard fidelity, IME behavior, tab navigation, caret or undo restoration, quit flushing, tray interactions, global shortcuts, or OS dialogs. Those native interactions still need the manual checks in `AGENTS.md`. Test instrumentation requires the explicit `smoke` Cargo feature and frontend build mode; normal builds exclude it.
+The smoke test covers the combined webview, IPC and file persistence path. It does not establish keyboard fidelity, IME behavior, tab navigation, caret or undo restoration, a physical ⌘Q or logout, tray interactions, global shortcuts, or OS dialogs. Those native interactions still need the manual checks in `AGENTS.md`. Test instrumentation requires the explicit `smoke` Cargo feature and frontend build mode; normal builds exclude it.
 
 ## Tiptap patch
 

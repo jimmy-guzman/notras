@@ -2857,6 +2857,7 @@ name = "notras"
 version = "0.0.0"
 dependencies = [
  "arboard",
+ "dispatch2",
  "log",
  "notify",
  "notify-debouncer-full",

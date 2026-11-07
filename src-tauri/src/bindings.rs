@@ -58,7 +58,7 @@ pub fn builder<R: Runtime>() -> tauri_specta::Builder<R> {
             clipboard::read_clipboard_text,
             notes::attach_file::<tauri::Wry>,
             notes::attach_image::<tauri::Wry>,
-            notes::cancel_quit,
+            notes::cancel_quit::<tauri::Wry>,
             notes::classify_open_paths::<tauri::Wry>,
             notes::clear_conflict::<tauri::Wry>,
             notes::delete_note::<tauri::Wry>,

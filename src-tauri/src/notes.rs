@@ -566,11 +566,15 @@ pub fn restart_app<R: Runtime>(app: AppHandle<R>) {
     crate::begin_quit(&app, crate::state::Ending::Restart);
 }
 
-/// Cancel the quit handshake when a pending write fails.
+/// Cancel the quit handshake when a pending write fails, and show the window
+/// that reports it.
 #[tauri::command]
 #[specta::specta]
-pub fn cancel_quit(state: State<'_, AppState>) {
+pub fn cancel_quit<R: Runtime>(window: tauri::WebviewWindow<R>, state: State<'_, AppState>) {
     state.quit.cancel();
+    #[cfg(target_os = "macos")]
+    crate::termination::answer(&state.quit, false);
+    crate::show_and_focus(&window);
 }
 
 #[cfg(test)]

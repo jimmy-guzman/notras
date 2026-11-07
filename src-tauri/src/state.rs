@@ -42,6 +42,9 @@ enum Phase {
 struct Handshake {
     started: u64,
     phase: Phase,
+    /// macOS is waiting on `replyToApplicationShouldTerminate:`.
+    #[cfg(any(test, target_os = "macos"))]
+    held: bool,
 }
 
 /// The windows an in-flight quit still waits on.
@@ -103,6 +106,25 @@ impl QuitHandshake {
 
     pub fn cancel(&self) {
         self.lock().phase = Phase::Idle;
+    }
+
+    /// Hold a quit macOS delivered until `release`, unless the exit it would
+    /// wait on is already under way. One lock covers the check and the hold: a
+    /// hold landing after a settled quit's `release` would never be answered.
+    #[cfg(any(test, target_os = "macos"))]
+    pub fn hold(&self) -> bool {
+        let mut handshake = self.lock();
+        if matches!(handshake.phase, Phase::Settled) {
+            return false;
+        }
+        handshake.held = true;
+        true
+    }
+
+    /// Whether macOS was holding a quit, which it no longer is.
+    #[cfg(any(test, target_os = "macos"))]
+    pub fn release(&self) -> bool {
+        std::mem::take(&mut self.lock().held)
     }
 
     /// Whether the exit or restart a quit asked for is under way.
@@ -174,6 +196,47 @@ mod tests {
         assert!(!quit.is_settled());
         assert!(quit.begin(Ending::Exit, ["main".into()]).is_some());
         assert_eq!(quit.answer("main"), Some(Ending::Exit));
+    }
+
+    #[test]
+    fn should_release_a_held_quit_once() {
+        let quit = QuitHandshake::default();
+
+        assert!(quit.hold());
+        assert!(quit.release());
+        assert!(!quit.release());
+    }
+
+    #[test]
+    fn should_not_hold_a_quit_once_one_has_settled() {
+        let quit = QuitHandshake::default();
+        assert!(quit.begin(Ending::Exit, ["main".into()]).is_some());
+        assert_eq!(quit.answer("main"), Some(Ending::Exit));
+
+        assert!(!quit.hold());
+        assert!(!quit.release());
+    }
+
+    #[test]
+    fn should_keep_a_hold_through_a_refused_quit() {
+        let quit = QuitHandshake::default();
+        assert!(quit.begin(Ending::Exit, ["main".into()]).is_some());
+        assert!(quit.hold());
+
+        quit.cancel();
+
+        assert!(quit.release());
+    }
+
+    #[test]
+    fn should_keep_a_hold_until_a_restart_settles() {
+        let quit = QuitHandshake::default();
+        assert!(quit.begin(Ending::Restart, ["main".into()]).is_some());
+        assert!(quit.hold());
+
+        assert_eq!(quit.answer("main"), Some(Ending::Restart));
+
+        assert!(quit.release());
     }
 
     #[test]
