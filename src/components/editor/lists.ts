@@ -155,7 +155,7 @@ function withWrappedLines(
 
 /**
  * TODO: drop the `text` remap once `@tiptap/extension-list` parses a tight
- * item's lines as paragraphs. Through 3.32.1 its block parser leaves them as
+ * item's lines as paragraphs. Through 3.33.0 its block parser leaves them as
  * bare text once another block precedes them.
  */
 export const NoteListItem = ListItem.extend({

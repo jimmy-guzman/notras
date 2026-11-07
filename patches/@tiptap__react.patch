@@ -1,8 +1,8 @@
 diff --git a/dist/index.cjs b/dist/index.cjs
-index 15c9728c6ad3eefa66306cfd3906c7c5311af06c..86ec48d0b65112967957c9868bd8b809253b7a4f 100644
+index de695776f6c22e98eac23f94b0e48e7a65177c15..baafae16a0e299918608e9304ea65ff17bd19308 100644
 --- a/dist/index.cjs
 +++ b/dist/index.cjs
-@@ -142,13 +142,18 @@ var PureEditorContent = class extends react.default.Component {
+@@ -142,14 +142,19 @@ var PureEditorContent = class extends react.default.Component {
  	init() {
  		var _editor$view$dom;
  		const editor = this.props.editor;
@@ -11,11 +11,13 @@ index 15c9728c6ad3eefa66306cfd3906c7c5311af06c..86ec48d0b65112967957c9868bd8b809
  			if (editor.contentComponent) return;
  			const element = this.editorContentRef.current;
 -			element.append(...editor.view.dom.parentNode.childNodes);
+-			editor.view.updateRoot();
 -			editor.setOptions({ element });
  			editor.contentComponent = createContentComponent();
 -			editor.createNodeViews();
 +			if (editor.editorView) {
 +				element.append(...editor.view.dom.parentNode.childNodes);
++				editor.view.updateRoot();
 +				editor.setOptions({ element });
 +				editor.createNodeViews();
 +			} else {
@@ -25,7 +27,7 @@ index 15c9728c6ad3eefa66306cfd3906c7c5311af06c..86ec48d0b65112967957c9868bd8b809
  			editor.registerPlugin(new _tiptap_pm_state.Plugin({
  				key: mobileEnterPluginKey,
  				props: { handleDOMEvents: { beforeinput: (_view, event) => handleMobileEnter(editor, event) } }
-@@ -163,7 +168,6 @@ var PureEditorContent = class extends react.default.Component {
+@@ -164,7 +169,6 @@ var PureEditorContent = class extends react.default.Component {
  		editor.isEditorContentInitialized = false;
  		if (!editor.isDestroyed) {
  			editor.unregisterPlugin(mobileEnterPluginKey);
@@ -34,10 +36,10 @@ index 15c9728c6ad3eefa66306cfd3906c7c5311af06c..86ec48d0b65112967957c9868bd8b809
  		editor.contentComponent = null;
  		try {
 diff --git a/dist/index.js b/dist/index.js
-index 54376b761251f4618b2a8c17585824c8d2c1d64c..f3cb2b8a25a40ba1b1244fda1933ee8ba14d1ea0 100644
+index ad2281b2e1260919ece4f7daf985e965ae41cbee..39cd6e3bb3bf10e5ee0ef044e3b40f376aec0ba9 100644
 --- a/dist/index.js
 +++ b/dist/index.js
-@@ -118,13 +118,18 @@ var PureEditorContent = class extends React.Component {
+@@ -118,14 +118,19 @@ var PureEditorContent = class extends React.Component {
  	init() {
  		var _editor$view$dom;
  		const editor = this.props.editor;
@@ -46,11 +48,13 @@ index 54376b761251f4618b2a8c17585824c8d2c1d64c..f3cb2b8a25a40ba1b1244fda1933ee8b
  			if (editor.contentComponent) return;
  			const element = this.editorContentRef.current;
 -			element.append(...editor.view.dom.parentNode.childNodes);
+-			editor.view.updateRoot();
 -			editor.setOptions({ element });
  			editor.contentComponent = createContentComponent();
 -			editor.createNodeViews();
 +			if (editor.editorView) {
 +				element.append(...editor.view.dom.parentNode.childNodes);
++				editor.view.updateRoot();
 +				editor.setOptions({ element });
 +				editor.createNodeViews();
 +			} else {
@@ -60,7 +64,7 @@ index 54376b761251f4618b2a8c17585824c8d2c1d64c..f3cb2b8a25a40ba1b1244fda1933ee8b
  			editor.registerPlugin(new Plugin({
  				key: mobileEnterPluginKey,
  				props: { handleDOMEvents: { beforeinput: (_view, event) => handleMobileEnter(editor, event) } }
-@@ -139,7 +144,6 @@ var PureEditorContent = class extends React.Component {
+@@ -140,7 +145,6 @@ var PureEditorContent = class extends React.Component {
  		editor.isEditorContentInitialized = false;
  		if (!editor.isDestroyed) {
  			editor.unregisterPlugin(mobileEnterPluginKey);
@@ -69,10 +73,10 @@ index 54376b761251f4618b2a8c17585824c8d2c1d64c..f3cb2b8a25a40ba1b1244fda1933ee8b
  		editor.contentComponent = null;
  		try {
 diff --git a/src/EditorContent.tsx b/src/EditorContent.tsx
-index cedf56dba1088d0370a03cbe27b4457612a7634d..83cb39a4018e69329c5abf362ca4c119ff769dcd 100644
+index 56bd2e7d26be992197a90023ddaefd1d5d8f8039..bccc9b4bd58459b850b5e07b12fbfc1b8942965c 100644
 --- a/src/EditorContent.tsx
 +++ b/src/EditorContent.tsx
-@@ -125,22 +125,30 @@ export class PureEditorContent extends React.Component<
+@@ -125,26 +125,34 @@ export class PureEditorContent extends React.Component<
    init() {
      const editor = this.props.editor as EditorWithContentComponent | null
  
@@ -87,11 +91,18 @@ index cedf56dba1088d0370a03cbe27b4457612a7634d..83cb39a4018e69329c5abf362ca4c119
 -      element.append(...editor.view.dom.parentNode.childNodes)
 +      editor.contentComponent = createContentComponent()
  
+-      // The move above may have carried the view into a different document or
+-      // shadow tree; ProseMirror caches its root node, so make it re-resolve.
+-      editor.view.updateRoot()
++      if (editor['editorView']) {
++        element.append(...editor.view.dom.parentNode.childNodes)
+ 
 -      editor.setOptions({
 -        element,
 -      })
-+      if (editor['editorView']) {
-+        element.append(...editor.view.dom.parentNode.childNodes)
++        // The move above may have carried the view into a different document or
++        // shadow tree; ProseMirror caches its root node, so make it re-resolve.
++        editor.view.updateRoot()
  
 -      editor.contentComponent = createContentComponent()
 +        editor.setOptions({
@@ -110,7 +121,7 @@ index cedf56dba1088d0370a03cbe27b4457612a7634d..83cb39a4018e69329c5abf362ca4c119
  
        editor.registerPlugin(
          new Plugin({
-@@ -170,9 +178,6 @@ export class PureEditorContent extends React.Component<
+@@ -174,9 +182,6 @@ export class PureEditorContent extends React.Component<
  
      if (!editor.isDestroyed) {
        editor.unregisterPlugin(mobileEnterPluginKey)

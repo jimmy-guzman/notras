@@ -70,7 +70,7 @@ function renderSentinelTable(
 }
 
 /**
- * Through 3.32.1 upstream splits the whole remaining input at every block.
+ * Through 3.33.0 upstream splits the whole remaining input at every block.
  *
  * TODO: drop the tokenizer override once `@tiptap/extension-table` bounds its
  * own scan.

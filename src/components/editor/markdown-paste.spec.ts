@@ -1378,7 +1378,7 @@ describe("markdown paste", () => {
     it.each([
       ["see SKILL.md and pr.py", "see SKILL.md and pr.py"],
       ["see mastodon.social/@jimmy", "see mastodon.social/@jimmy"],
-      ["see www.example.com", "see [www.example.com](http://www.example.com)"],
+      ["see www.example.com", "see [www.example.com](https://www.example.com)"],
       ["mail hi@example.com", "mail [hi@example.com](mailto:hi@example.com)"],
       ["run `https://example.com`", "run `https://example.com`"],
     ])("should link GitHub's autolink shapes alone: %s", (text, expected) => {
@@ -1421,6 +1421,19 @@ describe("markdown paste", () => {
         expect(serializeMarkdown(editor).trimEnd()).toBe(expected);
       }
     );
+
+    it("should link the selection over https when a www address is pasted over it", () => {
+      editor = new Editor({
+        content: "<p>word</p>",
+        extensions: createEditorExtensions({}),
+      });
+      editor.commands.setTextSelection({ from: 1, to: 5 });
+      pasteText(editor, "www.example.com");
+
+      expect(serializeMarkdown(editor).trimEnd()).toBe(
+        "[word](https://www.example.com)"
+      );
+    });
 
     it("should link a plain URL beside one inside inline code in pasted HTML", () => {
       editor = new Editor({

@@ -112,7 +112,7 @@ const NoteStrike = Strike.extend({
  * paragraph to upstream.
  *
  * TODO: drop this once `@tiptap/extension-paragraph` stops unwrapping. Through
- * 3.32.1 its `parseMarkdown` returns the bare image for a paragraph holding
+ * 3.33.0 its `parseMarkdown` returns the bare image for a paragraph holding
  * only one, which suits the block image TipTap ships.
  */
 const NoteParagraph = Paragraph.extend({
@@ -1297,7 +1297,7 @@ export function serializeMarkdown(editor: Editor) {
  * calls methods a `Marked` instance has too.
  *
  * TODO: drop the widened type once `@tiptap/markdown` accepts a `Marked`
- * instance (through 3.32.1 it does not).
+ * instance (through 3.33.0 it does not).
  */
 const NoteMarkdown = Markdown.extend<
   Omit<MarkdownExtensionOptions, "marked"> & { marked: Marked }
@@ -1406,6 +1406,7 @@ export function createEditorExtensions(
     // goes through `followLink` and its scheme gate instead.
     NoteLink.configure({
       HTMLAttributes: { rel: null, target: null },
+      defaultProtocol: "https",
       openOnClick: false,
       shouldAutoLink: (value) => AUTOLINK.test(value),
     }),
