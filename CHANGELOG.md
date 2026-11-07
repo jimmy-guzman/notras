@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.12.4](https://github.com/jimmy-guzman/notras/compare/v0.12.3...v0.12.4) (2026-11-07)
+
+
+### Bug Fixes
+
+* **editor:** 🐛 link pasted www addresses over https ([#509](https://github.com/jimmy-guzman/notras/issues/509)) ([2826dfd](https://github.com/jimmy-guzman/notras/commit/2826dfde9222ea764d314debbb21c6a6f07bab12))
+* **ui:** 🐛 save edits & jots when macOS quits the app ([#505](https://github.com/jimmy-guzman/notras/issues/505)) ([996c09b](https://github.com/jimmy-guzman/notras/commit/996c09be12f6469085aca451b32c90b51abd5cde))
+
 ## [0.12.3](https://github.com/jimmy-guzman/notras/compare/v0.12.2...v0.12.3) (2026-11-06)
 
 
