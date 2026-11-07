@@ -131,7 +131,7 @@ Regenerate `src/server/adapters/bindings.ts` with `pnpm bindings`; do not edit i
 
 When changing file publication, check the platform limitations in `ARCHITECTURE.md` against the native implementation. Do not infer atomic conflict detection from the frontend revision check alone.
 
-For anything touching the Rust side or window behavior, also launch `pnpm dev` and check the affected behavior against the task's acceptance criteria. `pnpm smoke` covers one edit, save and relaunch path on macOS, and nothing automated covers the rest. Say which behaviors you checked and which you took from the code alone.
+For anything touching the Rust side or window behavior, also launch `pnpm dev` and check the affected behavior against the task's acceptance criteria. `pnpm smoke` covers one edit, save and relaunch path and quits sent as a posted ⌘Q or an Apple event on macOS, and nothing automated covers the rest. Say which behaviors you checked and which you took from the code alone.
 
 ## When to stop and ask
 

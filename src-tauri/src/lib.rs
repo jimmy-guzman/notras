@@ -6,6 +6,8 @@ mod notes;
 mod pdf;
 mod settings;
 mod state;
+#[cfg(target_os = "macos")]
+mod termination;
 mod watcher;
 mod windows;
 #[cfg(target_os = "macos")]
@@ -92,14 +94,25 @@ fn use_compact_window_controls<R: Runtime>(window: &tauri::WebviewWindow<R>) {
 #[cfg(not(target_os = "macos"))]
 fn use_compact_window_controls<R: Runtime>(_window: &tauri::WebviewWindow<R>) {}
 
+pub(crate) fn show_and_focus<R: Runtime>(window: &tauri::WebviewWindow<R>) {
+    let _ = window.show();
+    let _ = window.set_focus();
+}
+
 pub(crate) fn show_main<R: Runtime>(app: &AppHandle<R>) {
     if let Some(window) = app.get_webview_window("main") {
-        let _ = window.show();
-        let _ = window.set_focus();
+        show_and_focus(&window);
     }
 }
 
 pub(crate) fn end_quit<R: Runtime>(app: &AppHandle<R>, ending: Ending) {
+    // A quit macOS holds outranks a restart: refusing it would stop a logout, and
+    // an installed update still applies on the next launch.
+    #[cfg(target_os = "macos")]
+    if termination::answer(&app.state::<AppState>().quit, true) {
+        return;
+    }
+
     match ending {
         Ending::Exit => app.exit(0),
         Ending::Restart => app.request_restart(),
@@ -135,8 +148,7 @@ pub(crate) fn begin_quit<R: Runtime>(app: &AppHandle<R>, ending: Ending) {
 
 pub(crate) fn open_capture<R: Runtime>(app: &AppHandle<R>) {
     if let Some(window) = app.get_webview_window("capture") {
-        let _ = window.show();
-        let _ = window.set_focus();
+        show_and_focus(&window);
         return;
     }
 
@@ -258,6 +270,9 @@ fn init(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
             }
         }
     });
+
+    #[cfg(target_os = "macos")]
+    termination::intercept(app.handle());
 
     let state = app.state::<AppState>();
     *state.watcher() = match watcher::start(app.handle().clone(), notes_dir, 0) {
@@ -437,8 +452,8 @@ pub fn run() {
             // ungated arm is a Linux compile error the macOS gate cannot see.
             #[cfg(target_os = "macos")]
             RunEvent::Reopen { .. } => show_main(app),
-            // Every quit (⌘Q, tray, `quit_app`) funnels through here and is held
-            // until the handshake settles.
+            // The tray and `quit_app` funnel through here and are held until the
+            // handshake settles. A quit macOS delivers goes through `termination`.
             RunEvent::ExitRequested { api, code, .. } => {
                 // The restart a settled `restart_app` handshake ends in arrives here
                 // too, and Tauri ignores `prevent_exit` for it, so it passes.

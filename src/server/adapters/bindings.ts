@@ -18,7 +18,10 @@ export const commands = {
 	readClipboardText: () => __TAURI_INVOKE<string | null>("read_clipboard_text"),
 	attachFile: (source: string) => __TAURI_INVOKE<string>("attach_file", { source }),
 	attachImage: (base64Data: string) => __TAURI_INVOKE<string>("attach_image", { base64Data }),
-	/**  Cancel the quit handshake when a pending write fails. */
+	/**
+	 *  Cancel the quit handshake when a pending write fails, and show the window
+	 *  that reports it.
+	 */
 	cancelQuit: () => __TAURI_INVOKE<void>("cancel_quit"),
 	classifyOpenPaths: (paths: string[]) => __TAURI_INVOKE<PendingOpen[]>("classify_open_paths", { paths }),
 	clearConflict: (kind: OpenKind, path: string) => __TAURI_INVOKE<null>("clear_conflict", { kind, path }),
