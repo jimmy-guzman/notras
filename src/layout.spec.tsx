@@ -18,7 +18,7 @@ import userEvent from "@testing-library/user-event";
 import type { UserEvent } from "@testing-library/user-event";
 import { Editor as TiptapEditor } from "@tiptap/core";
 import { object, parse, string } from "valibot";
-import { beforeEach, describe, expect, it, onTestFinished } from "vitest";
+import { beforeEach, describe, expect, it, onTestFinished, vi } from "vitest";
 
 import { Toaster } from "@/components/ui/toast";
 import { SNIPPET_END, SNIPPET_START } from "@/core/fts-markers";
@@ -370,6 +370,125 @@ describe("layout", () => {
       await screen.findByRole("tab", { name: "Chosen" })
     ).toBeInTheDocument();
     expect(await screen.findByText("Available document")).toBeInTheDocument();
+  });
+
+  it.each([
+    {
+      trigger: "the window regains focus",
+      wake: async () => {
+        act(() => {
+          fireEvent.focus(window);
+        });
+      },
+    },
+    {
+      trigger: "the watcher reports it",
+      wake: async () => {
+        await emit("notes-changed", { paths: ["data.csv"] });
+      },
+    },
+  ])("should re-read a csv tab when $trigger", async ({ wake }) => {
+    const path = "/notes/data.csv";
+    localStorage.setItem(
+      "tabs",
+      JSON.stringify({
+        activeId: "saved",
+        carets: {},
+        tabs: [{ id: "saved", kind: "csv", path }],
+      })
+    );
+    mockWindows("main");
+    // happy-dom lays nothing out, and the row window draws nothing into a
+    // viewport of no height, so the geometry is stubbed at the DOM boundary.
+    vi.spyOn(HTMLElement.prototype, "clientHeight", "get").mockReturnValue(600);
+
+    let onDisk = [["Lima", "first"]];
+    let revision = 0;
+
+    mockIPC(
+      (command) => {
+        if (command === "classify_open_paths") {
+          return [{ kind: "csv", path }];
+        }
+
+        if (command === "get_notes_dir") {
+          return "/notes";
+        }
+
+        if (command === "index_status") {
+          return { state: "ready" };
+        }
+
+        if (command === "list_images") {
+          return { paths: [], unreadable: [] };
+        }
+
+        if (command === "list_notes" || command === "list_tags") {
+          return [];
+        }
+
+        if (command === "read_csv_if_moved") {
+          revision += 1;
+
+          return {
+            header: ["city", "count"],
+            page: 256,
+            pages: [0],
+            probe: [],
+            revision: `r${revision}`,
+            rows: onDisk.length,
+          };
+        }
+
+        if (command === "read_csv_rows") {
+          return onDisk;
+        }
+
+        if (command === "take_pending_open") {
+          return [];
+        }
+
+        if (command.startsWith("plugin:")) {
+          return 0;
+        }
+
+        throw new Error(`unexpected command: ${command}`);
+      },
+      { shouldMockEvents: true }
+    );
+
+    const client = new QueryClient({
+      defaultOptions: {
+        queries: { retry: false, staleTime: Number.POSITIVE_INFINITY },
+      },
+    });
+
+    onTestFinished(() => {
+      for (const tab of getTabState().tabs) {
+        closeTab(tab.id);
+      }
+
+      client.clear();
+      clearMocks();
+      vi.restoreAllMocks();
+      localStorage.removeItem("tabs");
+    });
+    render(
+      <QueryClientProvider client={client}>
+        <Layout />
+      </QueryClientProvider>
+    );
+
+    expect(
+      await screen.findByRole("cell", { name: "first" })
+    ).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "data.csv" })).toBeInTheDocument();
+    onDisk = [["Lima", "changed elsewhere"]];
+    await wake();
+
+    expect(
+      await screen.findByRole("cell", { name: "changed elsewhere" })
+    ).toBeInTheDocument();
   });
 
   it("should save every open tab when the window loses focus", async () => {

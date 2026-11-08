@@ -74,6 +74,15 @@ describe(tabFullPath, () => {
       )
     ).toBe("/tmp/notes/scratch.md");
   });
+
+  it("should hand back a csv's own path, which is absolute even inside the library", () => {
+    expect(
+      tabFullPath(
+        { id: "t1", kind: "csv", path: "/Users/me/notras/attachments/a.csv" },
+        "/Users/me/notras"
+      )
+    ).toBe("/Users/me/notras/attachments/a.csv");
+  });
 });
 
 describe(openTab, () => {
@@ -709,7 +718,11 @@ describe("persisted tabs", () => {
     const value = {
       activeId: "id-b.md",
       carets: { "id-b.md": 42 },
-      tabs: [note("a.md"), external("/tmp/x.md")],
+      tabs: [
+        note("a.md"),
+        external("/tmp/x.md"),
+        { id: "id-csv", kind: "csv", path: "/tmp/data.csv" } as const,
+      ],
     };
 
     expect(

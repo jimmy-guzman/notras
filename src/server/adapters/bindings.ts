@@ -45,6 +45,16 @@ export const commands = {
 	base: NoteFile,
 	ours: string,
 } | null>("read_conflict", { kind, path }),
+	checkCsv: (path: string) => __TAURI_INVOKE<null>("check_csv", { path }),
+	readCsvIfMoved: (path: string, known: string | null) => __TAURI_INVOKE<{
+	header: string[],
+	rows: number,
+	probe: string[][],
+	pages: number[],
+	page: number,
+	revision: string,
+} | null>("read_csv_if_moved", { path, known }),
+	readCsvRows: (path: string, revision: string, start: number) => __TAURI_INVOKE<string[][]>("read_csv_rows", { path, revision, start }),
 	readExternal: (path: string) => __TAURI_INVOKE<NoteFile>("read_external", { path }),
 	readNote: (path: string) => __TAURI_INVOKE<NoteFile>("read_note", { path }),
 	reindexAll: () => __TAURI_INVOKE<string[]>("reindex_all"),
@@ -55,6 +65,7 @@ export const commands = {
 	restartApp: () => __TAURI_INVOKE<void>("restart_app"),
 	createNote: (options: CreateNote) => __TAURI_INVOKE<MutationReceipt>("create_note", { options }),
 	moveNote: (path: string, folder: string) => __TAURI_INVOKE<PathMutationReceipt>("move_note", { path, folder }),
+	openCsv: (path: string) => __TAURI_INVOKE<null>("open_csv", { path }),
 	openExternalFile: (document: string, destination: string) => __TAURI_INVOKE<null>("open_external_file", { document, destination }),
 	openLinkedFile: (from: string, destination: string) => __TAURI_INVOKE<null>("open_linked_file", { from, destination }),
 	resolveExternalLink: (document: string, destination: string) => __TAURI_INVOKE<PendingOpen>("resolve_external_link", { document, destination }),
@@ -138,6 +149,22 @@ export type CountedTag = {
 export type CreateNote = {
 	content: string | null,
 	name: NoteName | null,
+};
+
+/**
+ *  What the webview needs before any body row: the header, padded to the
+ *  widest row; how many body rows follow; each column's longest cells, as rows,
+ *  to size it by; and the byte where each page of rows starts, so a page is
+ *  read without parsing what precedes it. The revision ties the pages to the
+ *  file as it stood.
+ */
+export type CsvFile = {
+	header: string[],
+	rows: number,
+	probe: string[][],
+	pages: number[],
+	page: number,
+	revision: string,
 };
 
 export type DeleteReceipt = {
@@ -268,7 +295,7 @@ export type NotesChanged = {
 	paths: string[],
 };
 
-export type OpenKind = "external" | "note";
+export type OpenKind = "csv" | "external" | "note";
 
 export type PathMutationReceipt = {
 	path: string,
@@ -280,7 +307,8 @@ export type PathMutationReceipt = {
 
 /**
  *  A queued "Open With" path, classified so the webview opens it as the tab
- *  kind the file already is: a note inside the notes dir, external otherwise.
+ *  kind the file already is: a csv wherever it sits, a note inside the notes
+ *  dir, external otherwise.
  */
 export type PendingOpen = {
 	kind: OpenKind,

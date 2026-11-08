@@ -14,9 +14,11 @@ import type { OpenKind, PendingOpen } from "@/server/adapters/bindings";
 
 /**
  * A note in the library, a markdown file outside it opened through "Open
- * With", or a draft: a new note with no file yet. The kind picks the read,
- * the write, and whether the note actions apply. A draft's `path` is `""`
- * until its first save creates the file, which turns it into a note.
+ * With", a csv shown read-only wherever it sits, or a draft: a new note with
+ * no file yet. The kind picks the read, the write, and whether the note
+ * actions apply. A draft's `path` is `""` until its first save creates the
+ * file, which turns it into a note. A csv's path is absolute, like an
+ * external file's, since it never joins the library index.
  */
 export interface Tab {
   /**
@@ -25,7 +27,7 @@ export interface Tab {
    * alive across one. Minted in `store.ts`, so this module stays pure.
    */
   id: string;
-  kind: "draft" | "external" | "note";
+  kind: "csv" | "draft" | "external" | "note";
   /**
    * The tab that was showing when this one opened beside it, so closing this
    * one returns there. Dropped on restore: a tab that survived a relaunch is
@@ -37,7 +39,7 @@ export interface Tab {
 
 /** What backs a tab on disk. A draft is a note whose file does not exist yet. */
 export function fileKind(kind: Tab["kind"]): OpenKind {
-  return kind === "external" ? "external" : "note";
+  return kind === "draft" ? "note" : kind;
 }
 
 /** The open set and which one is showing. An empty `activeId` means no tabs. */
@@ -315,7 +317,7 @@ export const PersistedTabsSchema = object({
     array(
       object({
         id: string(),
-        kind: picklist(["external", "note"]),
+        kind: picklist(["csv", "external", "note"]),
         path: string(),
       })
     ),

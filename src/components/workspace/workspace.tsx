@@ -18,6 +18,7 @@ import {
 } from "@/components/ui/resizable";
 import { SidebarProvider, useSidebar } from "@/components/ui/sidebar";
 import { toast } from "@/components/ui/toast";
+import { CsvSession } from "@/components/workspace/csv-session";
 import { Home } from "@/components/workspace/home";
 import { NotePanel, NotePanelToggles } from "@/components/workspace/note-panel";
 import { NoteSession } from "@/components/workspace/note-session";
@@ -496,7 +497,9 @@ export function Workspace({ onOpenSearch }: { onOpenSearch: () => void }) {
     },
   ]);
 
-  const leftOpen = notePanelOpen && activeTab !== undefined;
+  // A csv has no outline, mentions or tags, so the panel has nothing to show for it.
+  const panelApplies = activeTab !== undefined && activeTab.kind !== "csv";
+  const leftOpen = notePanelOpen && panelApplies;
 
   const panelButton = (
     <BarButton
@@ -543,7 +546,7 @@ export function Workspace({ onOpenSearch }: { onOpenSearch: () => void }) {
             className={cn(leftOpen && "ps-1!", browserOpen && "pe-3")}
           >
             {/* Open, each panel's button rides in its band at this same spot. */}
-            {activeTab === undefined || leftOpen ? null : panelButton}
+            {!panelApplies || leftOpen ? null : panelButton}
             <TabStrip activeId={activeId} tabs={tabs} />
             {browserOpen ? null : <div className="ms-auto">{browseButton}</div>}
           </Titlebar>
@@ -553,16 +556,26 @@ export function Workspace({ onOpenSearch }: { onOpenSearch: () => void }) {
             ) : (
               <>
                 <TabJumps />
-                {tabs.map((tab) =>
-                  tab.id === activeId || hasTabSnapshot(tab.id) ? (
+                {tabs.map((tab) => {
+                  if (tab.kind === "csv") {
+                    return (
+                      <CsvSession
+                        active={tab.id === activeId}
+                        key={tab.id}
+                        tab={tab}
+                      />
+                    );
+                  }
+
+                  return tab.id === activeId || hasTabSnapshot(tab.id) ? (
                     <NoteSession
                       active={tab.id === activeId}
                       // The buffer fixes its file kind at mount, so a kind change remounts.
                       key={`${fileKind(tab.kind)}:${tab.id}`}
                       tab={tab}
                     />
-                  ) : null
-                )}
+                  ) : null;
+                })}
                 {/* Unkeyed on purpose: a hop swaps the tab under it, and one instance is what lets the pills glide. */}
                 {activeTab?.kind === "note" && graphMode ? (
                   <TabGraph tab={activeTab} />

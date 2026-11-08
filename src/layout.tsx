@@ -139,7 +139,12 @@ function MainWindow() {
 
       void queryClient.invalidateQueries({ queryKey: noteQueries.index });
       const changed = new Set(paths);
-      refreshTabs((tab) => tab.kind === "note" && changed.has(tab.path));
+      const changedHost = new Set(paths.map((path) => `${notesDir}/${path}`));
+      refreshTabs(
+        (tab) =>
+          (tab.kind === "note" && changed.has(tab.path)) ||
+          (tab.kind === "csv" && changedHost.has(tab.path))
+      );
     });
 
     const unlistenStatus = events.indexStatus.listen((event) => {
@@ -147,13 +152,14 @@ function MainWindow() {
     });
 
     return disposeLater(unlisten, unlistenStatus);
-  }, [queryClient]);
+  }, [notesDir, queryClient]);
 
   // The watcher covers only the notes folder, so an external file is re-read
   // whenever the window comes back, in case another app changed it meanwhile.
+  // A csv is edited in another app by design, so it re-reads the same way.
   useEffect(() => {
     const refreshExternal = () => {
-      refreshTabs((tab) => tab.kind === "external");
+      refreshTabs((tab) => tab.kind === "external" || tab.kind === "csv");
     };
 
     window.addEventListener("focus", refreshExternal);

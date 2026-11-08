@@ -7,6 +7,7 @@ import {
   Code2Icon,
   CopyIcon,
   DownloadIcon,
+  ExternalLinkIcon,
   FileOutputIcon,
   FolderInputIcon,
   FolderOpenIcon,
@@ -59,6 +60,7 @@ import type { NoteMeta } from "@/core/notes";
 import { setAppearance } from "@/data/appearance";
 import { createNote } from "@/data/create-note";
 import { deleteNote } from "@/data/delete-note";
+import { openCsv } from "@/data/open-csv";
 import { appearanceQuery } from "@/data/queries";
 import { reindexAll } from "@/data/reindex";
 import { readRecentActions } from "@/lib/recent-actions";
@@ -539,14 +541,14 @@ export function CommandPalette({
     {
       Icon: FolderOpenIcon,
       label: "reveal in finder",
-      needs: "note",
+      needs: "file",
       onSelect: () => {
-        if (currentNote === undefined) {
+        if (activeTab === undefined) {
           return;
         }
 
-        void runAction("could not reveal note", async () => {
-          await revealItemInDir(`${notesDir}/${currentNote.path}`);
+        void runAction("could not reveal file", async () => {
+          await revealItemInDir(tabFullPath(activeTab, notesDir));
         });
       },
       text: "reveal in finder",
@@ -619,6 +621,24 @@ export function CommandPalette({
       value: "close-tabs-after",
     },
     ...(detectPlatform() === "mac" ? [exportPdfAction] : []),
+    {
+      Icon: ExternalLinkIcon,
+      label: "open in default app",
+      needs: "csv",
+      onSelect: () => {
+        if (activeTab === undefined) {
+          return;
+        }
+
+        const { path } = activeTab;
+
+        void runAction("could not open file", async () => {
+          await openCsv(path);
+        });
+      },
+      text: "open in default app",
+      value: "open-in-default-app",
+    },
     {
       Icon: CopyIcon,
       label: "copy path",
@@ -745,6 +765,7 @@ export function CommandPalette({
   const footerLabel = filterMode ? "back to notes" : "add filter";
 
   const reachable = {
+    csv: activeTab?.kind === "csv",
     editor: getTabHandles(activeId) !== undefined,
     file: activeTab !== undefined && activeTab.kind !== "draft",
     filed: currentNote !== undefined && noteFolder(currentNote.path) !== "",

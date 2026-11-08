@@ -23,9 +23,10 @@ use std::path::{Path, PathBuf};
 use cap_std::{ambient_authority, fs::Dir};
 
 pub use application::{
-    external_file, external_image, external_note, read_external, write_external, CommandError,
-    CreateNote, DeleteReceipt, ErrorKind, MutationReceipt, MutationWarning, NoteFile, NoteName,
-    OpenKind, PathMutationReceipt, PendingOpen, SaveName, SaveOutcome,
+    csv_file, external_file, external_image, external_note, read_csv_if_moved, read_csv_rows,
+    read_external, write_external, CommandError, CreateNote, CsvFile, DeleteReceipt, ErrorKind,
+    MutationReceipt, MutationWarning, NoteFile, NoteName, OpenKind, PathMutationReceipt,
+    PendingOpen, SaveName, SaveOutcome,
 };
 pub use conflicts::{clear_conflict, read_conflict, stash_conflict, ConflictStash};
 pub use images::{ImageList, ImageWalk};

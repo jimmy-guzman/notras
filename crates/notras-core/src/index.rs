@@ -142,6 +142,13 @@ pub fn is_note_file(path: &Path) -> bool {
         .is_some_and(|ext| ext.eq_ignore_ascii_case("md") || ext.eq_ignore_ascii_case("markdown"))
 }
 
+/// Kept in parity with `isCsvPath` in `src/core/links.ts`.
+pub fn is_csv_file(path: &Path) -> bool {
+    path.extension()
+        .and_then(|ext| ext.to_str())
+        .is_some_and(|ext| ext.eq_ignore_ascii_case("csv") || ext.eq_ignore_ascii_case("tsv"))
+}
+
 /// Relative path (unix separators) for a note file inside the notes dir.
 pub fn relative_path(notes_dir: &Path, path: &Path) -> Option<String> {
     if path == notes_dir {

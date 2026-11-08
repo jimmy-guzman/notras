@@ -51,7 +51,14 @@ const SCHEME = /^[a-z][a-z0-9+.-]*:/iu;
 
 const NOTE_EXTENSION = /\.(?:md|markdown)$/iu;
 
+const CSV_EXTENSION = /\.(?:csv|tsv)$/iu;
+
 const FRAGMENT_OR_QUERY = /[#?]/u;
+
+/** A destination without the fragment or query it carries. */
+export function bareDestination(destination: string) {
+  return destination.split(FRAGMENT_OR_QUERY, 1)[0] ?? "";
+}
 
 /** A destination the webview can fetch on its own: `https:`, `data:`, `asset:`. */
 export function hasScheme(destination: string) {
@@ -67,14 +74,20 @@ export function isRelativeDestination(destination: string) {
   );
 }
 
-/** Kept in parity with `is_note_path` in `src-tauri/src/index.rs`. */
+/** Kept in parity with `is_csv_file` in `crates/notras-core/src/index.rs`. */
+export function isCsvPath(destination: string) {
+  const name = bareDestination(destination).split("/").at(-1) ?? "";
+
+  return isRelativeDestination(destination) && CSV_EXTENSION.test(name);
+}
+
+/** Kept in parity with `is_note_path` in `crates/notras-core/src/markdown.rs`. */
 export function isNotePath(destination: string) {
   if (!isRelativeDestination(destination)) {
     return false;
   }
 
-  const name =
-    (destination.split(FRAGMENT_OR_QUERY, 1)[0] ?? "").split("/").at(-1) ?? "";
+  const name = bareDestination(destination).split("/").at(-1) ?? "";
 
   return !name.startsWith(".") && NOTE_EXTENSION.test(name);
 }
@@ -121,10 +134,7 @@ export function foldPath(
 
 /** Resolve a destination's path segments without looking up an indexed note. */
 function resolveNotePath(destination: string, from: string) {
-  return foldPath(
-    decode(destination.split(FRAGMENT_OR_QUERY, 1)[0] ?? ""),
-    from
-  );
+  return foldPath(decode(bareDestination(destination)), from);
 }
 
 function comparePaths(left: string, right: string) {

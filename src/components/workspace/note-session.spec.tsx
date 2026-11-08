@@ -1220,6 +1220,377 @@ describe(NoteSession, () => {
     expect(screen.queryByText("could not open file")).not.toBeInTheDocument();
   });
 
+  it("should open a csv link from a note as a csv tab beside it rather than in the system app", async () => {
+    mockIPC(
+      withDisk((command) => {
+        if (command === "check_csv") {
+          return null;
+        }
+
+        throw new Error(`unexpected command: ${command}`);
+      })
+    );
+
+    const client = new QueryClient({
+      defaultOptions: {
+        queries: { retry: false, staleTime: Number.POSITIVE_INFINITY },
+      },
+    });
+
+    openNote("projects/a.md");
+    const origin = getTabState().activeId;
+    client.setQueryData(notesDirQuery.queryKey, "/notes");
+    client.setQueryData(noteQueries.list().queryKey, []);
+    disk.set("projects/a.md", {
+      content: "# A\n\n[data](../attachments/q3%20sales.csv)",
+      revision: "r0",
+      updatedAt: 1,
+    });
+    client.setQueryData(
+      tabOpeningQuery(origin, "note", "projects/a.md").queryKey,
+      {
+        file: {
+          content: "# A\n\n[data](../attachments/q3%20sales.csv)",
+          revision: "r0",
+          updatedAt: new Date(1),
+        },
+        stash: null,
+      }
+    );
+    onTestFinished(() => {
+      client.clear();
+    });
+    render(
+      <QueryClientProvider client={client}>
+        <NoteSession
+          active
+          tab={{ id: origin, kind: "note", path: "projects/a.md" }}
+        />
+        <Toaster />
+      </QueryClientProvider>
+    );
+    const liveEditor = await editor(origin);
+    act(() => {
+      liveEditor.commands.setTextSelection(
+        liveEditor.state.doc.content.size - 2
+      );
+      liveEditor.commands.keyboardShortcut("Mod-Shift-o");
+    });
+    await waitFor(() => {
+      expect(
+        getTabState().tabs.map((entry) => [entry.kind, entry.path])
+      ).toStrictEqual([
+        ["note", "projects/a.md"],
+        ["csv", "/notes/attachments/q3 sales.csv"],
+      ]);
+    });
+    expect(getTabState().activeId).not.toBe(origin);
+    expect(screen.queryByText("could not open file")).not.toBeInTheDocument();
+  });
+
+  it("should say why a csv link's file could not open and open no tab", async () => {
+    const check = vi
+      .fn<() => Promise<never>>()
+      .mockRejectedValue({ kind: "not-found", message: "No such file" });
+
+    mockIPC(
+      withDisk(async (command) => {
+        if (command === "check_csv") {
+          return await check();
+        }
+
+        throw new Error(`unexpected command: ${command}`);
+      })
+    );
+
+    const client = new QueryClient({
+      defaultOptions: {
+        queries: { retry: false, staleTime: Number.POSITIVE_INFINITY },
+      },
+    });
+
+    client.setQueryData(notesDirQuery.queryKey, "/notes");
+    client.setQueryData(noteQueries.list().queryKey, []);
+    disk.set("a.md", {
+      content: "# A\n\n[data](gone.csv)",
+      revision: "r0",
+      updatedAt: 1,
+    });
+    client.setQueryData(tabOpeningQuery("t8", "note", "a.md").queryKey, {
+      file: {
+        content: "# A\n\n[data](gone.csv)",
+        revision: "r0",
+        updatedAt: new Date(1),
+      },
+      stash: null,
+    });
+    onTestFinished(() => {
+      client.clear();
+    });
+    render(
+      <QueryClientProvider client={client}>
+        <NoteSession active tab={{ id: "t8", kind: "note", path: "a.md" }} />
+        <Toaster />
+      </QueryClientProvider>
+    );
+    const liveEditor = await editor("t8");
+    act(() => {
+      liveEditor.commands.setTextSelection(
+        liveEditor.state.doc.content.size - 2
+      );
+      liveEditor.commands.keyboardShortcut("Mod-Shift-o");
+    });
+
+    expect(await screen.findByText("could not open file")).toBeInTheDocument();
+    expect(screen.getByText("No such file")).toBeInTheDocument();
+    expect(
+      getTabState().tabs.some((entry) => entry.kind === "csv")
+    ).toBeFalsy();
+  });
+
+  it("should open a csv link's file without the fragment or query it carries", async () => {
+    mockIPC(
+      withDisk((command) => {
+        if (command === "check_csv") {
+          return null;
+        }
+
+        throw new Error(`unexpected command: ${command}`);
+      })
+    );
+
+    const client = new QueryClient({
+      defaultOptions: {
+        queries: { retry: false, staleTime: Number.POSITIVE_INFINITY },
+      },
+    });
+
+    client.setQueryData(notesDirQuery.queryKey, "/notes");
+    client.setQueryData(noteQueries.list().queryKey, []);
+    disk.set("a.md", {
+      content: "# A\n\n[data](q3.csv#top)",
+      revision: "r0",
+      updatedAt: 1,
+    });
+    client.setQueryData(tabOpeningQuery("t7", "note", "a.md").queryKey, {
+      file: {
+        content: "# A\n\n[data](q3.csv#top)",
+        revision: "r0",
+        updatedAt: new Date(1),
+      },
+      stash: null,
+    });
+    onTestFinished(() => {
+      client.clear();
+    });
+    render(
+      <QueryClientProvider client={client}>
+        <NoteSession active tab={{ id: "t7", kind: "note", path: "a.md" }} />
+        <Toaster />
+      </QueryClientProvider>
+    );
+    const liveEditor = await editor("t7");
+    act(() => {
+      liveEditor.commands.setTextSelection(
+        liveEditor.state.doc.content.size - 2
+      );
+      liveEditor.commands.keyboardShortcut("Mod-Shift-o");
+    });
+    await waitFor(() => {
+      expect(
+        getTabState().tabs.map((entry) => [entry.kind, entry.path])
+      ).toContainEqual(["csv", "/notes/q3.csv"]);
+    });
+  });
+
+  it.each([
+    {
+      href: "../outside.csv",
+      reason: "../outside.csv climbs out of the notes folder",
+      refusal: "climbs out of the notes folder",
+    },
+    {
+      href: ".hidden/data.csv",
+      reason: String.raw`File path parts cannot contain \ or :, or start with a dot`,
+      refusal: "holds a part the library refuses",
+    },
+  ])("should refuse a csv link that $refusal", async ({ href, reason }) => {
+    mockIPC(
+      withDisk((command) => {
+        throw new Error(`unexpected command: ${command}`);
+      })
+    );
+
+    const client = new QueryClient({
+      defaultOptions: {
+        queries: { retry: false, staleTime: Number.POSITIVE_INFINITY },
+      },
+    });
+
+    client.setQueryData(notesDirQuery.queryKey, "/notes");
+    client.setQueryData(noteQueries.list().queryKey, []);
+    disk.set("a.md", {
+      content: `# A\n\n[data](${href})`,
+      revision: "r0",
+      updatedAt: 1,
+    });
+    client.setQueryData(tabOpeningQuery("t5", "note", "a.md").queryKey, {
+      file: {
+        content: `# A\n\n[data](${href})`,
+        revision: "r0",
+        updatedAt: new Date(1),
+      },
+      stash: null,
+    });
+    onTestFinished(() => {
+      client.clear();
+    });
+    render(
+      <QueryClientProvider client={client}>
+        <NoteSession active tab={{ id: "t5", kind: "note", path: "a.md" }} />
+        <Toaster />
+      </QueryClientProvider>
+    );
+    const liveEditor = await editor("t5");
+    act(() => {
+      liveEditor.commands.setTextSelection(
+        liveEditor.state.doc.content.size - 2
+      );
+      liveEditor.commands.keyboardShortcut("Mod-Shift-o");
+    });
+    expect(await screen.findByText("could not open file")).toBeInTheDocument();
+    expect(screen.getByText(reason)).toBeInTheDocument();
+    expect(
+      getTabState().tabs.some((entry) => entry.kind === "csv")
+    ).toBeFalsy();
+  });
+
+  it("should say that a file could not open when an external tab's csv link is refused", async () => {
+    const resolve = vi
+      .fn<() => Promise<never>>()
+      .mockRejectedValue({ kind: "failed", message: "That path is a folder" });
+
+    mockIPC(
+      withDisk(async (command) => {
+        if (command === "resolve_external_link") {
+          return await resolve();
+        }
+
+        throw new Error(`unexpected command: ${command}`);
+      })
+    );
+
+    const client = new QueryClient({
+      defaultOptions: {
+        queries: { retry: false, staleTime: Number.POSITIVE_INFINITY },
+      },
+    });
+
+    const path = "/Users/me/docs/note.md";
+    openTab("external", path, true);
+    const origin = getTabState().activeId;
+    client.setQueryData(notesDirQuery.queryKey, "/notes");
+    disk.set(path, {
+      content: "# Ext\n\n[data](../data.csv)",
+      revision: "r0",
+      updatedAt: 1,
+    });
+    client.setQueryData(tabOpeningQuery(origin, "external", path).queryKey, {
+      file: {
+        content: "# Ext\n\n[data](../data.csv)",
+        revision: "r0",
+        updatedAt: new Date(1),
+      },
+      stash: null,
+    });
+    onTestFinished(() => {
+      client.clear();
+    });
+    render(
+      <QueryClientProvider client={client}>
+        <NoteSession active tab={{ id: origin, kind: "external", path }} />
+        <Toaster />
+      </QueryClientProvider>
+    );
+    const liveEditor = await editor(origin);
+    act(() => {
+      liveEditor.commands.setTextSelection(
+        liveEditor.state.doc.content.size - 2
+      );
+      liveEditor.commands.keyboardShortcut("Mod-Shift-o");
+    });
+
+    expect(await screen.findByText("could not open file")).toBeInTheDocument();
+    expect(screen.getByText("That path is a folder")).toBeInTheDocument();
+    expect(screen.queryByText("could not open note")).not.toBeInTheDocument();
+  });
+
+  it("should open a csv link from an external tab as the csv tab the host resolves", async () => {
+    const resolved: unknown[] = [];
+    mockIPC(
+      withDisk((command, args) => {
+        if (command === "resolve_external_link") {
+          resolved.push(args);
+
+          return { kind: "csv", path: "/Users/me/data.csv" };
+        }
+
+        throw new Error(`unexpected command: ${command}`);
+      })
+    );
+
+    const client = new QueryClient({
+      defaultOptions: {
+        queries: { retry: false, staleTime: Number.POSITIVE_INFINITY },
+      },
+    });
+
+    const path = "/Users/me/docs/note.md";
+    openTab("external", path, true);
+    const origin = getTabState().activeId;
+    client.setQueryData(notesDirQuery.queryKey, "/notes");
+    disk.set(path, {
+      content: "# Ext\n\n[data](../data.csv)",
+      revision: "r0",
+      updatedAt: 1,
+    });
+    client.setQueryData(tabOpeningQuery(origin, "external", path).queryKey, {
+      file: {
+        content: "# Ext\n\n[data](../data.csv)",
+        revision: "r0",
+        updatedAt: new Date(1),
+      },
+      stash: null,
+    });
+    onTestFinished(() => {
+      client.clear();
+    });
+    render(
+      <QueryClientProvider client={client}>
+        <NoteSession active tab={{ id: origin, kind: "external", path }} />
+        <Toaster />
+      </QueryClientProvider>
+    );
+    const liveEditor = await editor(origin);
+    act(() => {
+      liveEditor.commands.setTextSelection(
+        liveEditor.state.doc.content.size - 2
+      );
+      liveEditor.commands.keyboardShortcut("Mod-Shift-o");
+    });
+    await waitFor(() => {
+      expect(
+        getTabState().tabs.map((entry) => [entry.kind, entry.path])
+      ).toStrictEqual([
+        ["external", path],
+        ["csv", "/Users/me/data.csv"],
+      ]);
+    });
+    expect(resolved).toStrictEqual([
+      { destination: "../data.csv", document: path },
+    ]);
+  });
+
   it("should open a markdown link from an external tab beside it, as the tab it already is", async () => {
     const resolved: unknown[] = [];
     mockIPC(

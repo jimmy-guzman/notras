@@ -1,5 +1,5 @@
 use std::fs::{self, File};
-use std::io::{self, Read as _, Seek as _, Write as _};
+use std::io::{self, BufRead as _, Read as _, Seek as _, Write as _};
 use std::path::{Component, Path, PathBuf};
 use std::sync::Arc;
 use std::time::UNIX_EPOCH;
@@ -847,13 +847,13 @@ pub fn external_image(document: &Path, src: &str) -> Result<PathBuf, CommandErro
     Ok(image)
 }
 
-/// The markdown file a link in an external document names.
+/// The markdown or csv file a link in an external document names.
 ///
-/// The shell classifies it as a note or another external file.
+/// The shell classifies it as a note, a csv, or another external file.
 pub fn external_note(document: &Path, destination: &str) -> Result<PathBuf, CommandError> {
     let target = external_target(document, &relationships::bare_file_destination(destination))?;
-    if !index::is_note_file(&target) {
-        return Err("Only Markdown files open as tabs".into());
+    if !(index::is_note_file(&target) || index::is_csv_file(&target)) {
+        return Err("Only Markdown and CSV files open as tabs".into());
     }
     if !fs::metadata(&target)?.is_file() {
         return Err("That path is not a file".into());
@@ -888,6 +888,209 @@ pub fn external_file(document: &Path, destination: &str) -> Result<PathBuf, Comm
         return Err("That file is a program".into());
     }
     Ok(target)
+}
+
+/// The csv or tsv file an absolute host path names, canonicalized.
+///
+/// Checked on each request: a file reached through a note link or "Open With"
+/// is read by host path, outside the library handle, so the path has to be
+/// absolute and name a regular file with a csv extension.
+pub fn csv_file(path: &Path) -> Result<PathBuf, CommandError> {
+    if !path.is_absolute() {
+        return Err("The path is not absolute".into());
+    }
+    if !index::is_csv_file(path) {
+        return Err("Only CSV files open as tables".into());
+    }
+    let metadata = fs::metadata(path)?;
+    if metadata.is_dir() {
+        return Err("That path is a folder".into());
+    }
+    if !metadata.is_file() {
+        return Err("That path is not a file".into());
+    }
+    Ok(fs::canonicalize(path)?)
+}
+
+/// How many body rows one page holds when the webview asks for rows.
+const CSV_PAGE: usize = 256;
+
+/// How many of a column's longest cells the webview lays out to size the column.
+const CSV_PROBE: usize = 8;
+
+/// What the webview needs before any body row: the header, padded to the
+/// widest row; how many body rows follow; each column's longest cells, as rows,
+/// to size it by; and the byte where each page of rows starts, so a page is
+/// read without parsing what precedes it. The revision ties the pages to the
+/// file as it stood.
+#[cfg_attr(feature = "bindings", derive(specta::Type))]
+#[derive(Debug, PartialEq, Serialize)]
+pub struct CsvFile {
+    pub header: Vec<String>,
+    pub rows: usize,
+    pub probe: Vec<Vec<String>>,
+    pub pages: Vec<u64>,
+    pub page: usize,
+    pub revision: String,
+}
+
+/// The length and timestamp a read came from, so a page is refused once the file moved on.
+fn csv_revision(metadata: &fs::Metadata) -> Result<String, CommandError> {
+    Ok(format!(
+        "{}:{}",
+        timestamp_millis(metadata.modified())?,
+        metadata.len()
+    ))
+}
+
+/// Tab for a `.tsv`, and for a `.csv` whose first line holds more tabs than
+/// commas, so a tab-separated file named `.csv` still opens; comma otherwise.
+fn csv_delimiter(host: &Path) -> Result<u8, CommandError> {
+    if host
+        .extension()
+        .is_some_and(|extension| extension.eq_ignore_ascii_case("tsv"))
+    {
+        return Ok(b'\t');
+    }
+    let mut first = Vec::new();
+    io::BufReader::new(File::open(host)?).read_until(b'\n', &mut first)?;
+    let count = |delimiter| first.iter().filter(|&&byte| byte == delimiter).count();
+    Ok(if count(b'\t') > count(b',') {
+        b'\t'
+    } else {
+        b','
+    })
+}
+
+fn csv_reader(host: &Path) -> Result<csv::Reader<File>, CommandError> {
+    Ok(csv::ReaderBuilder::new()
+        .delimiter(csv_delimiter(host)?)
+        .has_headers(false)
+        .flexible(true)
+        .from_reader(File::open(host)?))
+}
+
+fn csv_error(error: csv::Error) -> CommandError {
+    let reason = match error.kind() {
+        csv::ErrorKind::Utf8 { .. } => "This file is not UTF-8 text".to_owned(),
+        csv::ErrorKind::Io(source) => CommandError::io_reason(source),
+        _ => error.to_string(),
+    };
+    CommandError::with_source(reason, error)
+}
+
+fn csv_cells(record: &csv::StringRecord) -> Vec<String> {
+    record.iter().map(str::to_owned).collect()
+}
+
+/// Keep a column's longest cells beside their character counts. The count is
+/// the proxy that picks them; the webview lays them out, which settles the width.
+fn keep_longest(column: &mut Vec<(usize, String)>, cell: &str) {
+    let length = cell.chars().count();
+    if column.len() < CSV_PROBE {
+        column.push((length, cell.to_owned()));
+        return;
+    }
+    if let Some(shortest) = column
+        .iter_mut()
+        .min_by_key(|(kept, _)| *kept)
+        .filter(|(kept, _)| *kept < length)
+    {
+        *shortest = (length, cell.to_owned());
+    }
+}
+
+/// Read a csv file through once. Row 0 is whatever the file has first; the
+/// webview draws it as the header and asks for the body by page.
+fn read_csv(path: &Path) -> Result<CsvFile, CommandError> {
+    let host = csv_file(path)?;
+    let revision = csv_revision(&fs::metadata(&host)?)?;
+    let mut reader = csv_reader(&host)?;
+    let mut records = reader.records();
+    let mut header = records
+        .next()
+        .transpose()
+        .map_err(csv_error)?
+        .map(|record| csv_cells(&record))
+        .unwrap_or_default();
+    let mut rows = 0;
+    let mut columns = header.len();
+    let mut longest: Vec<Vec<(usize, String)>> = Vec::new();
+    let mut pages = Vec::new();
+    for record in records {
+        let record = record.map_err(csv_error)?;
+        columns = columns.max(record.len());
+        if rows % CSV_PAGE == 0 {
+            let position = record
+                .position()
+                .ok_or("The csv reader gave a row without a position")?;
+            pages.push(position.byte());
+        }
+        rows += 1;
+        if longest.len() < record.len() {
+            longest.resize_with(record.len(), Vec::new);
+        }
+        for (column, cell) in longest.iter_mut().zip(record.iter()) {
+            keep_longest(column, cell);
+        }
+    }
+    header.resize_with(columns, String::new);
+    let probe = (0..CSV_PROBE.min(rows))
+        .map(|row| {
+            (0..columns)
+                .map(|column| {
+                    longest
+                        .get(column)
+                        .and_then(|kept| kept.get(row))
+                        .map(|(_, cell)| cell.clone())
+                        .unwrap_or_default()
+                })
+                .collect()
+        })
+        .collect();
+    Ok(CsvFile {
+        header,
+        rows,
+        probe,
+        pages,
+        page: CSV_PAGE,
+        revision,
+    })
+}
+
+/// Read a csv file through unless it still stands at the `known` revision,
+/// which spares a large file a pass on each window focus.
+pub fn read_csv_if_moved(
+    path: &Path,
+    known: Option<&str>,
+) -> Result<Option<CsvFile>, CommandError> {
+    let revision = csv_revision(&fs::metadata(csv_file(path)?)?)?;
+    if known == Some(revision.as_str()) {
+        return Ok(None);
+    }
+    read_csv(path).map(Some)
+}
+
+/// Read one page of body rows from a byte `read_csv` reported as a page start.
+/// Rows come as the file has them; the webview pads them to the header.
+pub fn read_csv_rows(
+    path: &Path,
+    revision: &str,
+    start: u64,
+) -> Result<Vec<Vec<String>>, CommandError> {
+    let host = csv_file(path)?;
+    if csv_revision(&fs::metadata(&host)?)? != revision {
+        return Err("The file changed since it was opened".into());
+    }
+    let mut reader = csv_reader(&host)?;
+    let mut position = csv::Position::new();
+    position.set_byte(start);
+    reader.seek(position).map_err(csv_error)?;
+    reader
+        .records()
+        .take(CSV_PAGE)
+        .map(|record| record.map(|record| csv_cells(&record)).map_err(csv_error))
+        .collect()
 }
 
 /// Persist an external document, rejecting non-Unicode paths before file access.
@@ -941,12 +1144,14 @@ pub fn write_external(
 #[derive(Clone, Copy, Debug, Deserialize, PartialEq, Serialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum OpenKind {
+    Csv,
     External,
     Note,
 }
 
 /// A queued "Open With" path, classified so the webview opens it as the tab
-/// kind the file already is: a note inside the notes dir, external otherwise.
+/// kind the file already is: a csv wherever it sits, a note inside the notes
+/// dir, external otherwise.
 #[cfg_attr(feature = "bindings", derive(specta::Type))]
 #[derive(Debug, PartialEq, Serialize)]
 pub struct PendingOpen {
@@ -956,6 +1161,12 @@ pub struct PendingOpen {
 
 pub(crate) fn classify_open(notes_dir: &Path, path: String) -> PendingOpen {
     let host = fs::canonicalize(&path).unwrap_or_else(|_| PathBuf::from(&path));
+    if index::is_csv_file(&host) {
+        return PendingOpen {
+            kind: OpenKind::Csv,
+            path,
+        };
+    }
     match index::relative_path(notes_dir, &host).filter(|_| index::is_note_file(&host)) {
         Some(rel) => PendingOpen {
             kind: OpenKind::Note,
@@ -2624,6 +2835,225 @@ mod tests {
             .is_ok());
     }
 
+    #[test]
+    fn should_classify_a_csv_as_csv_wherever_it_sits() {
+        let inside = classify_open(Path::new("/vault"), "/vault/attachments/a.csv".into());
+        let outside = classify_open(Path::new("/vault"), "/elsewhere/a.TSV".into());
+
+        assert_eq!(
+            inside,
+            PendingOpen {
+                kind: OpenKind::Csv,
+                path: "/vault/attachments/a.csv".into()
+            }
+        );
+        assert_eq!(outside.kind, OpenKind::Csv);
+    }
+
+    fn first_page(path: &Path, file: &CsvFile) -> Vec<Vec<String>> {
+        read_csv_rows(path, &file.revision, file.pages[0]).unwrap()
+    }
+
+    #[test]
+    fn should_read_the_header_and_page_the_rows_of_a_comma_separated_file() {
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("data.csv");
+        fs::write(&path, "name,note\r\nann,\"says, \"\"hi\"\"\"\nbob,ok\n").unwrap();
+
+        let file = read_csv(&path).unwrap();
+
+        assert_eq!(file.header, vec!["name", "note"]);
+        assert_eq!(file.rows, 2);
+        assert_eq!(
+            first_page(&path, &file),
+            vec![
+                vec!["ann".to_string(), "says, \"hi\"".to_string()],
+                vec!["bob".to_string(), "ok".to_string()]
+            ]
+        );
+    }
+
+    #[test]
+    fn should_read_tabs_from_a_tsv_and_from_a_csv_whose_first_line_says_so() {
+        let directory = tempfile::tempdir().unwrap();
+        let sniffed = directory.path().join("data.csv");
+        let named = directory.path().join("data.tsv");
+        fs::write(&sniffed, "a\tb\tc,d\n1\t2\t3,4\n").unwrap();
+        fs::write(&named, "notes, remarks\tamount\nfine, thanks\t3\n").unwrap();
+
+        let sniffed_file = read_csv(&sniffed).unwrap();
+        let named_file = read_csv(&named).unwrap();
+
+        assert_eq!(sniffed_file.header, vec!["a", "b", "c,d"]);
+        assert_eq!(
+            first_page(&sniffed, &sniffed_file),
+            vec![vec!["1", "2", "3,4"]]
+        );
+        assert_eq!(named_file.header, vec!["notes, remarks", "amount"]);
+        assert_eq!(
+            first_page(&named, &named_file),
+            vec![vec!["fine, thanks", "3"]]
+        );
+    }
+
+    #[test]
+    fn should_pad_the_header_to_the_widest_row() {
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("data.tsv");
+        fs::write(&path, "a\tb\n1\t2\t3\n").unwrap();
+
+        let file = read_csv(&path).unwrap();
+
+        assert_eq!(file.header, vec!["a", "b", ""]);
+        assert_eq!(first_page(&path, &file), vec![vec!["1", "2", "3"]]);
+    }
+
+    #[test]
+    fn should_strip_a_byte_order_mark_and_read_an_empty_file_as_no_rows() {
+        let directory = tempfile::tempdir().unwrap();
+        let marked = directory.path().join("marked.csv");
+        let empty = directory.path().join("empty.csv");
+        fs::write(&marked, "\u{feff}a,b\n").unwrap();
+        fs::write(&empty, "").unwrap();
+
+        let marked_file = read_csv(&marked).unwrap();
+        let empty_file = read_csv(&empty).unwrap();
+
+        assert_eq!(marked_file.header, vec!["a", "b"]);
+        assert_eq!(marked_file.rows, 0);
+        assert!(marked_file.pages.is_empty());
+        assert!(marked_file.probe.is_empty());
+        assert!(empty_file.header.is_empty());
+    }
+
+    #[test]
+    fn should_keep_each_columns_longest_cells_as_the_probe() {
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("data.csv");
+        let body = (1..=12)
+            .map(|length| format!("{},k\n", "x".repeat(length)))
+            .collect::<String>();
+        fs::write(&path, format!("wide,narrow\n{body}")).unwrap();
+
+        let file = read_csv(&path).unwrap();
+
+        let mut lengths = file
+            .probe
+            .iter()
+            .map(|row| row[0].len())
+            .collect::<Vec<_>>();
+        lengths.sort_unstable();
+        assert_eq!(lengths, (5..=12).collect::<Vec<_>>());
+        assert!(file.probe.iter().all(|row| row[1] == "k"));
+    }
+
+    #[test]
+    fn should_page_the_rows_from_where_each_page_starts() {
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("data.csv");
+        let body = (0..600)
+            .map(|row| format!("r{row},v\n"))
+            .collect::<String>();
+        fs::write(&path, format!("id,value\n{body}")).unwrap();
+
+        let file = read_csv(&path).unwrap();
+        let second = read_csv_rows(&path, &file.revision, file.pages[1]).unwrap();
+        let last = read_csv_rows(&path, &file.revision, file.pages[2]).unwrap();
+
+        assert_eq!(file.rows, 600);
+        assert_eq!(file.pages.len(), 3);
+        assert_eq!(second.len(), 256);
+        assert_eq!(second[0], vec!["r256", "v"]);
+        assert_eq!(last.len(), 88);
+        assert_eq!(last[87], vec!["r599", "v"]);
+    }
+
+    #[test]
+    fn should_rank_a_columns_cells_by_characters_rather_than_bytes() {
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("data.csv");
+        let wide = "ж".repeat(12);
+        let body = format!("{}{}\n", format!("{wide}\n").repeat(8), "a".repeat(20));
+        fs::write(&path, format!("column\n{body}")).unwrap();
+
+        let file = read_csv(&path).unwrap();
+
+        assert!(file.probe.iter().any(|row| row[0] == "a".repeat(20)));
+    }
+
+    #[test]
+    fn should_skip_the_pass_while_the_file_stands_at_the_known_revision() {
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("data.csv");
+        fs::write(&path, "a,b\n1,2\n").unwrap();
+        let file = read_csv(&path).unwrap();
+
+        let unchanged = read_csv_if_moved(&path, Some(&file.revision)).unwrap();
+        fs::write(&path, "a,b\n1,2\n3,4\n").unwrap();
+        let changed = read_csv_if_moved(&path, Some(&file.revision))
+            .unwrap()
+            .unwrap();
+
+        assert_eq!(unchanged, None);
+        assert_eq!(changed.rows, 2);
+    }
+
+    #[test]
+    fn should_say_in_one_sentence_that_a_file_is_not_utf8_wherever_the_byte_sits() {
+        let directory = tempfile::tempdir().unwrap();
+        let first = directory.path().join("first.csv");
+        let later = directory.path().join("later.csv");
+        let tab = directory.path().join("later.tsv");
+        fs::write(&first, b"\xE9,b\nc,d\n").unwrap();
+        fs::write(&later, b"a,b\n\xE9,d\n").unwrap();
+        fs::write(&tab, b"a\tb\n\xE9\td\n").unwrap();
+
+        for path in [first, later, tab] {
+            let refused = read_csv(&path).unwrap_err();
+
+            assert_eq!(refused.message, "This file is not UTF-8 text");
+        }
+    }
+
+    #[test]
+    fn should_give_an_io_failure_without_its_error_number() {
+        let failure = csv_error(csv::Error::from(io::Error::other(
+            "Input/output error (os error 5)",
+        )));
+
+        assert_eq!(failure.message, "Input/output error");
+    }
+
+    #[test]
+    fn should_refuse_a_page_once_the_file_changed() {
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("data.csv");
+        fs::write(&path, "a,b\n1,2\n").unwrap();
+        let file = read_csv(&path).unwrap();
+        fs::write(&path, "a,b\n1,2\n3,4\n").unwrap();
+
+        let refused = read_csv_rows(&path, &file.revision, file.pages[0]).unwrap_err();
+
+        assert_eq!(refused.message, "The file changed since it was opened");
+    }
+
+    #[test]
+    fn should_refuse_what_is_not_a_csv_file() {
+        let directory = tempfile::tempdir().unwrap();
+        fs::write(directory.path().join("note.md"), "# Note").unwrap();
+        fs::create_dir(directory.path().join("folder.csv")).unwrap();
+
+        let relative = read_csv(Path::new("data.csv")).unwrap_err();
+        let markdown = read_csv(&directory.path().join("note.md")).unwrap_err();
+        let folder = read_csv(&directory.path().join("folder.csv")).unwrap_err();
+        let missing = read_csv(&directory.path().join("absent.csv")).unwrap_err();
+
+        assert_eq!(relative.message, "The path is not absolute");
+        assert_eq!(markdown.message, "Only CSV files open as tables");
+        assert_eq!(folder.message, "That path is a folder");
+        assert_eq!(missing.kind, ErrorKind::NotFound);
+    }
+
     fn external_document() -> tempfile::TempDir {
         let directory = tempfile::tempdir().unwrap();
         fs::create_dir_all(directory.path().join("docs/images")).unwrap();
@@ -2722,6 +3152,19 @@ mod tests {
     }
 
     #[test]
+    fn should_resolve_a_csv_link_from_an_external_document() {
+        let directory = external_document();
+        fs::write(directory.path().join("docs/data.csv"), "a,b").unwrap();
+        let document = directory.path().join("docs/note.md");
+        let root = fs::canonicalize(directory.path()).unwrap();
+
+        assert_eq!(
+            external_note(&document, "data.csv").unwrap(),
+            root.join("docs/data.csv")
+        );
+    }
+
+    #[test]
     fn should_keep_files_and_notes_apart_from_an_external_document() {
         let directory = external_document();
         fs::write(directory.path().join("docs/my spec.pdf"), "pdf").unwrap();
@@ -2735,7 +3178,7 @@ mod tests {
             external_note(&document, "my%20spec.pdf")
                 .unwrap_err()
                 .message,
-            "Only Markdown files open as tabs"
+            "Only Markdown and CSV files open as tabs"
         );
         assert_eq!(
             external_file(&document, "images").unwrap_err().message,

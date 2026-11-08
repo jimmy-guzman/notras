@@ -38,7 +38,7 @@ Every editor node must have a Markdown representation and round-trip coverage. S
 
 Reads cannot mutate notes. The native layer owns line endings and revisions of disk bytes; frontend documents use line feeds.
 
-Library IO must remain bound to validated directory handles. Replacing a path component cannot redirect an operation outside the library. Explicitly selected external files belong to a separate host-path boundary.
+Library IO must remain bound to validated directory handles. Replacing a path component cannot redirect an operation outside the library. Explicitly selected external files belong to a separate host-path boundary. A csv is read through that boundary wherever it sits, since it is never indexed and never written. A csv destination in a note folds like an image source, so it cannot climb or name a hidden segment. It can follow a symlink.
 
 Publication requires staged, synced content. A rename or move to a new destination cannot overwrite an existing file, and failed destination publication cannot remove the source. Post-publication cleanup failure cannot be reported as though publication never happened.
 

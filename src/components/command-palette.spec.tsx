@@ -26,6 +26,7 @@ import {
   closeTab,
   getTabState,
   openNote,
+  openTab,
   registerTabHandles,
   registerTabSnapshot,
 } from "@/lib/tabs/store";
@@ -441,6 +442,63 @@ describe("command palette actions", () => {
     await palette.user.keyboard("{Enter}");
     expect(exportPdf).toHaveBeenCalledOnce();
     expect(palette.closed).toStrictEqual([false]);
+  });
+
+  it("should open a csv tab's file in the default app, and offer that for no other tab", async () => {
+    const opened: unknown[] = [];
+    mockIPC((command, args) => {
+      if (command === "open_csv") {
+        opened.push(args);
+
+        return null;
+      }
+
+      throw new Error(`unexpected command: ${command}`);
+    });
+    onTestFinished(() => {
+      clearMocks();
+    });
+
+    openNote("projects/atlas.md");
+    const note = mount("actions", []);
+    await note.user.type(note.input, "default app");
+    expect(document.body.textContent).toContain("nothing found");
+    note.unmount();
+
+    openTab("csv", "/notes/attachments/q3.csv", true);
+    const palette = mount("actions", []);
+    await palette.user.type(palette.input, "default app");
+    expect(document.body.textContent).toContain("open in default app");
+    await palette.user.keyboard("{Enter}");
+    await waitFor(() => {
+      expect(opened).toStrictEqual([{ path: "/notes/attachments/q3.csv" }]);
+    });
+    expect(palette.closed).toStrictEqual([false]);
+  });
+
+  it("should reveal a csv tab's file by the path it holds", async () => {
+    const revealed: unknown[] = [];
+    mockIPC((command, args) => {
+      if (command === "plugin:opener|reveal_item_in_dir") {
+        revealed.push(args);
+
+        return null;
+      }
+
+      throw new Error(`unexpected command: ${command}`);
+    });
+    onTestFinished(() => {
+      clearMocks();
+    });
+
+    openTab("csv", "/Users/me/q3.csv", true);
+    const palette = mount("actions", []);
+    await palette.user.type(palette.input, "reveal");
+    await palette.user.keyboard("{Enter}");
+
+    await waitFor(() => {
+      expect(revealed).toStrictEqual([{ paths: ["/Users/me/q3.csv"] }]);
+    });
   });
 
   it("should offer no pdf export away from macOS", async () => {

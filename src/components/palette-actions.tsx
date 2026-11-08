@@ -23,9 +23,11 @@ import type { useChordsByName } from "@/lib/ui/shortcuts";
  * frontmatter, so an external file cannot answer it; a tab action acts on the
  * open set, which an external file answers as well as a note does; a file
  * action needs a path on disk, which a draft does not have yet. A filed
- * action needs a note that sits in a folder.
+ * action needs a note that sits in a folder. A csv action needs the read-only
+ * table on screen.
  */
 export type PaletteScope =
+  | "csv"
   | "editor"
   | "file"
   | "filed"
