@@ -1161,10 +1161,12 @@ pub struct PendingOpen {
 
 pub(crate) fn classify_open(notes_dir: &Path, path: String) -> PendingOpen {
     let host = fs::canonicalize(&path).unwrap_or_else(|_| PathBuf::from(&path));
+    // The canonical spelling, as a note's link and the watcher use, so one file
+    // keeps one tab.
     if index::is_csv_file(&host) {
         return PendingOpen {
             kind: OpenKind::Csv,
-            path,
+            path: host.to_str().map_or(path, str::to_owned),
         };
     }
     match index::relative_path(notes_dir, &host).filter(|_| index::is_note_file(&host)) {
@@ -2848,6 +2850,36 @@ mod tests {
             }
         );
         assert_eq!(outside.kind, OpenKind::Csv);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn should_classify_a_csv_by_the_path_a_note_link_would_build() {
+        let directory = tempfile::tempdir().unwrap();
+        let root = fs::canonicalize(directory.path()).unwrap();
+        let notes = root.join("notes");
+        let link = root.join("link");
+        fs::create_dir_all(notes.join("attachments")).unwrap();
+        fs::write(notes.join("attachments/data.csv"), "a,b").unwrap();
+        std::os::unix::fs::symlink(&notes, &link).unwrap();
+
+        let opened = classify_open(
+            &notes,
+            link.join("attachments/data.csv")
+                .to_string_lossy()
+                .into_owned(),
+        );
+
+        assert_eq!(
+            opened,
+            PendingOpen {
+                kind: OpenKind::Csv,
+                path: notes
+                    .join("attachments/data.csv")
+                    .to_string_lossy()
+                    .into_owned(),
+            }
+        );
     }
 
     fn first_page(path: &Path, file: &CsvFile) -> Vec<Vec<String>> {
