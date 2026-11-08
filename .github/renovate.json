@@ -28,6 +28,20 @@
       "matchManagers": ["cargo"]
     },
     {
+      "description": "ultracite peers oxlint and oxfmt, and a lint bump often needs code fixes that would block the other dependencies",
+      "groupName": "linting",
+      "matchPackageNames": [
+        "@shadcn/lint",
+        "knip",
+        "oxfmt",
+        "oxlint",
+        "oxlint-plugin-react-doctor",
+        "oxlint-tsgolint",
+        "ultracite"
+      ],
+      "separateMajorMinor": false
+    },
+    {
       "description": "each specta crate pins one exact `specta` prerelease, so a bump to one alone cannot resolve",
       "groupName": "specta",
       "matchPackageNames": ["specta", "specta-typescript", "tauri-specta"]
