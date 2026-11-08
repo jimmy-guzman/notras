@@ -1,11 +1,4 @@
-import { Button } from "@/components/ui/button";
-import {
-  Empty,
-  EmptyContent,
-  EmptyDescription,
-  EmptyHeader,
-  EmptyTitle,
-} from "@/components/ui/empty";
+import { FailureNotice } from "@/components/failure-notice";
 
 interface WorkspaceErrorProps {
   reason: string | undefined;
@@ -16,19 +9,11 @@ interface WorkspaceErrorProps {
 export function WorkspaceError({ reason, retry }: WorkspaceErrorProps) {
   return (
     <div className="bg-background text-foreground flex h-svh">
-      <Empty>
-        <EmptyHeader>
-          <EmptyTitle>could not load the workspace</EmptyTitle>
-          {reason === undefined ? null : (
-            <EmptyDescription>{reason}</EmptyDescription>
-          )}
-        </EmptyHeader>
-        <EmptyContent>
-          <Button onClick={retry} variant="outline">
-            try again
-          </Button>
-        </EmptyContent>
-      </Empty>
+      <FailureNotice
+        reason={reason}
+        retry={retry}
+        title="could not load the workspace"
+      />
     </div>
   );
 }

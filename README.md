@@ -13,6 +13,7 @@
 ## Features
 
 - **Portable**: plain `.md` in a folder you pick, written as GFM, so any editor opens it, and markdown you did not edit is saved as you wrote it. Attachments are files, frontmatter keys notras does not use stay as written, and the filename follows the heading. On macOS a note exports to PDF.
+- **CSV beside the notes**: a `.csv` a note links to, or one opened from Finder, shows as a read-only table at the window's full width, and one action opens it in the app that edits it.
 - **Safe beside agents**: Claude Code or a script can write to the folder. An open note picks up the change within a second, and edits to the same lines wait for your review.
 - **Keyboard friendly**: `⌘P` finds a note, `⌘⇧P` runs any action and shows any shortcut it has.
 - **Capture from anywhere**: `⌘⇧N` opens a jot window over any app, and `esc` saves it.

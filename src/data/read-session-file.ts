@@ -10,11 +10,15 @@ export interface SessionFile {
   updatedAt: Date;
 }
 
-/** The file a tab holds, read from the library or from the host path. */
+/** The file a tab edits, read from the library or from the host path. */
 export async function readSessionFile(
   kind: OpenKind,
   path: string
 ): Promise<SessionFile> {
+  if (kind === "csv") {
+    throw new Error("A csv has no editing session");
+  }
+
   return kind === "external"
     ? await readExternalNote(path)
     : await getNote(path);

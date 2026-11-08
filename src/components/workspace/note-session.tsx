@@ -34,24 +34,20 @@ import {
   AlertTitle,
 } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
-import {
-  Empty,
-  EmptyContent,
-  EmptyDescription,
-  EmptyHeader,
-  EmptyTitle,
-} from "@/components/ui/empty";
 import { toast } from "@/components/ui/toast";
 import { ConflictReview } from "@/components/workspace/conflict-review";
 import { FileError } from "@/core/errors";
 import { parseNote } from "@/core/frontmatter";
 import {
+  bareDestination,
   foldPath,
   hasScheme,
+  isCsvPath,
   isRelativeDestination,
   linkResolver,
 } from "@/core/links";
 import { noteTitle } from "@/core/notes";
+import { checkCsv } from "@/data/check-csv";
 import { clearConflictStash, stashConflict } from "@/data/conflict-stash";
 import type { ConflictStash } from "@/data/conflict-stash";
 import { createNote } from "@/data/create-note";
@@ -94,7 +90,9 @@ import {
 } from "@/lib/ui/note-panel";
 import { focusGraph, hideGraph, useGraphMode } from "@/lib/ui/view";
 import { decodeAttachmentPath, isImageName } from "@/lib/utils/attachments";
-import type { OpenKind } from "@/server/adapters/bindings";
+import type { OpenKind, PendingOpen } from "@/server/adapters/bindings";
+
+import { UnreadableFile } from "./unreadable-file";
 
 function bodyPrefix(raw: string) {
   return raw.length - parseNote(raw).body.length;
@@ -692,7 +690,81 @@ function SessionBuffer({ active, file, stash, tab }: SessionBufferProps) {
 
   const watchEmbed = watchEmbedFrom(null);
 
+  const followLink = async (
+    resolve: () => Promise<PendingOpen>,
+    failed: string
+  ) => {
+    navigation.current?.abort();
+    const request = new AbortController();
+    navigation.current = request;
+    const origin = getTabState().activeId;
+
+    const isCurrent = () =>
+      !request.signal.aborted && getTabState().activeId === origin;
+
+    try {
+      const target = await resolve();
+
+      if (isCurrent()) {
+        openTab(target.kind, target.path, true);
+      }
+    } catch (error) {
+      if (isCurrent()) {
+        toast.add({
+          description: reasonOf(error),
+          title: failed,
+          type: "error",
+        });
+      }
+    }
+  };
+
+  const openExternalLink = async (href: string, failed: string) => {
+    await followLink(
+      async () => await resolveExternalLink(live.current.path, href),
+      failed
+    );
+  };
+
+  const openExternalNoteLink = async (href: string) => {
+    await openExternalLink(href, "could not open note");
+  };
+
+  // A csv opens as its own tab rather than in the system app. The fold is the
+  // one an image source takes, so the same climbs and segments are refused.
+  const openCsvLink = async (href: string) => {
+    const path = decodeAttachmentPath(bareDestination(href));
+    const folded = foldPath(path, live.current.path);
+
+    if ("path" in folded) {
+      const host = `${notesDir}/${folded.path}`;
+
+      await followLink(async () => {
+        await checkCsv(host);
+
+        return { kind: "csv", path: host };
+      }, "could not open file");
+
+      return;
+    }
+
+    toast.add({
+      description:
+        folded.refused === "climb"
+          ? `${path} climbs out of the notes folder`
+          : String.raw`File path parts cannot contain \ or :, or start with a dot`,
+      title: "could not open file",
+      type: "error",
+    });
+  };
+
   const openFileLink = async (href: string) => {
+    if (isCsvPath(href)) {
+      await openCsvLink(href);
+
+      return;
+    }
+
     try {
       await openLinkedFile(live.current.path, href);
     } catch (error) {
@@ -705,6 +777,12 @@ function SessionBuffer({ active, file, stash, tab }: SessionBufferProps) {
   };
 
   const openExternalFileLink = async (href: string) => {
+    if (isCsvPath(href)) {
+      await openExternalLink(href, "could not open file");
+
+      return;
+    }
+
     try {
       await openExternalFile(live.current.path, href);
     } catch (error) {
@@ -713,32 +791,6 @@ function SessionBuffer({ active, file, stash, tab }: SessionBufferProps) {
         title: "could not open file",
         type: "error",
       });
-    }
-  };
-
-  const openExternalNoteLink = async (href: string) => {
-    navigation.current?.abort();
-    const request = new AbortController();
-    navigation.current = request;
-    const origin = getTabState().activeId;
-
-    const isCurrent = () =>
-      !request.signal.aborted && getTabState().activeId === origin;
-
-    try {
-      const target = await resolveExternalLink(live.current.path, href);
-
-      if (isCurrent()) {
-        openTab(target.kind, target.path, true);
-      }
-    } catch (error) {
-      if (isCurrent()) {
-        toast.add({
-          description: reasonOf(error),
-          title: "could not open note",
-          type: "error",
-        });
-      }
     }
   };
 
@@ -1018,40 +1070,6 @@ function SessionBuffer({ active, file, stash, tab }: SessionBufferProps) {
   );
 }
 
-interface UnreadableNoteProps {
-  active: boolean;
-  id: string;
-  reason: string | undefined;
-  retry: () => void;
-}
-
-/** The pane for a tab that never read: nothing to protect, so it says why. */
-function UnreadableNote({ active, id, reason, retry }: UnreadableNoteProps) {
-  return (
-    <div
-      aria-labelledby={tabButtonId(id)}
-      className={cn("absolute inset-0 flex flex-col", !active && "opacity-0")}
-      id={tabPanelId(id)}
-      inert={!active}
-      role="tabpanel"
-    >
-      <Empty>
-        <EmptyHeader>
-          <EmptyTitle>could not read this note</EmptyTitle>
-          {reason === undefined ? null : (
-            <EmptyDescription>{reason}</EmptyDescription>
-          )}
-        </EmptyHeader>
-        <EmptyContent>
-          <Button onClick={retry} variant="outline">
-            try again
-          </Button>
-        </EmptyContent>
-      </Empty>
-    </div>
-  );
-}
-
 interface NoteSessionProps {
   active: boolean;
   tab: Tab;
@@ -1118,7 +1136,7 @@ export function NoteSession({ active, tab }: NoteSessionProps) {
 
   if (opened === undefined) {
     return reason === undefined ? null : (
-      <UnreadableNote
+      <UnreadableFile
         active={active}
         id={tab.id}
         reason={reason}
@@ -1126,6 +1144,7 @@ export function NoteSession({ active, tab }: NoteSessionProps) {
           activateTab(tab.id);
           void refetch();
         }}
+        title="could not read this note"
       />
     );
   }

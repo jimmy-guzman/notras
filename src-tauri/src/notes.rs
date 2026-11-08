@@ -9,7 +9,7 @@ use crate::settings::Settings;
 use crate::state::AppState;
 use crate::watcher;
 use notras_core::{
-    self, CommandError, ConflictStash, CreateNote, DeleteReceipt, ImageList, Library,
+    self, CommandError, ConflictStash, CreateNote, CsvFile, DeleteReceipt, ImageList, Library,
     MutationReceipt, MutationWarning, NoteFile, OpenKind, PathMutationReceipt, PendingOpen,
     SaveName, SaveOutcome,
 };
@@ -87,6 +87,16 @@ fn opener_reason(error: tauri_plugin_opener::Error) -> CommandError {
     }
 }
 
+/// Hand a host path to the app the system picks for it.
+fn open_host_path<R: Runtime>(app: &AppHandle<R>, host: &Path) -> Result<(), CommandError> {
+    app.opener()
+        .open_path(
+            host.to_str().ok_or("The path is not valid Unicode")?,
+            None::<&str>,
+        )
+        .map_err(opener_reason)
+}
+
 #[tauri::command]
 #[specta::specta]
 pub async fn open_linked_file<R: Runtime>(
@@ -100,12 +110,7 @@ pub async fn open_linked_file<R: Runtime>(
             let library = state.library();
             library.linked_file_path(&from, &destination)?
         };
-        app.opener()
-            .open_path(
-                host.to_str().ok_or("The path is not valid Unicode")?,
-                None::<&str>,
-            )
-            .map_err(opener_reason)
+        open_host_path(&app, &host)
     })
     .await
 }
@@ -119,12 +124,7 @@ pub async fn open_external_file<R: Runtime>(
 ) -> Result<(), CommandError> {
     run_blocking(move || {
         let host = notras_core::external_file(Path::new(&document), &destination)?;
-        app.opener()
-            .open_path(
-                host.to_str().ok_or("The path is not valid Unicode")?,
-                None::<&str>,
-            )
-            .map_err(opener_reason)
+        open_host_path(&app, &host)
     })
     .await
 }
@@ -355,6 +355,41 @@ pub async fn reindex_all<R: Runtime>(app: AppHandle<R>) -> Result<Vec<String>, C
 #[specta::specta]
 pub async fn read_external(path: String) -> Result<NoteFile, CommandError> {
     run_blocking(move || notras_core::read_external(Path::new(&path))).await
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn read_csv_if_moved(
+    path: String,
+    known: Option<String>,
+) -> Result<Option<CsvFile>, CommandError> {
+    run_blocking(move || notras_core::read_csv_if_moved(Path::new(&path), known.as_deref())).await
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn check_csv(path: String) -> Result<(), CommandError> {
+    run_blocking(move || notras_core::csv_file(Path::new(&path)).map(drop)).await
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn read_csv_rows(
+    path: String,
+    revision: String,
+    start: u64,
+) -> Result<Vec<Vec<String>>, CommandError> {
+    run_blocking(move || notras_core::read_csv_rows(Path::new(&path), &revision, start)).await
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn open_csv<R: Runtime>(app: AppHandle<R>, path: String) -> Result<(), CommandError> {
+    run_blocking(move || {
+        let host = notras_core::csv_file(Path::new(&path))?;
+        open_host_path(&app, &host)
+    })
+    .await
 }
 
 #[tauri::command]

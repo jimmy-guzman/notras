@@ -70,8 +70,8 @@ impl Scan {
         }
     }
 
-    /// An image has no index row to change, and neither has anything in the
-    /// attachments store but a note, so each is reported as seen. A removed path
+    /// An image has no index row to change, and neither has a csv or anything in
+    /// the attachments store but a note, so each is reported as seen. A removed path
     /// cannot say whether it was a folder, so the whole store counts. A folder the
     /// index already holds has no row to change either, though its images may have.
     /// Taken up front, since a folder change in the batch replaces the entries with
@@ -83,7 +83,8 @@ impl Scan {
                 let relative = index::relative_path(root, path)?;
                 let note = path.is_file() && index::is_note_file(path);
                 let folder = path.is_dir() && !relative.is_empty();
-                (is_image_path(&relative) || folder || !(index::is_note_folder(&relative) || note))
+                let unindexed = is_image_path(&relative) || index::is_csv_file(path);
+                (unindexed || folder || !(index::is_note_folder(&relative) || note))
                     .then(|| reported_folder_path(&relative))
             })
             .collect();
@@ -380,6 +381,30 @@ mod tests {
 
         fs::remove_file(&image).unwrap();
         assert_eq!(observe(vec![image]), ["attachments/photo.png"]);
+    }
+
+    #[test]
+    fn should_report_a_csv_changed_or_removed_anywhere_in_the_library() {
+        let directory = tempfile::tempdir().unwrap();
+        fs::create_dir(directory.path().join("projects")).unwrap();
+        let library = Library::open(directory.path(), &directory.path().join(".index")).unwrap();
+        let root = library.directory().join("data.csv");
+        let filed = library.directory().join("projects/data.tsv");
+        let observe = |paths: Vec<std::path::PathBuf>| {
+            let mut scan = library.begin_observations(paths);
+            while !library.advance_scan(&mut scan).unwrap() {}
+            library.finish_scan(scan).unwrap()
+        };
+
+        fs::write(&root, "a,b").unwrap();
+        fs::write(&filed, "a\tb").unwrap();
+        assert_eq!(
+            observe(vec![root.clone(), filed.clone()]),
+            ["data.csv", "projects/data.tsv"]
+        );
+
+        fs::remove_file(&root).unwrap();
+        assert!(observe(vec![root]).contains(&"data.csv".to_owned()));
     }
 
     #[test]

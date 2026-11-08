@@ -5,7 +5,11 @@ import type { NoteFilters } from "@/core/notes";
 import type { NoteSearch } from "@/core/search";
 import { getGraph } from "@/data/get-graph";
 import { commands } from "@/server/adapters/bindings";
-import type { GraphTarget, OpenKind } from "@/server/adapters/bindings";
+import type {
+  CsvFile,
+  GraphTarget,
+  OpenKind,
+} from "@/server/adapters/bindings";
 
 import { getAppearance } from "./appearance";
 import { readConflictStash } from "./conflict-stash";
@@ -13,6 +17,7 @@ import { getMentions } from "./get-mentions";
 import { getNotes } from "./get-notes";
 import { nativeCommand } from "./native-command";
 import { getNotesDir } from "./notes-dir";
+import { readCsvIfMoved, readCsvRows } from "./read-csv";
 import { readEmbedded } from "./read-embedded";
 import { readSessionFile } from "./read-session-file";
 import { searchNotes } from "./search-notes";
@@ -149,6 +154,68 @@ export const tabOpeningQuery = (id: string, kind: OpenKind, path: string) =>
       return { file: file.value, stash: stash.value };
     },
     queryKey: ["tab-opening", id, kind] as const,
+    staleTime: "static",
+  });
+
+/**
+ * What a csv tab draws before any row. Keyed by the tab, as `tabOpeningQuery`
+ * is, so a tab reopened on the same path reads afresh; a change on disk
+ * refreshes it through the tab's refresher, never through an invalidation.
+ * A refresh of a file that did not move keeps the read it already holds.
+ */
+export const csvQuery = (id: string, path: string) => {
+  const queryKey = ["csv", id, path] as const;
+
+  return queryOptions({
+    queryFn: async ({ client }) => {
+      const known = client.getQueryData<CsvFile>(queryKey);
+      const file = await readCsvIfMoved(path, known?.revision ?? null);
+
+      if (file !== null) {
+        return file;
+      }
+
+      if (known === undefined) {
+        throw new Error("The host found no change in a file it never read");
+      }
+
+      return known;
+    },
+    queryKey,
+    staleTime: "static",
+  });
+};
+
+interface CsvPage {
+  attempt: number;
+  id: string;
+  path: string;
+  revision: string;
+  start: number;
+}
+
+/**
+ * One page of a csv tab's rows, pinned to the revision that placed it. A failed
+ * read is reported as it lands, since a page has no retry of its own; a new
+ * `attempt` is a new query, which is how a page is read again.
+ */
+export const csvRowsQuery = (
+  { attempt, id, path, revision, start }: CsvPage,
+  onFailed: (failed: Error) => void
+) =>
+  queryOptions({
+    queryFn: async () => {
+      try {
+        return await readCsvRows(path, revision, start);
+      } catch (error) {
+        if (error instanceof Error) {
+          onFailed(error);
+        }
+
+        throw error;
+      }
+    },
+    queryKey: ["csv", id, path, revision, attempt, start] as const,
     staleTime: "static",
   });
 

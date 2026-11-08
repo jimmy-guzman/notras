@@ -55,6 +55,12 @@
         "name": "Markdown",
         "description": "Markdown document",
         "role": "Editor"
+      },
+      {
+        "ext": ["csv", "tsv"],
+        "name": "CSV",
+        "description": "Comma-separated values",
+        "role": "Viewer"
       }
     ],
     "macOS": {

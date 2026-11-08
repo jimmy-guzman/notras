@@ -4,6 +4,7 @@ import queryFixtures from "../../fixtures/note-queries.json";
 import {
   contextFrom,
   foldPath,
+  isCsvPath,
   isNotePath,
   isRelativeDestination,
   linkResolver,
@@ -140,6 +141,22 @@ describe(isNotePath, () => {
   ])("should reject %s as a relative markdown destination", (no) => {
     expect(isNotePath(no)).toBeFalsy();
   });
+});
+
+describe(isCsvPath, () => {
+  it.each(["data.csv", "./data.CSV", "../x/data.tsv", "data.csv#top"])(
+    "should accept %s as a relative csv destination",
+    (yes) => {
+      expect(isCsvPath(yes)).toBeTruthy();
+    }
+  );
+
+  it.each(["/abs/data.csv", "https://x/data.csv", "data.csv.md", "data.txt"])(
+    "should refuse %s",
+    (no) => {
+      expect(isCsvPath(no)).toBeFalsy();
+    }
+  );
 });
 
 describe(isRelativeDestination, () => {

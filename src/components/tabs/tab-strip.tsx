@@ -25,6 +25,7 @@ import { cn } from "cn";
 import {
   ChevronDownIcon,
   Code2Icon,
+  FileSpreadsheetIcon,
   FileSymlinkIcon,
   FileTextIcon,
   PlusIcon,
@@ -180,6 +181,10 @@ function TabMarker({ snapshot, tab, view }: TabMarkerProps) {
 
   if (view === "source") {
     return <Code2Icon className={MARKER_GLYPH} />;
+  }
+
+  if (tab.kind === "csv") {
+    return <FileSpreadsheetIcon className={MARKER_GLYPH} />;
   }
 
   return tab.kind === "external" ? (

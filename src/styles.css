@@ -608,6 +608,45 @@ body.dragging .ProseMirror .selected-text,
   background: color-mix(in oklch, var(--primary) 12%, transparent);
 }
 
+/* A csv file as a read-only table, drawn by `csv-session.tsx` at the window's
+   full width. The cell rules and the 40ch wrap restate the note table's, which
+   are scoped to `.ProseMirror`. The `colgroup` sets each column from the probe,
+   and `overflow-wrap: anywhere` keeps a cell's minimum below it, so the rows
+   outside the viewport, which are not in the DOM, cannot shift the columns as
+   they scroll in. The header stays put on the surface's own background, since
+   the rows pass beneath it. */
+.csv-sheet {
+  margin-block-start: 0;
+  width: max-content;
+  max-width: none;
+}
+.csv-sheet :is(th, td) {
+  padding-inline-start: 1em;
+  overflow-wrap: anywhere;
+  border-inline-start: 1px solid var(--typeset-rule);
+}
+.csv-sheet :is(th, td):first-child {
+  border-inline-start: 0;
+}
+.csv-sheet thead th {
+  position: sticky;
+  inset-block-start: 0;
+  background: var(--background);
+  font-weight: 600;
+  white-space: normal;
+  border-block-end: 1px solid var(--typeset-rule);
+}
+.csv-sheet tbody tr:first-child td {
+  border-block-start: 0;
+}
+/* The probe is laid out by the browser; the floor keeps an empty column wide
+   enough to read as one, and the cap is where a note table wraps a cell. The
+   limits sit on an inner block because auto layout ignores them on a cell. */
+.csv-probe-cell {
+  min-width: 6ch;
+  max-width: 40ch;
+}
+
 /* Images. The wrapper is the selected node, so the ring and the handle hang
    off it. A `width` is the one dimension stored, so the height stays auto and
    a width past the column keeps the ratio. The handle is hidden, not
