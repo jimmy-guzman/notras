@@ -169,6 +169,70 @@ describe("markdown round-trip", () => {
     expect(types).toStrictEqual([type]);
   });
 
+  it.for([
+    "**![[Atlas]]**",
+    "*![[Atlas]]*",
+    "~~![[Atlas]]~~",
+    "**left![[Atlas]]right**",
+  ])(
+    "should keep embeds unmarked across saves of %s",
+    (markdown, { onTestFinished }) => {
+      const editor = load(markdown);
+
+      onTestFinished(() => {
+        editor.destroy();
+      });
+
+      const embeds = findChildren(
+        editor.state.doc,
+        (node) => node.type.name === "embed"
+      );
+
+      const before = editor.getJSON();
+      const saved = serializeMarkdown(editor);
+
+      expect(embeds).toHaveLength(1);
+      expect(embeds[0]?.node.marks).toStrictEqual([]);
+      editor.destroy();
+
+      const reopened = load(saved);
+
+      onTestFinished(() => {
+        reopened.destroy();
+      });
+
+      expect(reopened.getJSON()).toStrictEqual(before);
+      expect(serializeMarkdown(reopened)).toBe(saved);
+    }
+  );
+
+  it("should reopen the same document after formatting text around an embed", ({
+    onTestFinished,
+  }) => {
+    const editor = load("left![[Atlas]]right");
+
+    onTestFinished(() => {
+      editor.destroy();
+    });
+
+    editor.commands.setTextSelection({ from: 1, to: 11 });
+    editor.commands.toggleBold();
+
+    const formatted = editor.getJSON();
+    const saved = serializeMarkdown(editor);
+
+    editor.destroy();
+
+    const reopened = load(saved);
+
+    onTestFinished(() => {
+      reopened.destroy();
+    });
+
+    expect(reopened.getJSON()).toStrictEqual(formatted);
+    expect(serializeMarkdown(reopened)).toBe(saved);
+  });
+
   it("should canonicalize a single-tilde strike read from a file", () => {
     expect(roundtrip("~organization~")).toBe("~~organization~~");
   });

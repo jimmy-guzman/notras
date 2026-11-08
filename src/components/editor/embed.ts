@@ -1,6 +1,7 @@
 import { Node } from "@tiptap/core";
 import type { Extensions, NodeViewRenderer } from "@tiptap/core";
 import type { Attrs } from "@tiptap/pm/model";
+import { Plugin } from "@tiptap/pm/state";
 import { EditorContent, useEditor } from "@tiptap/react";
 import { FileXIcon } from "lucide-react";
 import { createElement, useLayoutEffect } from "react";
@@ -199,6 +200,40 @@ export const Embed = Node.create({
         rendered: false,
       },
     };
+  },
+
+  addProseMirrorPlugins() {
+    return [
+      new Plugin({
+        appendTransaction: (transactions, _before, state) => {
+          if (!transactions.some((transaction) => transaction.docChanged)) {
+            return null;
+          }
+
+          const transaction = state.tr;
+
+          // A node's schema restricts its children's marks, not its own.
+          // Embeds cannot serialize marks their paragraph lets them acquire.
+          state.doc.descendants((node, pos) => {
+            if (node.type.name === this.name && node.marks.length > 0) {
+              transaction.removeMark(pos, pos + node.nodeSize);
+            }
+          });
+
+          if (!transaction.docChanged) {
+            return null;
+          }
+
+          if (state.selection.empty) {
+            transaction.ensureMarks(
+              state.storedMarks ?? state.selection.$from.marks()
+            );
+          }
+
+          return transaction;
+        },
+      }),
+    ];
   },
 
   atom: true,
