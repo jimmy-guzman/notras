@@ -646,6 +646,147 @@ describe("link clicks", () => {
 });
 
 describe("embeds", () => {
+  it.each([
+    { attrs: {}, mark: "bold" },
+    { attrs: {}, mark: "italic" },
+    { attrs: {}, mark: "strike" },
+    { attrs: {}, mark: "underline" },
+    { attrs: {}, mark: "code" },
+    { attrs: { href: "https://example.com" }, mark: "link" },
+  ])(
+    "should leave a selected embed unmarked after applying $mark",
+    async ({ attrs, mark }) => {
+      const { editor, handle } = await mount({ initialContent: "![[Atlas]]" });
+
+      act(() => {
+        editor.commands.setNodeSelection(1);
+        editor.commands.toggleMark(mark, attrs);
+      });
+
+      expect(editor.state.doc.nodeAt(1)?.marks).toStrictEqual([]);
+      expect(editor.state.selection).toBeInstanceOf(NodeSelection);
+      expect(editor.state.selection.from).toBe(1);
+      expect(
+        editor.view.dom.querySelector("[data-embed]")?.parentElement?.tagName
+      ).toBe("P");
+      expect(handle.getContent()).toBe("![[Atlas]]");
+    }
+  );
+
+  it("should preserve text formatting around an unmarked embed through undo and redo", async () => {
+    const { editor, handle } = await mount({
+      initialContent: "left ![[Atlas]] right",
+    });
+
+    const before = editor.getJSON();
+
+    act(() => {
+      editor.commands.setTextSelection({ from: 1, to: 13 });
+      editor.commands.toggleBold();
+    });
+
+    const formatted = editor.getJSON();
+
+    expect(
+      editor.state.doc.nodeAt(1)?.marks.map((mark) => mark.type.name)
+    ).toStrictEqual(["bold"]);
+    expect(editor.state.doc.nodeAt(6)?.marks).toStrictEqual([]);
+    expect(
+      editor.state.doc.nodeAt(7)?.marks.map((mark) => mark.type.name)
+    ).toStrictEqual(["bold"]);
+    expect(editor.state.selection.from).toBe(1);
+    expect(editor.state.selection.to).toBe(13);
+    expect(handle.getContent()).toBe("**left** ![[Atlas]] **right**");
+
+    act(() => {
+      editor.commands.undo();
+    });
+
+    expect(editor.getJSON()).toStrictEqual(before);
+
+    act(() => {
+      editor.commands.redo();
+    });
+
+    expect(editor.getJSON()).toStrictEqual(formatted);
+    expect(handle.getContent()).toBe("**left** ![[Atlas]] **right**");
+  });
+
+  it("should paste an unmarked embed while keeping the surrounding text bold", async () => {
+    const { editor, handle } = await mount({ initialContent: "" });
+    const clipboardData = new DataTransfer();
+
+    clipboardData.setData("text/plain", "left Atlas right");
+    clipboardData.setData(
+      "text/html",
+      '<p><strong>left <span data-embed="Atlas" data-wikilink="Atlas">Atlas</span> right</strong></p>'
+    );
+    act(() => {
+      editor.view.dom.dispatchEvent(
+        new ClipboardEvent("paste", { clipboardData })
+      );
+    });
+
+    expect(editor.state.doc.nodeAt(6)?.type.name).toBe("embed");
+    expect(editor.state.doc.nodeAt(6)?.marks).toStrictEqual([]);
+    expect(handle.getContent()).toBe("**left** ![[Atlas]] **right**");
+  });
+
+  it("should insert an unmarked embed while retaining bold for subsequent typing", async () => {
+    const { editor, handle } = await mount({ initialContent: "left " });
+
+    act(() => {
+      editor.commands.setTextSelection(6);
+      editor.commands.toggleBold();
+      editor.view.dispatch(
+        editor.state.tr.replaceSelectionWith(
+          editor.schema.node("embed", { title: "Atlas" })
+        )
+      );
+      editor.commands.insertContent("right");
+    });
+
+    expect(editor.state.doc.nodeAt(6)?.type.name).toBe("embed");
+    expect(editor.state.doc.nodeAt(6)?.marks).toStrictEqual([]);
+    expect(handle.getContent()).toBe("left ![[Atlas]]**right**");
+  });
+
+  it.each(["![[Atlas]]", "![[Atlas]]next"])(
+    "should retain print separators after bold is applied to an embed before a hard break in %s",
+    async (initialContent) => {
+      const { editor } = await mount({
+        initialContent,
+        watchEmbed: (_title, show) => {
+          show({
+            body: "**arrived**",
+            resolveImageSrc: (src) => ({ failure: "", src }),
+          });
+
+          return () => {};
+        },
+      });
+
+      await screen.findByText("arrived");
+
+      act(() => {
+        editor.commands.setTextSelection(2);
+        editor.commands.setHardBreak();
+        editor.commands.setNodeSelection(1);
+        editor.commands.keyboardShortcut("Mod-b");
+      });
+
+      const embed = editor.view.dom.querySelector(".embed[data-shown]");
+
+      expect(embed?.parentElement?.tagName).toBe("P");
+      expect(
+        editor.view.dom.querySelector(
+          ".embed[data-shown] + .ProseMirror-separator + br"
+        )
+      ).not.toBeNull();
+      expect(embed?.querySelector("strong")?.textContent).toBe("arrived");
+    }
+  );
+
   it("should show the embedded note's body in the embed's place", async () => {
     await mount({
       initialContent: "see ![[Atlas]]",
