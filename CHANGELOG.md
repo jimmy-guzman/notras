@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.12.4](https://github.com/jimmy-guzman/notras/compare/v0.12.3...v0.12.4) (2026-11-09)
+
+
+### Features
+
+* **ui:** ✨ open csv & tsv files as tables ([#512](https://github.com/jimmy-guzman/notras/issues/512)) ([d6220e8](https://github.com/jimmy-guzman/notras/commit/d6220e8b6f2388918088807b68f28ebe4123c838))
+
+
+### Bug Fixes
+
+* **editor:** 🐛 close the gap above shown embeds ([#510](https://github.com/jimmy-guzman/notras/issues/510)) ([5ff0220](https://github.com/jimmy-guzman/notras/commit/5ff022051ef49b4de74f729317087f44e1483493))
+* **editor:** 🐛 keep embeds unmarked ([#515](https://github.com/jimmy-guzman/notras/issues/515)) ([52a3638](https://github.com/jimmy-guzman/notras/commit/52a363899d8acfc7c3f70905d9f1360bbc0add0e))
+* **editor:** 🐛 link pasted www addresses over https ([#509](https://github.com/jimmy-guzman/notras/issues/509)) ([2826dfd](https://github.com/jimmy-guzman/notras/commit/2826dfde9222ea764d314debbb21c6a6f07bab12))
+* **ui:** 🐛 save edits & jots when macOS quits the app ([#505](https://github.com/jimmy-guzman/notras/issues/505)) ([996c09b](https://github.com/jimmy-guzman/notras/commit/996c09be12f6469085aca451b32c90b51abd5cde))
+
 ## [0.12.3](https://github.com/jimmy-guzman/notras/compare/v0.12.2...v0.12.3) (2026-11-06)
 
 
