@@ -345,6 +345,7 @@ function focusPanel(panel: HTMLElement, content: HTMLElement) {
 export function NotePanel({ tab }: { tab: Tab | undefined }) {
   const panel = useNotePanel();
   const showing = shownTab(tab, panel.tab);
+  const markdown = tab?.kind !== "csv" && tab?.kind !== "code";
   const card = useRef<HTMLElement>(null);
   const content = useRef<HTMLDivElement>(null);
 
@@ -387,6 +388,11 @@ export function NotePanel({ tab }: { tab: Tab | undefined }) {
         <div className="p-2" ref={content}>
           {/* The showing editor portals its live outline in here. */}
           <div hidden={showing !== "outline"} ref={setOutlineHost} />
+          {markdown ? null : (
+            <p className="text-muted-foreground px-2 py-1 text-sm">
+              no outline for this file
+            </p>
+          )}
           {showing === "mentions" && tab?.kind === "note" ? (
             <Mentions path={tab.path} />
           ) : null}
@@ -395,7 +401,7 @@ export function NotePanel({ tab }: { tab: Tab | undefined }) {
           ) : null}
         </div>
       </ScrollArea>
-      {tab === undefined ? null : (
+      {tab === undefined || !markdown ? null : (
         <div className="text-muted-foreground flex h-8 shrink-0 items-center border-t px-2 py-1">
           <ViewPicker tab={tab} />
         </div>

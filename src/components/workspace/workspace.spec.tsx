@@ -157,6 +157,86 @@ describe("workspace", () => {
     ).toStrictEqual(["outline"]);
   });
 
+  it("should open the note panel on a code tab, saying the file has no outline", async () => {
+    const path = "/notes/config.json";
+    localStorage.setItem(
+      "tabs",
+      JSON.stringify({
+        activeId: "saved",
+        carets: {},
+        tabs: [{ id: "saved", kind: "code", path }],
+      })
+    );
+    mockWindows("main");
+    mockIPC((command) => {
+      if (command === "classify_open_paths") {
+        return [{ kind: "code", path }];
+      }
+
+      if (command === "get_notes_dir") {
+        return "/notes";
+      }
+
+      if (command === "index_status") {
+        return { state: "ready" };
+      }
+
+      if (command === "list_images") {
+        return { paths: [], unreadable: [] };
+      }
+
+      if (command === "list_notes" || command === "list_tags") {
+        return [];
+      }
+
+      if (command === "read_code_if_moved") {
+        return { revision: "r1", text: '{ "first": 1 }' };
+      }
+
+      if (command === "take_pending_open") {
+        return [];
+      }
+
+      if (command.startsWith("plugin:")) {
+        return 0;
+      }
+
+      throw new Error(`unexpected command: ${command}`);
+    });
+
+    const client = new QueryClient({
+      defaultOptions: {
+        queries: { retry: false, staleTime: Number.POSITIVE_INFINITY },
+      },
+    });
+
+    onTestFinished(() => {
+      for (const tab of getTabState().tabs) {
+        closeTab(tab.id);
+      }
+
+      client.clear();
+      clearMocks();
+      localStorage.removeItem("tabs");
+    });
+    render(
+      <QueryClientProvider client={client}>
+        <Layout />
+      </QueryClientProvider>
+    );
+    const user = userEvent.setup();
+
+    await screen.findByText('{ "first": 1 }');
+    await user.click(screen.getByRole("button", { name: "note panel" }));
+
+    expect(
+      await screen.findByText("no outline for this file")
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("group", { name: "view" })
+    ).not.toBeInTheDocument();
+  });
+
   it("should open a draft before library queries finish, creating nothing, and keep it when a late restore lands", async () => {
     localStorage.removeItem("tabs");
     mockWindows("main");
