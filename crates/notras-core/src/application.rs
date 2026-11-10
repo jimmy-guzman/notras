@@ -1131,7 +1131,16 @@ fn code_text(host: &Path, metadata: &fs::Metadata) -> io::Result<Result<String, 
     if metadata.len() > CODE_LIMIT {
         return Ok(Err("This file is too large to show here"));
     }
-    let Ok(text) = String::from_utf8(fs::read(host)?) else {
+    // The file can grow after the stat, so the read itself stops one byte past
+    // the limit and that sentinel byte marks it too large.
+    let mut bytes = Vec::new();
+    File::open(host)?
+        .take(CODE_LIMIT.saturating_add(1))
+        .read_to_end(&mut bytes)?;
+    if u64::try_from(bytes.len()).map_or(true, |len| len > CODE_LIMIT) {
+        return Ok(Err("This file is too large to show here"));
+    }
+    let Ok(text) = String::from_utf8(bytes) else {
         return Ok(Err("This file is not UTF-8 text"));
     };
     Ok(if text.contains('\0') {
