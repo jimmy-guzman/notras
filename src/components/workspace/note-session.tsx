@@ -35,7 +35,6 @@ import {
 } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/components/ui/toast";
-import { ConflictReview } from "@/components/workspace/conflict-review";
 import { FileError } from "@/core/errors";
 import { parseNote } from "@/core/frontmatter";
 import {
@@ -47,18 +46,19 @@ import {
   linkResolver,
 } from "@/core/links";
 import { noteTitle } from "@/core/notes";
-import { checkCsv } from "@/data/check-csv";
 import { clearConflictStash, stashConflict } from "@/data/conflict-stash";
 import type { ConflictStash } from "@/data/conflict-stash";
 import { createNote } from "@/data/create-note";
 import { writeExternalNote } from "@/data/external-note";
 import { moveNote } from "@/data/move-note";
+import { openCode } from "@/data/open-code";
 import { openExternalFile } from "@/data/open-external-file";
 import { openLinkedFile } from "@/data/open-linked-file";
 import { noteQueries, notesDirQuery, tabOpeningQuery } from "@/data/queries";
 import { readSessionFile } from "@/data/read-session-file";
 import type { SessionFile } from "@/data/read-session-file";
 import { resolveExternalLink } from "@/data/resolve-external-link";
+import { resolveLinkedFile } from "@/data/resolve-linked-file";
 import { saveNote } from "@/data/save-note";
 import { exportPdf } from "@/lib/export-pdf";
 import { renameRecentNote } from "@/lib/recent-notes";
@@ -90,8 +90,10 @@ import {
 } from "@/lib/ui/note-panel";
 import { focusGraph, hideGraph, useGraphMode } from "@/lib/ui/view";
 import { decodeAttachmentPath, isImageName } from "@/lib/utils/attachments";
-import type { OpenKind, PendingOpen } from "@/server/adapters/bindings";
+import type { LinkTarget, OpenKind } from "@/server/adapters/bindings";
 
+import { codeLanguage } from "./code-language";
+import { ConflictReview } from "./conflict-review";
 import { UnreadableFile } from "./unreadable-file";
 
 function bodyPrefix(raw: string) {
@@ -691,7 +693,7 @@ function SessionBuffer({ active, file, stash, tab }: SessionBufferProps) {
   const watchEmbed = watchEmbedFrom(null);
 
   const followLink = async (
-    resolve: () => Promise<PendingOpen>,
+    resolve: () => Promise<LinkTarget>,
     failed: string
   ) => {
     navigation.current?.abort();
@@ -705,8 +707,14 @@ function SessionBuffer({ active, file, stash, tab }: SessionBufferProps) {
     try {
       const target = await resolve();
 
-      if (isCurrent()) {
-        openTab(target.kind, target.path, true);
+      if (!isCurrent()) {
+        return;
+      }
+
+      if (target.to === "app") {
+        await openCode(target.path);
+      } else {
+        openTab(target.open.kind, target.open.path, true);
       }
     } catch (error) {
       if (isCurrent()) {
@@ -730,20 +738,21 @@ function SessionBuffer({ active, file, stash, tab }: SessionBufferProps) {
     await openExternalLink(href, "could not open note");
   };
 
-  // A csv opens as its own tab rather than in the system app. The fold is the
-  // one an image source takes, so the same climbs and segments are refused.
-  const openCsvLink = async (href: string) => {
+  // A csv or a code file opens as its own tab rather than in the system app.
+  // The fold is the one an image source takes, so the same climbs and segments
+  // are refused. The host classifies the file the link resolves to, as Open
+  // With does, and a binary that only borrows a code name goes to the system app.
+  const openHostFileLink = async (href: string) => {
     const path = decodeAttachmentPath(bareDestination(href));
     const folded = foldPath(path, live.current.path);
 
     if ("path" in folded) {
       const host = `${notesDir}/${folded.path}`;
 
-      await followLink(async () => {
-        await checkCsv(host);
-
-        return { kind: "csv", path: host };
-      }, "could not open file");
+      await followLink(
+        async () => await resolveLinkedFile(host),
+        "could not open file"
+      );
 
       return;
     }
@@ -759,8 +768,8 @@ function SessionBuffer({ active, file, stash, tab }: SessionBufferProps) {
   };
 
   const openFileLink = async (href: string) => {
-    if (isCsvPath(href)) {
-      await openCsvLink(href);
+    if (isCsvPath(href) || codeLanguage(href) !== undefined) {
+      await openHostFileLink(href);
 
       return;
     }
@@ -777,7 +786,7 @@ function SessionBuffer({ active, file, stash, tab }: SessionBufferProps) {
   };
 
   const openExternalFileLink = async (href: string) => {
-    if (isCsvPath(href)) {
+    if (isCsvPath(href) || codeLanguage(href) !== undefined) {
       await openExternalLink(href, "could not open file");
 
       return;

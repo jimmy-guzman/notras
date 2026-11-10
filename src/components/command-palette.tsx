@@ -60,6 +60,7 @@ import type { NoteMeta } from "@/core/notes";
 import { setAppearance } from "@/data/appearance";
 import { createNote } from "@/data/create-note";
 import { deleteNote } from "@/data/delete-note";
+import { openCode } from "@/data/open-code";
 import { openCsv } from "@/data/open-csv";
 import { appearanceQuery } from "@/data/queries";
 import { reindexAll } from "@/data/reindex";
@@ -624,16 +625,16 @@ export function CommandPalette({
     {
       Icon: ExternalLinkIcon,
       label: "open in default app",
-      needs: "csv",
+      needs: "viewer",
       onSelect: () => {
         if (activeTab === undefined) {
           return;
         }
 
-        const { path } = activeTab;
+        const { kind, path } = activeTab;
 
         void runAction("could not open file", async () => {
-          await openCsv(path);
+          await (kind === "csv" ? openCsv(path) : openCode(path));
         });
       },
       text: "open in default app",
@@ -765,13 +766,13 @@ export function CommandPalette({
   const footerLabel = filterMode ? "back to notes" : "add filter";
 
   const reachable = {
-    csv: activeTab?.kind === "csv",
     editor: getTabHandles(activeId) !== undefined,
     file: activeTab !== undefined && activeTab.kind !== "draft",
     filed: currentNote !== undefined && noteFolder(currentNote.path) !== "",
     none: true,
     note: currentNote !== undefined,
     tab: activeTab !== undefined,
+    viewer: activeTab?.kind === "csv" || activeTab?.kind === "code",
   } satisfies Record<PaletteScope, boolean>;
 
   const noteView = (() =>

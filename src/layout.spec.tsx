@@ -491,6 +491,110 @@ describe("layout", () => {
     ).toBeInTheDocument();
   });
 
+  it.each([
+    {
+      trigger: "the window regains focus",
+      wake: async () => {
+        act(() => {
+          fireEvent.focus(window);
+        });
+      },
+    },
+    {
+      trigger: "the watcher reports it",
+      wake: async () => {
+        await emit("notes-changed", { paths: ["config.json"] });
+      },
+    },
+  ])("should re-read a code tab when $trigger", async ({ wake }) => {
+    const path = "/notes/config.json";
+    localStorage.setItem(
+      "tabs",
+      JSON.stringify({
+        activeId: "saved",
+        carets: {},
+        tabs: [{ id: "saved", kind: "code", path }],
+      })
+    );
+    mockWindows("main");
+    let onDisk = '{ "first": 1 }';
+    let revision = 0;
+
+    mockIPC(
+      (command) => {
+        if (command === "classify_open_paths") {
+          return [{ kind: "code", path }];
+        }
+
+        if (command === "get_notes_dir") {
+          return "/notes";
+        }
+
+        if (command === "index_status") {
+          return { state: "ready" };
+        }
+
+        if (command === "list_images") {
+          return { paths: [], unreadable: [] };
+        }
+
+        if (command === "list_notes" || command === "list_tags") {
+          return [];
+        }
+
+        if (command === "read_code_if_moved") {
+          revision += 1;
+
+          return { revision: `r${revision}`, text: onDisk };
+        }
+
+        if (command === "take_pending_open") {
+          return [];
+        }
+
+        if (command.startsWith("plugin:")) {
+          return 0;
+        }
+
+        throw new Error(`unexpected command: ${command}`);
+      },
+      { shouldMockEvents: true }
+    );
+
+    const client = new QueryClient({
+      defaultOptions: {
+        queries: { retry: false, staleTime: Number.POSITIVE_INFINITY },
+      },
+    });
+
+    onTestFinished(() => {
+      for (const tab of getTabState().tabs) {
+        closeTab(tab.id);
+      }
+
+      client.clear();
+      clearMocks();
+      vi.restoreAllMocks();
+      localStorage.removeItem("tabs");
+    });
+    render(
+      <QueryClientProvider client={client}>
+        <Layout />
+      </QueryClientProvider>
+    );
+
+    expect(await screen.findByText('{ "first": 1 }')).toBeInTheDocument();
+    expect(
+      screen.getByRole("tab", { name: "config.json" })
+    ).toBeInTheDocument();
+    onDisk = '{ "changed": "elsewhere" }';
+    await wake();
+
+    expect(
+      await screen.findByText('{ "changed": "elsewhere" }')
+    ).toBeInTheDocument();
+  });
+
   it("should save every open tab when the window loses focus", async () => {
     localStorage.setItem(
       "tabs",

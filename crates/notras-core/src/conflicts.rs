@@ -19,6 +19,7 @@ pub struct ConflictStash {
 
 fn stash_name(kind: OpenKind, path: &str) -> String {
     let kind = match kind {
+        OpenKind::Code => "code",
         OpenKind::Csv => "csv",
         OpenKind::External => "external",
         OpenKind::Note => "note",

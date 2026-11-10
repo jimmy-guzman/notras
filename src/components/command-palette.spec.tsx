@@ -476,6 +476,34 @@ describe("command palette actions", () => {
     expect(palette.closed).toStrictEqual([false]);
   });
 
+  it("should open a code tab's file in the default app", async () => {
+    const opened: unknown[] = [];
+    mockIPC((command, args) => {
+      if (command === "open_code") {
+        opened.push(args);
+
+        return null;
+      }
+
+      throw new Error(`unexpected command: ${command}`);
+    });
+    onTestFinished(() => {
+      clearMocks();
+    });
+
+    openTab("code", "/notes/attachments/config.json", true);
+    const palette = mount("actions", []);
+    await palette.user.type(palette.input, "default app");
+    expect(document.body.textContent).toContain("open in default app");
+    await palette.user.keyboard("{Enter}");
+    await waitFor(() => {
+      expect(opened).toStrictEqual([
+        { path: "/notes/attachments/config.json" },
+      ]);
+    });
+    expect(palette.closed).toStrictEqual([false]);
+  });
+
   it("should reveal a csv tab's file by the path it holds", async () => {
     const revealed: unknown[] = [];
     mockIPC((command, args) => {

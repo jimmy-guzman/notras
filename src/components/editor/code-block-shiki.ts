@@ -312,22 +312,30 @@ function applyTransaction(
 
 /**
  * The positions on screen, or nothing when no part of the editor shows. The
- * two points sit one pixel inside the editor's visible part: a point outside
- * it sends `posAtCoords` down a fallback that measures the text one character
- * at a time.
+ * two points sit inside the editor's visible part on both axes: a point
+ * outside it sends `posAtCoords` down a fallback that measures the text one
+ * character at a time, which a code tab scrolled sideways along a long line
+ * would pay on every frame.
  */
 export function measureViewport(view: EditorView): Range | undefined {
   const editor = view.dom.getBoundingClientRect();
 
   const clip = view.dom
     .closest('[data-slot="scroll-area-viewport"]')
-    ?.getBoundingClientRect() ?? { bottom: window.innerHeight, top: 0 };
+    ?.getBoundingClientRect() ?? {
+    bottom: window.innerHeight,
+    left: 0,
+    right: window.innerWidth,
+    top: 0,
+  };
 
-  const left = editor.left + editor.width / 2;
+  const start = Math.max(editor.left, clip.left);
+  const end = Math.min(editor.right, clip.right);
+  const left = (start + end) / 2;
   const top = Math.max(editor.top, clip.top) + 1;
   const bottom = Math.min(editor.bottom, clip.bottom) - 1;
 
-  if (bottom <= top) {
+  if (bottom <= top || end <= start) {
     return undefined;
   }
 

@@ -74,7 +74,7 @@ pub fn builder<R: Runtime>() -> tauri_specta::Builder<R> {
             notes::pending_open_files::<tauri::Wry>,
             notes::quit_app::<tauri::Wry>,
             notes::read_conflict::<tauri::Wry>,
-            notes::check_csv,
+            notes::read_code_if_moved,
             notes::read_csv_if_moved,
             notes::read_csv_rows,
             notes::read_external,
@@ -83,10 +83,12 @@ pub fn builder<R: Runtime>() -> tauri_specta::Builder<R> {
             notes::restart_app::<tauri::Wry>,
             notes::create_note::<tauri::Wry>,
             notes::move_note::<tauri::Wry>,
+            notes::open_code::<tauri::Wry>,
             notes::open_csv::<tauri::Wry>,
             notes::open_external_file::<tauri::Wry>,
             notes::open_linked_file::<tauri::Wry>,
             notes::resolve_external_link::<tauri::Wry>,
+            notes::resolve_linked_file::<tauri::Wry>,
             notes::set_notes_dir::<tauri::Wry>,
             notes::stash_conflict::<tauri::Wry>,
             notes::write_external::<tauri::Wry>,
@@ -182,7 +184,7 @@ mod tests {
                 json!({"document": document, "destination": "../library/b.md"}),
             )
             .unwrap(),
-            json!({"kind": "note", "path": "b.md"})
+            json!({"to": "tab", "open": {"kind": "note", "path": "b.md"}})
         );
         assert_eq!(
             invoke(
@@ -192,8 +194,11 @@ mod tests {
             )
             .unwrap(),
             json!({
-                "kind": "external",
-                "path": fs::canonicalize(outside.join("other.md")).unwrap().to_string_lossy()
+                "to": "tab",
+                "open": {
+                    "kind": "external",
+                    "path": fs::canonicalize(outside.join("other.md")).unwrap().to_string_lossy()
+                }
             })
         );
         assert_eq!(
@@ -265,6 +270,39 @@ mod tests {
                 "{destination}"
             );
         }
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn should_refuse_to_open_a_code_file_the_system_would_run() {
+        use std::os::unix::fs::PermissionsExt as _;
+
+        let directory = tempfile::tempdir().unwrap();
+        let script = fs::canonicalize(directory.path()).unwrap().join("setup.sh");
+        fs::write(&script, "#!/bin/sh\n").unwrap();
+        fs::set_permissions(&script, fs::Permissions::from_mode(0o755)).unwrap();
+        let contract = builder::<tauri::test::MockRuntime>();
+        let app = tauri::test::mock_builder()
+            .manage(AppState {
+                library: crate::library::LibraryOwner::new(
+                    Library::open(directory.path(), &directory.path().join(".index")).unwrap(),
+                    |_| {},
+                ),
+                watcher: Mutex::new(None),
+                pending_open: Mutex::new(vec![]),
+                quit: QuitHandshake::default(),
+            })
+            .invoke_handler(contract.invoke_handler())
+            .build(tauri::test::mock_context(tauri::test::noop_assets()))
+            .unwrap();
+        let window = tauri::WebviewWindowBuilder::new(&app, "main", Default::default())
+            .build()
+            .unwrap();
+
+        assert_eq!(
+            invoke(&window, "open_code", json!({"path": script})).unwrap_err(),
+            json!({"kind": "failed", "message": "That file is a program"})
+        );
     }
 
     #[test]

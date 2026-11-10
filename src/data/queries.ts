@@ -6,6 +6,7 @@ import type { NoteSearch } from "@/core/search";
 import { getGraph } from "@/data/get-graph";
 import { commands } from "@/server/adapters/bindings";
 import type {
+  CodeFile,
   CsvFile,
   GraphTarget,
   OpenKind,
@@ -17,6 +18,7 @@ import { getMentions } from "./get-mentions";
 import { getNotes } from "./get-notes";
 import { nativeCommand } from "./native-command";
 import { getNotesDir } from "./notes-dir";
+import { readCodeIfMoved } from "./read-code";
 import { readCsvIfMoved, readCsvRows } from "./read-csv";
 import { readEmbedded } from "./read-embedded";
 import { readSessionFile } from "./read-session-file";
@@ -170,6 +172,30 @@ export const csvQuery = (id: string, path: string) => {
     queryFn: async ({ client }) => {
       const known = client.getQueryData<CsvFile>(queryKey);
       const file = await readCsvIfMoved(path, known?.revision ?? null);
+
+      if (file !== null) {
+        return file;
+      }
+
+      if (known === undefined) {
+        throw new Error("The host found no change in a file it never read");
+      }
+
+      return known;
+    },
+    queryKey,
+    staleTime: "static",
+  });
+};
+
+/** A code tab's whole file, kept and refreshed the way `csvQuery` keeps a csv. */
+export const codeQuery = (id: string, path: string) => {
+  const queryKey = ["code", id, path] as const;
+
+  return queryOptions({
+    queryFn: async ({ client }) => {
+      const known = client.getQueryData<CodeFile>(queryKey);
+      const file = await readCodeIfMoved(path, known?.revision ?? null);
 
       if (file !== null) {
         return file;

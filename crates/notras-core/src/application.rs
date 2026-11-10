@@ -165,6 +165,13 @@ fn in_line_endings_of(disk: &str, content: &str) -> String {
     }
 }
 
+/// A path as text, refused when it is not valid Unicode, since the webview and
+/// the index both hold paths as strings.
+pub fn path_text(path: &Path) -> Result<&str, CommandError> {
+    path.to_str()
+        .ok_or_else(|| "The path is not valid Unicode".into())
+}
+
 /// Whether the system would run the file rather than open it.
 ///
 /// LaunchServices executes a file with no extension when its mode allows, and
@@ -847,14 +854,13 @@ pub fn external_image(document: &Path, src: &str) -> Result<PathBuf, CommandErro
     Ok(image)
 }
 
-/// The markdown or csv file a link in an external document names.
+/// The file a link in an external document leads to.
 ///
-/// The shell classifies it as a note, a csv, or another external file.
-pub fn external_note(document: &Path, destination: &str) -> Result<PathBuf, CommandError> {
+/// Any regular file resolves: the shell classifies it as a note, external
+/// markdown, a csv, or code, and names code notras cannot show for the webview
+/// to hand to the system app.
+pub fn external_tab(document: &Path, destination: &str) -> Result<PathBuf, CommandError> {
     let target = external_target(document, &relationships::bare_file_destination(destination))?;
-    if !(index::is_note_file(&target) || index::is_csv_file(&target)) {
-        return Err("Only Markdown and CSV files open as tabs".into());
-    }
     if !fs::metadata(&target)?.is_file() {
         return Err("That path is not a file".into());
     }
@@ -869,24 +875,14 @@ pub fn external_file(document: &Path, destination: &str) -> Result<PathBuf, Comm
     if index::is_note_file(&target) {
         return Err("Markdown files open in notras".into());
     }
-    let name = target
-        .file_name()
-        .and_then(|name| name.to_str())
-        .ok_or("The path is not valid Unicode")?;
-    let dir = Dir::open_ambient_dir(
-        target.parent().ok_or("A file outside any folder")?,
-        ambient_authority(),
-    )?;
-    let metadata = dir.metadata(name)?;
+    let metadata = fs::metadata(&target)?;
     if metadata.is_dir() {
         return Err("That path is a folder".into());
     }
     if !metadata.is_file() {
         return Err("That path is not a file".into());
     }
-    if runs_on_open(name, &metadata) {
-        return Err("That file is a program".into());
-    }
+    ensure_not_program(&target)?;
     Ok(target)
 }
 
@@ -935,7 +931,7 @@ pub struct CsvFile {
 }
 
 /// The length and timestamp a read came from, so a page is refused once the file moved on.
-fn csv_revision(metadata: &fs::Metadata) -> Result<String, CommandError> {
+fn file_revision(metadata: &fs::Metadata) -> Result<String, CommandError> {
     Ok(format!(
         "{}:{}",
         timestamp_millis(metadata.modified())?,
@@ -1004,7 +1000,7 @@ fn keep_longest(column: &mut Vec<(usize, String)>, cell: &str) {
 /// webview draws it as the header and asks for the body by page.
 fn read_csv(path: &Path) -> Result<CsvFile, CommandError> {
     let host = csv_file(path)?;
-    let revision = csv_revision(&fs::metadata(&host)?)?;
+    let revision = file_revision(&fs::metadata(&host)?)?;
     let mut reader = csv_reader(&host)?;
     let mut records = reader.records();
     let mut header = records
@@ -1064,7 +1060,7 @@ pub fn read_csv_if_moved(
     path: &Path,
     known: Option<&str>,
 ) -> Result<Option<CsvFile>, CommandError> {
-    let revision = csv_revision(&fs::metadata(csv_file(path)?)?)?;
+    let revision = file_revision(&fs::metadata(csv_file(path)?)?)?;
     if known == Some(revision.as_str()) {
         return Ok(None);
     }
@@ -1079,7 +1075,7 @@ pub fn read_csv_rows(
     start: u64,
 ) -> Result<Vec<Vec<String>>, CommandError> {
     let host = csv_file(path)?;
-    if csv_revision(&fs::metadata(&host)?)? != revision {
+    if file_revision(&fs::metadata(&host)?)? != revision {
         return Err("The file changed since it was opened".into());
     }
     let mut reader = csv_reader(&host)?;
@@ -1093,6 +1089,77 @@ pub fn read_csv_rows(
         .collect()
 }
 
+/// The file an absolute host path names, canonicalized, to show as code.
+///
+/// Checked on each request like a csv. Any regular file qualifies but a note
+/// or a csv, which open as their own kinds.
+pub fn code_file(path: &Path) -> Result<PathBuf, CommandError> {
+    if !path.is_absolute() {
+        return Err("The path is not absolute".into());
+    }
+    if index::is_note_file(path) || index::is_csv_file(path) {
+        return Err("Markdown and CSV files open as their own tabs".into());
+    }
+    let metadata = fs::metadata(path)?;
+    if metadata.is_dir() {
+        return Err("That path is a folder".into());
+    }
+    if !metadata.is_file() {
+        return Err("That path is not a file".into());
+    }
+    Ok(fs::canonicalize(path)?)
+}
+
+/// The most bytes a code file is shown whole at. The webview holds the whole
+/// file as one highlighted block, so a larger one is refused rather than paged.
+const CODE_LIMIT: u64 = 1024 * 1024;
+
+/// A code file's text, with line feeds, and the revision it was read at.
+#[cfg_attr(feature = "bindings", derive(specta::Type))]
+#[derive(Debug, PartialEq, Serialize)]
+pub struct CodeFile {
+    pub text: String,
+    pub revision: String,
+}
+
+/// The text of a code file notras can show, or the reason it cannot: at most
+/// `CODE_LIMIT` bytes of UTF-8 with no NUL byte. A code tab says the reason; a
+/// link takes it as the cue to hand the file to the system app. A NUL byte
+/// counts as binary, as git counts it, since a binary can be valid UTF-8
+/// throughout, as a bare WebAssembly header is.
+fn code_text(host: &Path, metadata: &fs::Metadata) -> io::Result<Result<String, &'static str>> {
+    if metadata.len() > CODE_LIMIT {
+        return Ok(Err("This file is too large to show here"));
+    }
+    let Ok(text) = String::from_utf8(fs::read(host)?) else {
+        return Ok(Err("This file is not UTF-8 text"));
+    };
+    Ok(if text.contains('\0') {
+        Err("This file is not text")
+    } else {
+        Ok(text)
+    })
+}
+
+/// Read a code file whole unless it still stands at the `known` revision.
+pub fn read_code_if_moved(
+    path: &Path,
+    known: Option<&str>,
+) -> Result<Option<CodeFile>, CommandError> {
+    let host = code_file(path)?;
+    let metadata = fs::metadata(&host)?;
+    let revision = file_revision(&metadata)?;
+    if known == Some(revision.as_str()) {
+        return Ok(None);
+    }
+    let text = code_text(&host, &metadata)??;
+    let text = text.strip_prefix('\u{feff}').unwrap_or(&text);
+    Ok(Some(CodeFile {
+        text: text.replace("\r\n", "\n"),
+        revision,
+    }))
+}
+
 /// Persist an external document, rejecting non-Unicode paths before file access.
 pub fn write_external(
     path: &Path,
@@ -1100,7 +1167,7 @@ pub fn write_external(
     name: Option<SaveName>,
     expected: &str,
 ) -> Result<SaveOutcome, CommandError> {
-    let host = path.to_str().ok_or("The path is not valid Unicode")?;
+    let host = path_text(path)?;
     let parent = path
         .parent()
         .filter(|parent| !parent.as_os_str().is_empty())
@@ -1128,11 +1195,7 @@ pub fn write_external(
     }
     Ok(SaveOutcome::Committed {
         receipt: MutationReceipt {
-            path: parent
-                .join(result.name)
-                .to_str()
-                .ok_or("The path is not valid Unicode")?
-                .to_owned(),
+            path: path_text(&parent.join(result.name))?.to_owned(),
             revision: result.revision,
             updated_at: result.updated_at,
             warnings,
@@ -1144,14 +1207,15 @@ pub fn write_external(
 #[derive(Clone, Copy, Debug, Deserialize, PartialEq, Serialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum OpenKind {
+    Code,
     Csv,
     External,
     Note,
 }
 
 /// A queued "Open With" path, classified so the webview opens it as the tab
-/// kind the file already is: a csv wherever it sits, a note inside the notes
-/// dir, external otherwise.
+/// kind the file already is: a note inside the notes dir, external for
+/// markdown anywhere else, a csv or code wherever it sits.
 #[cfg_attr(feature = "bindings", derive(specta::Type))]
 #[derive(Debug, PartialEq, Serialize)]
 pub struct PendingOpen {
@@ -1163,13 +1227,17 @@ pub(crate) fn classify_open(notes_dir: &Path, path: String) -> PendingOpen {
     let host = fs::canonicalize(&path).unwrap_or_else(|_| PathBuf::from(&path));
     // The canonical spelling, as a note's link and the watcher use, so one file
     // keeps one tab.
-    if index::is_csv_file(&host) {
+    if !index::is_note_file(&host) {
         return PendingOpen {
-            kind: OpenKind::Csv,
+            kind: if index::is_csv_file(&host) {
+                OpenKind::Csv
+            } else {
+                OpenKind::Code
+            },
             path: host.to_str().map_or(path, str::to_owned),
         };
     }
-    match index::relative_path(notes_dir, &host).filter(|_| index::is_note_file(&host)) {
+    match index::relative_path(notes_dir, &host) {
         Some(rel) => PendingOpen {
             kind: OpenKind::Note,
             path: rel,
@@ -1179,6 +1247,58 @@ pub(crate) fn classify_open(notes_dir: &Path, path: String) -> PendingOpen {
             path,
         },
     }
+}
+
+/// Where a link to a host file leads: the tab Open With would give the file it
+/// resolves to, or the resolved path for the system app when that file is code
+/// notras cannot show.
+#[cfg_attr(feature = "bindings", derive(specta::Type))]
+#[derive(Debug, PartialEq, Serialize)]
+#[serde(rename_all = "kebab-case", tag = "to")]
+pub enum LinkTarget {
+    App { path: String },
+    Tab { open: PendingOpen },
+}
+
+/// Where a link leads, classified by the file its absolute host path resolves
+/// to, as Open With classifies it, so a link through a symlink lands on the tab
+/// the file already has, whatever the link's own name says.
+pub(crate) fn link_target(notes_dir: &Path, path: &Path) -> Result<LinkTarget, CommandError> {
+    if !path.is_absolute() {
+        return Err("The path is not absolute".into());
+    }
+    let host = fs::canonicalize(path)?;
+    let metadata = fs::metadata(&host)?;
+    if metadata.is_dir() {
+        return Err("That path is a folder".into());
+    }
+    if !metadata.is_file() {
+        return Err("That path is not a file".into());
+    }
+    let host_text = path_text(&host)?.to_owned();
+    let open = classify_open(notes_dir, host_text.clone());
+    Ok(
+        if open.kind == OpenKind::Code && code_text(&host, &metadata)?.is_err() {
+            LinkTarget::App { path: host_text }
+        } else {
+            LinkTarget::Tab { open }
+        },
+    )
+}
+
+/// Refuse a host file the system would run rather than open.
+pub fn ensure_not_program(host: &Path) -> Result<(), CommandError> {
+    let name = path_text(Path::new(
+        host.file_name().ok_or("A file without a filename")?,
+    ))?;
+    let dir = Dir::open_ambient_dir(
+        host.parent().ok_or("A file outside any folder")?,
+        ambient_authority(),
+    )?;
+    if runs_on_open(name, &dir.metadata(name)?) {
+        return Err("That file is a program".into());
+    }
+    Ok(())
 }
 
 /// The extension for an image's bytes, read from its signature rather than
@@ -1316,12 +1436,10 @@ impl Library {
     }
 
     pub fn attach_file(&self, source: &Path) -> Result<String, CommandError> {
-        let name = source
-            .file_name()
-            .ok_or("Source has no file name")?
-            .to_str()
-            .ok_or("The path is not valid Unicode")?
-            .to_owned();
+        let name = path_text(Path::new(
+            source.file_name().ok_or("Source has no file name")?,
+        ))?
+        .to_owned();
 
         RelativePath::parse(&format!("{}/{name}", index::ATTACHMENTS))?;
         let dir = ensure_folder(&self.root, index::ATTACHMENTS)?;
@@ -2520,10 +2638,20 @@ mod tests {
     }
 
     #[test]
-    fn should_treat_a_non_markdown_file_inside_the_library_as_external() {
-        let open = classify_open(Path::new("/vault"), "/vault/a.txt".into());
+    fn should_classify_a_file_that_is_neither_markdown_nor_csv_as_code_wherever_it_sits() {
+        let inside = classify_open(Path::new("/vault"), "/vault/a.txt".into());
+        let outside = classify_open(Path::new("/vault"), "/elsewhere/config.JSON".into());
+        let binary = classify_open(Path::new("/vault"), "/elsewhere/spec.pdf".into());
 
-        assert_eq!(open.kind, OpenKind::External);
+        assert_eq!(
+            inside,
+            PendingOpen {
+                kind: OpenKind::Code,
+                path: "/vault/a.txt".into()
+            }
+        );
+        assert_eq!(outside.kind, OpenKind::Code);
+        assert_eq!(binary.kind, OpenKind::Code);
     }
 
     #[test]
@@ -2882,6 +3010,110 @@ mod tests {
         );
     }
 
+    #[cfg(unix)]
+    #[test]
+    fn should_open_a_link_through_a_symlink_as_the_tab_open_with_gives_its_target() {
+        let directory = tempfile::tempdir().unwrap();
+        let notes = fs::canonicalize(directory.path()).unwrap();
+        fs::create_dir(notes.join("real")).unwrap();
+        fs::write(notes.join("real/config.json"), "{}").unwrap();
+        fs::write(notes.join("real/q3.dat"), "a,b").unwrap();
+        std::os::unix::fs::symlink(notes.join("real"), notes.join("shortcut")).unwrap();
+        std::os::unix::fs::symlink(notes.join("real/q3.dat"), notes.join("q3.csv")).unwrap();
+        let open_with = |path: &Path| classify_open(&notes, path.to_string_lossy().into_owned());
+
+        let code = notes.join("shortcut/config.json");
+        let renamed = notes.join("q3.csv");
+
+        assert_eq!(
+            link_target(&notes, &code).unwrap(),
+            LinkTarget::Tab {
+                open: open_with(&code)
+            }
+        );
+        assert_eq!(
+            link_target(&notes, &renamed).unwrap(),
+            LinkTarget::Tab {
+                open: PendingOpen {
+                    kind: OpenKind::Code,
+                    path: notes.join("real/q3.dat").to_string_lossy().into_owned(),
+                }
+            }
+        );
+        assert_eq!(open_with(&renamed).kind, OpenKind::Code);
+    }
+
+    #[test]
+    fn should_send_code_notras_cannot_show_to_the_system_app() {
+        let directory = tempfile::tempdir().unwrap();
+        let notes = fs::canonicalize(directory.path()).unwrap();
+        fs::write(notes.join("app.wasm"), b"\0asm\x01\0\0\0").unwrap();
+        fs::write(notes.join("bundle.js"), vec![b' '; CODE_LIMIT as usize + 1]).unwrap();
+        fs::write(notes.join("latin1.txt"), b"caf\xE9").unwrap();
+        let app = |name: &str| LinkTarget::App {
+            path: notes.join(name).to_string_lossy().into_owned(),
+        };
+
+        assert_eq!(
+            link_target(&notes, &notes.join("app.wasm")).unwrap(),
+            app("app.wasm")
+        );
+        assert_eq!(
+            link_target(&notes, &notes.join("bundle.js")).unwrap(),
+            app("bundle.js")
+        );
+        assert_eq!(
+            link_target(&notes, &notes.join("latin1.txt")).unwrap(),
+            app("latin1.txt")
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn should_send_code_notras_cannot_show_to_the_system_app_by_its_resolved_path() {
+        let directory = tempfile::tempdir().unwrap();
+        let notes = fs::canonicalize(directory.path()).unwrap();
+        let vendor = notes.join("vendor-real");
+        fs::create_dir(&vendor).unwrap();
+        fs::write(vendor.join("app.wasm"), b"\0asm\x01\0\0\0").unwrap();
+        std::os::unix::fs::symlink(&vendor, notes.join("vendor")).unwrap();
+
+        assert_eq!(
+            link_target(&notes, &notes.join("vendor/app.wasm")).unwrap(),
+            LinkTarget::App {
+                path: vendor.join("app.wasm").to_string_lossy().into_owned(),
+            }
+        );
+    }
+
+    #[test]
+    fn should_open_a_tab_for_text_at_the_size_limit_and_for_any_csv() {
+        let directory = tempfile::tempdir().unwrap();
+        let notes = fs::canonicalize(directory.path()).unwrap();
+        fs::write(notes.join("full.js"), vec![b' '; CODE_LIMIT as usize]).unwrap();
+        fs::write(notes.join("data.csv"), b"\xE9,b").unwrap();
+        let kind = |name: &str| match link_target(&notes, &notes.join(name)).unwrap() {
+            LinkTarget::Tab { open } => Some(open.kind),
+            LinkTarget::App { .. } => None,
+        };
+
+        assert_eq!(kind("full.js"), Some(OpenKind::Code));
+        assert_eq!(kind("data.csv"), Some(OpenKind::Csv));
+    }
+
+    #[test]
+    fn should_refuse_a_link_to_a_folder_or_a_relative_path() {
+        let directory = tempfile::tempdir().unwrap();
+        let notes = fs::canonicalize(directory.path()).unwrap();
+        fs::create_dir(notes.join("folder.json")).unwrap();
+
+        let folder = link_target(&notes, &notes.join("folder.json")).unwrap_err();
+        let relative = link_target(&notes, Path::new("config.json")).unwrap_err();
+
+        assert_eq!(folder.message, "That path is a folder");
+        assert_eq!(relative.message, "The path is not absolute");
+    }
+
     fn first_page(path: &Path, file: &CsvFile) -> Vec<Vec<String>> {
         read_csv_rows(path, &file.revision, file.pages[0]).unwrap()
     }
@@ -3070,6 +3302,96 @@ mod tests {
     }
 
     #[test]
+    fn should_read_a_code_file_whole_with_line_feeds_and_no_byte_order_mark() {
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("config.json");
+        fs::write(&path, "\u{feff}{\r\n  \"a\": 1\r\n}\n").unwrap();
+
+        let file = read_code_if_moved(&path, None).unwrap().unwrap();
+
+        assert_eq!(file.text, "{\n  \"a\": 1\n}\n");
+        assert!(!file.revision.is_empty());
+    }
+
+    #[test]
+    fn should_skip_the_code_read_while_the_file_stands_at_the_known_revision() {
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("main.rs");
+        fs::write(&path, "fn main() {}\n").unwrap();
+        let file = read_code_if_moved(&path, None).unwrap().unwrap();
+
+        let unchanged = read_code_if_moved(&path, Some(&file.revision)).unwrap();
+        fs::write(&path, "fn main() { run() }\n").unwrap();
+        let changed = read_code_if_moved(&path, Some(&file.revision))
+            .unwrap()
+            .unwrap();
+
+        assert_eq!(unchanged, None);
+        assert_eq!(changed.text, "fn main() { run() }\n");
+    }
+
+    #[test]
+    fn should_refuse_a_code_file_that_is_not_text_or_too_large_to_show() {
+        let directory = tempfile::tempdir().unwrap();
+        let binary = directory.path().join("blob.bin");
+        let nul = directory.path().join("app.wasm");
+        let large = directory.path().join("bundle.js");
+        fs::write(&binary, b"\xE9\x00").unwrap();
+        fs::write(&nul, b"\0asm\x01\0\0\0").unwrap();
+        fs::write(&large, vec![b' '; CODE_LIMIT as usize + 1]).unwrap();
+
+        let not_utf8 = read_code_if_moved(&binary, None).unwrap_err();
+        let not_text = read_code_if_moved(&nul, None).unwrap_err();
+        let too_large = read_code_if_moved(&large, None).unwrap_err();
+
+        assert_eq!(not_utf8.message, "This file is not UTF-8 text");
+        assert_eq!(not_text.message, "This file is not text");
+        assert_eq!(too_large.message, "This file is too large to show here");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn should_refuse_to_hand_the_system_a_file_it_would_run() {
+        use std::os::unix::fs::PermissionsExt as _;
+
+        let directory = tempfile::tempdir().unwrap();
+        let script = directory.path().join("setup.sh");
+        let plain = directory.path().join("notes.sh");
+        fs::write(&script, "#!/bin/sh\n").unwrap();
+        fs::write(&plain, "#!/bin/sh\n").unwrap();
+        fs::set_permissions(&script, fs::Permissions::from_mode(0o755)).unwrap();
+
+        assert_eq!(
+            ensure_not_program(&script).unwrap_err().message,
+            "That file is a program"
+        );
+        assert!(ensure_not_program(&plain).is_ok());
+    }
+
+    #[test]
+    fn should_refuse_what_does_not_open_as_code() {
+        let directory = tempfile::tempdir().unwrap();
+        fs::write(directory.path().join("note.md"), "# Note").unwrap();
+        fs::write(directory.path().join("data.csv"), "a,b").unwrap();
+        fs::create_dir(directory.path().join("folder.json")).unwrap();
+
+        let relative = read_code_if_moved(Path::new("config.json"), None).unwrap_err();
+        let markdown = read_code_if_moved(&directory.path().join("note.md"), None).unwrap_err();
+        let csv = read_code_if_moved(&directory.path().join("data.csv"), None).unwrap_err();
+        let folder = read_code_if_moved(&directory.path().join("folder.json"), None).unwrap_err();
+        let missing = read_code_if_moved(&directory.path().join("absent.json"), None).unwrap_err();
+
+        assert_eq!(relative.message, "The path is not absolute");
+        assert_eq!(
+            markdown.message,
+            "Markdown and CSV files open as their own tabs"
+        );
+        assert_eq!(csv.message, "Markdown and CSV files open as their own tabs");
+        assert_eq!(folder.message, "That path is a folder");
+        assert_eq!(missing.kind, ErrorKind::NotFound);
+    }
+
+    #[test]
     fn should_refuse_what_is_not_a_csv_file() {
         let directory = tempfile::tempdir().unwrap();
         fs::write(directory.path().join("note.md"), "# Note").unwrap();
@@ -3178,21 +3500,29 @@ mod tests {
             root.join("docs/my spec.pdf")
         );
         assert_eq!(
-            external_note(&document, "../other.md").unwrap(),
+            external_tab(&document, "../other.md").unwrap(),
             root.join("other.md")
         );
     }
 
     #[test]
-    fn should_resolve_a_csv_link_from_an_external_document() {
+    fn should_resolve_a_csv_or_code_link_from_an_external_document() {
         let directory = external_document();
         fs::write(directory.path().join("docs/data.csv"), "a,b").unwrap();
         let document = directory.path().join("docs/note.md");
         let root = fs::canonicalize(directory.path()).unwrap();
 
         assert_eq!(
-            external_note(&document, "data.csv").unwrap(),
+            external_tab(&document, "data.csv").unwrap(),
             root.join("docs/data.csv")
+        );
+        assert_eq!(
+            external_tab(&document, "notes.txt").unwrap(),
+            root.join("docs/notes.txt")
+        );
+        assert_eq!(
+            external_tab(&document, "images").unwrap_err().message,
+            "That path is not a file"
         );
     }
 
@@ -3205,12 +3535,6 @@ mod tests {
         assert_eq!(
             external_file(&document, "note.md").unwrap_err().message,
             "Markdown files open in notras"
-        );
-        assert_eq!(
-            external_note(&document, "my%20spec.pdf")
-                .unwrap_err()
-                .message,
-            "Only Markdown and CSV files open as tabs"
         );
         assert_eq!(
             external_file(&document, "images").unwrap_err().message,

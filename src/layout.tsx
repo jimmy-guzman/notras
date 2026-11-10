@@ -143,7 +143,8 @@ function MainWindow() {
       refreshTabs(
         (tab) =>
           (tab.kind === "note" && changed.has(tab.path)) ||
-          (tab.kind === "csv" && changedHost.has(tab.path))
+          ((tab.kind === "csv" || tab.kind === "code") &&
+            changedHost.has(tab.path))
       );
     });
 
@@ -156,10 +157,11 @@ function MainWindow() {
 
   // The watcher covers only the notes folder, so an external file is re-read
   // whenever the window comes back, in case another app changed it meanwhile.
-  // A csv is edited in another app by design, so it re-reads the same way.
+  // A csv or a code file is edited in another app by design, so it re-reads
+  // the same way.
   useEffect(() => {
     const refreshExternal = () => {
-      refreshTabs((tab) => tab.kind === "external" || tab.kind === "csv");
+      refreshTabs((tab) => tab.kind !== "note" && tab.kind !== "draft");
     };
 
     window.addEventListener("focus", refreshExternal);

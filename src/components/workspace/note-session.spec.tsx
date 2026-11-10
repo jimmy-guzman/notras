@@ -1223,8 +1223,11 @@ describe(NoteSession, () => {
   it("should open a csv link from a note as a csv tab beside it rather than in the system app", async () => {
     mockIPC(
       withDisk((command) => {
-        if (command === "check_csv") {
-          return null;
+        if (command === "resolve_linked_file") {
+          return {
+            open: { kind: "csv", path: "/notes/attachments/q3 sales.csv" },
+            to: "tab",
+          };
         }
 
         throw new Error(`unexpected command: ${command}`);
@@ -1288,6 +1291,155 @@ describe(NoteSession, () => {
     expect(screen.queryByText("could not open file")).not.toBeInTheDocument();
   });
 
+  it("should open a code link from a note as a code tab at the path the host resolves, rather than in the system app", async () => {
+    const resolved: unknown[] = [];
+    mockIPC(
+      withDisk((command, args) => {
+        if (command === "resolve_linked_file") {
+          resolved.push(args);
+
+          return {
+            open: { kind: "code", path: "/real/attachments/app config.json" },
+            to: "tab",
+          };
+        }
+
+        throw new Error(`unexpected command: ${command}`);
+      })
+    );
+
+    const client = new QueryClient({
+      defaultOptions: {
+        queries: { retry: false, staleTime: Number.POSITIVE_INFINITY },
+      },
+    });
+
+    openNote("projects/a.md");
+    const origin = getTabState().activeId;
+    client.setQueryData(notesDirQuery.queryKey, "/notes");
+    client.setQueryData(noteQueries.list().queryKey, []);
+    disk.set("projects/a.md", {
+      content: "# A\n\n[config](../attachments/app%20config.json)",
+      revision: "r0",
+      updatedAt: 1,
+    });
+    client.setQueryData(
+      tabOpeningQuery(origin, "note", "projects/a.md").queryKey,
+      {
+        file: {
+          content: "# A\n\n[config](../attachments/app%20config.json)",
+          revision: "r0",
+          updatedAt: new Date(1),
+        },
+        stash: null,
+      }
+    );
+    onTestFinished(() => {
+      client.clear();
+    });
+    render(
+      <QueryClientProvider client={client}>
+        <NoteSession
+          active
+          tab={{ id: origin, kind: "note", path: "projects/a.md" }}
+        />
+        <Toaster />
+      </QueryClientProvider>
+    );
+    const liveEditor = await editor(origin);
+    act(() => {
+      liveEditor.commands.setTextSelection(
+        liveEditor.state.doc.content.size - 2
+      );
+      liveEditor.commands.keyboardShortcut("Mod-Shift-o");
+    });
+    await waitFor(() => {
+      expect(
+        getTabState().tabs.map((entry) => [entry.kind, entry.path])
+      ).toStrictEqual([
+        ["note", "projects/a.md"],
+        ["code", "/real/attachments/app config.json"],
+      ]);
+    });
+    expect(resolved).toStrictEqual([
+      { path: "/notes/attachments/app config.json" },
+    ]);
+    expect(getTabState().activeId).not.toBe(origin);
+    expect(screen.queryByText("could not open file")).not.toBeInTheDocument();
+  });
+
+  it("should hand a code link to the system app by the path the host resolved when it cannot show the file", async () => {
+    const opened: unknown[] = [];
+    mockIPC(
+      withDisk((command, args) => {
+        if (command === "resolve_linked_file") {
+          return { path: "/real/build/app.wasm", to: "app" };
+        }
+
+        if (command === "open_code") {
+          opened.push(args);
+
+          return null;
+        }
+
+        throw new Error(`unexpected command: ${command}`);
+      })
+    );
+
+    const client = new QueryClient({
+      defaultOptions: {
+        queries: { retry: false, staleTime: Number.POSITIVE_INFINITY },
+      },
+    });
+
+    openNote("projects/a.md");
+    const origin = getTabState().activeId;
+    client.setQueryData(notesDirQuery.queryKey, "/notes");
+    client.setQueryData(noteQueries.list().queryKey, []);
+    disk.set("projects/a.md", {
+      content: "# A\n\n[module](../build/app.wasm)",
+      revision: "r0",
+      updatedAt: 1,
+    });
+    client.setQueryData(
+      tabOpeningQuery(origin, "note", "projects/a.md").queryKey,
+      {
+        file: {
+          content: "# A\n\n[module](../build/app.wasm)",
+          revision: "r0",
+          updatedAt: new Date(1),
+        },
+        stash: null,
+      }
+    );
+    onTestFinished(() => {
+      client.clear();
+    });
+    render(
+      <QueryClientProvider client={client}>
+        <NoteSession
+          active
+          tab={{ id: origin, kind: "note", path: "projects/a.md" }}
+        />
+        <Toaster />
+      </QueryClientProvider>
+    );
+    const liveEditor = await editor(origin);
+    act(() => {
+      liveEditor.commands.setTextSelection(
+        liveEditor.state.doc.content.size - 2
+      );
+      liveEditor.commands.keyboardShortcut("Mod-Shift-o");
+    });
+    await waitFor(() => {
+      expect(opened).toStrictEqual([{ path: "/real/build/app.wasm" }]);
+    });
+    expect(
+      getTabState().tabs.map((entry) => [entry.kind, entry.path])
+    ).toStrictEqual([["note", "projects/a.md"]]);
+    expect(screen.queryByText("could not open file")).not.toBeInTheDocument();
+  });
+
   it("should say why a csv link's file could not open and open no tab", async () => {
     const check = vi
       .fn<() => Promise<never>>()
@@ -1295,7 +1447,7 @@ describe(NoteSession, () => {
 
     mockIPC(
       withDisk(async (command) => {
-        if (command === "check_csv") {
+        if (command === "resolve_linked_file") {
           return await check();
         }
 
@@ -1349,10 +1501,13 @@ describe(NoteSession, () => {
   });
 
   it("should open a csv link's file without the fragment or query it carries", async () => {
+    const resolved: unknown[] = [];
     mockIPC(
-      withDisk((command) => {
-        if (command === "check_csv") {
-          return null;
+      withDisk((command, args) => {
+        if (command === "resolve_linked_file") {
+          resolved.push(args);
+
+          return { open: { kind: "csv", path: "/notes/q3.csv" }, to: "tab" };
         }
 
         throw new Error(`unexpected command: ${command}`);
@@ -1401,6 +1556,7 @@ describe(NoteSession, () => {
         getTabState().tabs.map((entry) => [entry.kind, entry.path])
       ).toContainEqual(["csv", "/notes/q3.csv"]);
     });
+    expect(resolved).toStrictEqual([{ path: "/notes/q3.csv" }]);
   });
 
   it.each([
@@ -1532,7 +1688,10 @@ describe(NoteSession, () => {
         if (command === "resolve_external_link") {
           resolved.push(args);
 
-          return { kind: "csv", path: "/Users/me/data.csv" };
+          return {
+            open: { kind: "csv", path: "/Users/me/data.csv" },
+            to: "tab",
+          };
         }
 
         throw new Error(`unexpected command: ${command}`);
@@ -1591,6 +1750,141 @@ describe(NoteSession, () => {
     ]);
   });
 
+  it("should open a code link from an external tab as the code tab the host resolves", async () => {
+    const resolved: unknown[] = [];
+    mockIPC(
+      withDisk((command, args) => {
+        if (command === "resolve_external_link") {
+          resolved.push(args);
+
+          return {
+            open: { kind: "code", path: "/Users/me/src/cli.ts" },
+            to: "tab",
+          };
+        }
+
+        throw new Error(`unexpected command: ${command}`);
+      })
+    );
+
+    const client = new QueryClient({
+      defaultOptions: {
+        queries: { retry: false, staleTime: Number.POSITIVE_INFINITY },
+      },
+    });
+
+    const path = "/Users/me/docs/note.md";
+    openTab("external", path, true);
+    const origin = getTabState().activeId;
+    client.setQueryData(notesDirQuery.queryKey, "/notes");
+    disk.set(path, {
+      content: "# Ext\n\n[cli](../src/cli.ts)",
+      revision: "r0",
+      updatedAt: 1,
+    });
+    client.setQueryData(tabOpeningQuery(origin, "external", path).queryKey, {
+      file: {
+        content: "# Ext\n\n[cli](../src/cli.ts)",
+        revision: "r0",
+        updatedAt: new Date(1),
+      },
+      stash: null,
+    });
+    onTestFinished(() => {
+      client.clear();
+    });
+    render(
+      <QueryClientProvider client={client}>
+        <NoteSession active tab={{ id: origin, kind: "external", path }} />
+        <Toaster />
+      </QueryClientProvider>
+    );
+    const liveEditor = await editor(origin);
+    act(() => {
+      liveEditor.commands.setTextSelection(
+        liveEditor.state.doc.content.size - 2
+      );
+      liveEditor.commands.keyboardShortcut("Mod-Shift-o");
+    });
+    await waitFor(() => {
+      expect(
+        getTabState().tabs.map((entry) => [entry.kind, entry.path])
+      ).toStrictEqual([
+        ["external", path],
+        ["code", "/Users/me/src/cli.ts"],
+      ]);
+    });
+    expect(resolved).toStrictEqual([
+      { destination: "../src/cli.ts", document: path },
+    ]);
+  });
+
+  it("should hand an external tab's code link to the system app when the host cannot show the file", async () => {
+    const opened: unknown[] = [];
+    mockIPC(
+      withDisk((command, args) => {
+        if (command === "resolve_external_link") {
+          return { path: "/Users/me/build/app.wasm", to: "app" };
+        }
+
+        if (command === "open_code") {
+          opened.push(args);
+
+          return null;
+        }
+
+        throw new Error(`unexpected command: ${command}`);
+      })
+    );
+
+    const client = new QueryClient({
+      defaultOptions: {
+        queries: { retry: false, staleTime: Number.POSITIVE_INFINITY },
+      },
+    });
+
+    const path = "/Users/me/docs/note.md";
+    openTab("external", path, true);
+    const origin = getTabState().activeId;
+    client.setQueryData(notesDirQuery.queryKey, "/notes");
+    disk.set(path, {
+      content: "# Ext\n\n[module](../build/app.wasm)",
+      revision: "r0",
+      updatedAt: 1,
+    });
+    client.setQueryData(tabOpeningQuery(origin, "external", path).queryKey, {
+      file: {
+        content: "# Ext\n\n[module](../build/app.wasm)",
+        revision: "r0",
+        updatedAt: new Date(1),
+      },
+      stash: null,
+    });
+    onTestFinished(() => {
+      client.clear();
+    });
+    render(
+      <QueryClientProvider client={client}>
+        <NoteSession active tab={{ id: origin, kind: "external", path }} />
+        <Toaster />
+      </QueryClientProvider>
+    );
+    const liveEditor = await editor(origin);
+    act(() => {
+      liveEditor.commands.setTextSelection(
+        liveEditor.state.doc.content.size - 2
+      );
+      liveEditor.commands.keyboardShortcut("Mod-Shift-o");
+    });
+    await waitFor(() => {
+      expect(opened).toStrictEqual([{ path: "/Users/me/build/app.wasm" }]);
+    });
+    expect(
+      getTabState().tabs.map((entry) => [entry.kind, entry.path])
+    ).toStrictEqual([["external", path]]);
+    expect(screen.queryByText("could not open file")).not.toBeInTheDocument();
+  });
+
   it("should open a markdown link from an external tab beside it, as the tab it already is", async () => {
     const resolved: unknown[] = [];
     mockIPC(
@@ -1598,7 +1892,10 @@ describe(NoteSession, () => {
         if (command === "resolve_external_link") {
           resolved.push(args);
 
-          return { kind: "external", path: "/Users/me/other.md" };
+          return {
+            open: { kind: "external", path: "/Users/me/other.md" },
+            to: "tab",
+          };
         }
 
         throw new Error(`unexpected command: ${command}`);
