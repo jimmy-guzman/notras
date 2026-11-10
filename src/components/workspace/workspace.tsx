@@ -499,13 +499,9 @@ export function Workspace({ onOpenSearch }: { onOpenSearch: () => void }) {
     },
   ]);
 
-  // A csv or a code file has no outline, mentions or tags, so the panel has nothing to show for it.
-  const panelApplies =
-    activeTab !== undefined &&
-    activeTab.kind !== "csv" &&
-    activeTab.kind !== "code";
-
-  const leftOpen = notePanelOpen && panelApplies;
+  // Every tab kind gets the panel, even one with nothing in it, so switching
+  // tabs never moves the tab strip.
+  const leftOpen = notePanelOpen && activeTab !== undefined;
 
   const panelButton = (
     <BarButton
@@ -552,7 +548,7 @@ export function Workspace({ onOpenSearch }: { onOpenSearch: () => void }) {
             className={cn(leftOpen && "ps-1!", browserOpen && "pe-3")}
           >
             {/* Open, each panel's button rides in its band at this same spot. */}
-            {!panelApplies || leftOpen ? null : panelButton}
+            {activeTab === undefined || leftOpen ? null : panelButton}
             <TabStrip activeId={activeId} tabs={tabs} />
             {browserOpen ? null : <div className="ms-auto">{browseButton}</div>}
           </Titlebar>
