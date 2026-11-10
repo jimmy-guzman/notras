@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.12.5](https://github.com/jimmy-guzman/notras/compare/v0.12.4...v0.12.5) (2026-11-10)
+
+
+### Features
+
+* **ui:** ✨ open code & text files as highlighted tabs ([#516](https://github.com/jimmy-guzman/notras/issues/516)) ([7a22526](https://github.com/jimmy-guzman/notras/commit/7a2252612cd7d7fad025d3147358ffe93c6f5d6f))
+
 ## [0.12.4](https://github.com/jimmy-guzman/notras/compare/v0.12.3...v0.12.4) (2026-11-09)
 
 
