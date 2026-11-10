@@ -21,6 +21,9 @@ const showingTab = () => screen.getByRole("tab", { selected: true });
 
 const NEW_NOTE = /new note/u;
 
+const panel = () =>
+  screen.queryByRole("complementary", { name: /^note panel/u });
+
 describe("workspace", () => {
   beforeEach(() => {
     localStorage.removeItem("recent-notes:/notes");
@@ -157,85 +160,140 @@ describe("workspace", () => {
     ).toStrictEqual(["outline"]);
   });
 
-  it("should open the note panel on a code tab, saying the file has no outline", async () => {
-    const path = "/notes/config.json";
-    localStorage.setItem(
-      "tabs",
-      JSON.stringify({
-        activeId: "saved",
-        carets: {},
-        tabs: [{ id: "saved", kind: "code", path }],
-      })
-    );
-    mockWindows("main");
-    mockIPC((command) => {
-      if (command === "classify_open_paths") {
-        return [{ kind: "code", path }];
-      }
+  it.each([
+    { kind: "code", name: "config.json" },
+    { kind: "csv", name: "data.csv" },
+  ])(
+    "should keep the note panel open or closed when switching between a note and a $kind tab",
+    async ({ kind, name }) => {
+      const path = `/notes/${name}`;
+      localStorage.setItem(
+        "tabs",
+        JSON.stringify({
+          activeId: "note",
+          carets: {},
+          tabs: [
+            { id: "note", kind: "note", path: "only.md" },
+            { id: "file", kind, path },
+          ],
+        })
+      );
+      mockWindows("main");
+      mockIPC((command) => {
+        if (command === "classify_open_paths") {
+          return [
+            { kind: "note", path: "only.md" },
+            { kind, path },
+          ];
+        }
 
-      if (command === "get_notes_dir") {
-        return "/notes";
-      }
+        if (command === "get_notes_dir") {
+          return "/notes";
+        }
 
-      if (command === "index_status") {
-        return { state: "ready" };
-      }
+        if (command === "index_status") {
+          return { state: "ready" };
+        }
 
-      if (command === "list_images") {
-        return { paths: [], unreadable: [] };
-      }
+        if (command === "list_images") {
+          return { paths: [], unreadable: [] };
+        }
 
-      if (command === "list_notes" || command === "list_tags") {
-        return [];
-      }
+        if (command === "list_notes" || command === "list_tags") {
+          return [];
+        }
 
-      if (command === "read_code_if_moved") {
-        return { revision: "r1", text: '{ "first": 1 }' };
-      }
+        if (command === "read_conflict") {
+          return null;
+        }
 
-      if (command === "take_pending_open") {
-        return [];
-      }
+        if (command === "read_note") {
+          return { content: "# only\n\nbody", revision: "r", updatedAt: 1 };
+        }
 
-      if (command.startsWith("plugin:")) {
-        return 0;
-      }
+        if (command === "read_code_if_moved") {
+          return { revision: "r1", text: '{ "first": 1 }' };
+        }
 
-      throw new Error(`unexpected command: ${command}`);
-    });
+        if (command === "read_csv_if_moved") {
+          return {
+            header: ["city", "count"],
+            page: 256,
+            pages: [0],
+            probe: [],
+            revision: "r1",
+            rows: 1,
+          };
+        }
 
-    const client = new QueryClient({
-      defaultOptions: {
-        queries: { retry: false, staleTime: Number.POSITIVE_INFINITY },
-      },
-    });
+        if (command === "read_csv_rows") {
+          return [["Lima", "first"]];
+        }
 
-    onTestFinished(() => {
-      for (const tab of getTabState().tabs) {
-        closeTab(tab.id);
-      }
+        if (command === "take_pending_open" || command === "find_mentions") {
+          return [];
+        }
 
-      client.clear();
-      clearMocks();
-      localStorage.removeItem("tabs");
-    });
-    render(
-      <QueryClientProvider client={client}>
-        <Layout />
-      </QueryClientProvider>
-    );
-    const user = userEvent.setup();
+        if (command.startsWith("plugin:")) {
+          return 0;
+        }
 
-    await screen.findByText('{ "first": 1 }');
-    await user.click(screen.getByRole("button", { name: "note panel" }));
+        throw new Error(`unexpected command: ${command}`);
+      });
 
-    expect(
-      await screen.findByText("no outline for this file")
-    ).toBeInTheDocument();
-    expect(
-      screen.queryByRole("group", { name: "view" })
-    ).not.toBeInTheDocument();
-  });
+      const client = new QueryClient({
+        defaultOptions: {
+          queries: { retry: false, staleTime: Number.POSITIVE_INFINITY },
+        },
+      });
+
+      onTestFinished(() => {
+        for (const tab of getTabState().tabs) {
+          closeTab(tab.id);
+        }
+
+        client.clear();
+        clearMocks();
+        localStorage.removeItem("tabs");
+      });
+      render(
+        <QueryClientProvider client={client}>
+          <Layout />
+        </QueryClientProvider>
+      );
+      const user = userEvent.setup();
+
+      await screen.findByText("body");
+
+      await user.click(screen.getByRole("tab", { name }));
+      expect(
+        screen.getByRole("button", { name: "note panel" })
+      ).toBeInTheDocument();
+      expect(panel()).not.toBeInTheDocument();
+
+      await user.click(screen.getByRole("tab", { name: "only" }));
+      expect(
+        screen.getByRole("button", { name: "note panel" })
+      ).toBeInTheDocument();
+      expect(panel()).not.toBeInTheDocument();
+
+      await user.click(screen.getByRole("button", { name: "note panel" }));
+      expect(panel()).toBeInTheDocument();
+
+      await user.click(screen.getByRole("tab", { name }));
+      expect(panel()).toBeInTheDocument();
+      expect(screen.getByText("no outline for this file")).toBeInTheDocument();
+      expect(
+        screen.queryByRole("group", { name: "view" })
+      ).not.toBeInTheDocument();
+
+      await user.click(screen.getByRole("tab", { name: "only" }));
+      expect(panel()).toBeInTheDocument();
+      expect(
+        screen.getByRole("navigation", { name: "outline" })
+      ).toBeInTheDocument();
+    }
+  );
 
   it("should open a draft before library queries finish, creating nothing, and keep it when a late restore lands", async () => {
     localStorage.removeItem("tabs");
