@@ -3,7 +3,7 @@
  * about. Only `pinned`, `tags` and `title` are interpreted; unknown keys are
  * preserved verbatim when rewriting, so externally-authored notes survive
  * round-trips. Kept in parity with the Rust parser in
- * `src-tauri/src/frontmatter.rs`.
+ * `crates/notras-core/src/frontmatter.rs`.
  */
 
 export interface Frontmatter {
