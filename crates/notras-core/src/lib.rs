@@ -23,8 +23,9 @@ use std::path::{Path, PathBuf};
 use cap_std::{ambient_authority, fs::Dir};
 
 pub use application::{
-    csv_file, external_file, external_image, external_note, read_csv_if_moved, read_csv_rows,
-    read_external, write_external, CommandError, CreateNote, CsvFile, DeleteReceipt, ErrorKind,
+    code_file, csv_file, ensure_not_program, external_file, external_image, external_tab,
+    path_text, read_code_if_moved, read_csv_if_moved, read_csv_rows, read_external, write_external,
+    CodeFile, CommandError, CreateNote, CsvFile, DeleteReceipt, ErrorKind, LinkTarget,
     MutationReceipt, MutationWarning, NoteFile, NoteName, OpenKind, PathMutationReceipt,
     PendingOpen, SaveName, SaveOutcome,
 };
@@ -136,6 +137,11 @@ impl Library {
             .into_iter()
             .map(|path| self.classify_open(path))
             .collect()
+    }
+
+    /// Where a link to a host file leads: a tab, or the system app.
+    pub fn link_target(&self, path: &Path) -> Result<LinkTarget, CommandError> {
+        application::link_target(&self.notes_dir, path)
     }
 }
 

@@ -9,6 +9,7 @@ import type { MockInstance } from "vitest";
 
 import {
   CodeBlockShiki,
+  measureViewport,
   revealSyntax,
   syntaxSettled,
 } from "@/components/editor/code-block-shiki";
@@ -989,5 +990,59 @@ describe("code block highlighting", () => {
       expect(posted.mock.calls.length).toBeGreaterThan(1);
     });
     expect(postedCodes(posted)[1]).toBe("const seen = 1;");
+  });
+});
+
+describe(measureViewport, () => {
+  it("should probe the text inside the visible part of an editor scrolled sideways", ({
+    onTestFinished,
+  }) => {
+    const editor = createEditor("json", "x".repeat(20_000));
+    const scroller = document.createElement("div");
+    scroller.dataset.slot = "scroll-area-viewport";
+    scroller.append(editor.view.dom);
+    document.body.append(scroller);
+    const probed: number[] = [];
+    Object.defineProperty(scroller, "getBoundingClientRect", {
+      value: () => ({ bottom: 800, left: 0, right: 600, top: 0 }),
+    });
+    Object.defineProperty(editor.view.dom, "getBoundingClientRect", {
+      value: () => ({
+        bottom: 800,
+        height: 800,
+        left: -9000,
+        right: 4000,
+        top: 0,
+        width: 13_000,
+      }),
+    });
+    Object.defineProperty(document, "elementFromPoint", {
+      configurable: true,
+      value: (x: number) => {
+        probed.push(x);
+
+        return editor.view.dom.querySelector("code");
+      },
+    });
+    Object.defineProperty(document, "caretPositionFromPoint", {
+      configurable: true,
+      value: (x: number) => {
+        probed.push(x);
+        const { node, offset } = editor.view.domAtPos(1);
+
+        return { offset, offsetNode: node };
+      },
+    });
+    onTestFinished(() => {
+      Reflect.deleteProperty(document, "elementFromPoint");
+      Reflect.deleteProperty(document, "caretPositionFromPoint");
+      scroller.remove();
+      editor.destroy();
+    });
+
+    measureViewport(editor.view);
+
+    expect(probed).not.toHaveLength(0);
+    expect(probed.every((x) => x > 0 && x < 600)).toBeTruthy();
   });
 });

@@ -45,7 +45,10 @@ export const commands = {
 	base: NoteFile,
 	ours: string,
 } | null>("read_conflict", { kind, path }),
-	checkCsv: (path: string) => __TAURI_INVOKE<null>("check_csv", { path }),
+	readCodeIfMoved: (path: string, known: string | null) => __TAURI_INVOKE<{
+	text: string,
+	revision: string,
+} | null>("read_code_if_moved", { path, known }),
 	readCsvIfMoved: (path: string, known: string | null) => __TAURI_INVOKE<{
 	header: string[],
 	rows: number,
@@ -65,10 +68,16 @@ export const commands = {
 	restartApp: () => __TAURI_INVOKE<void>("restart_app"),
 	createNote: (options: CreateNote) => __TAURI_INVOKE<MutationReceipt>("create_note", { options }),
 	moveNote: (path: string, folder: string) => __TAURI_INVOKE<PathMutationReceipt>("move_note", { path, folder }),
+	openCode: (path: string) => __TAURI_INVOKE<null>("open_code", { path }),
 	openCsv: (path: string) => __TAURI_INVOKE<null>("open_csv", { path }),
 	openExternalFile: (document: string, destination: string) => __TAURI_INVOKE<null>("open_external_file", { document, destination }),
 	openLinkedFile: (from: string, destination: string) => __TAURI_INVOKE<null>("open_linked_file", { from, destination }),
-	resolveExternalLink: (document: string, destination: string) => __TAURI_INVOKE<PendingOpen>("resolve_external_link", { document, destination }),
+	resolveExternalLink: (document: string, destination: string) => __TAURI_INVOKE<LinkTarget>("resolve_external_link", { document, destination }),
+	/**
+	 *  Where a csv or code link in a note leads, by the absolute host path it
+	 *  folds to: a tab, or the system app.
+	 */
+	resolveLinkedFile: (path: string) => __TAURI_INVOKE<LinkTarget>("resolve_linked_file", { path }),
 	setNotesDir: (path: string) => __TAURI_INVOKE<null>("set_notes_dir", { path }),
 	stashConflict: (kind: OpenKind, path: string, stash: ConflictStash) => __TAURI_INVOKE<null>("stash_conflict", { kind, path, stash }),
 	writeExternal: (path: string, content: string, name: { kind: "content" } | { kind: "filename"; value: string } | null, expected: string) => __TAURI_INVOKE<SaveOutcome>("write_external", { path, content, name, expected }),
@@ -128,6 +137,12 @@ export type ClipboardSource =
  *  formatting rather than writing markdown.
  */
 { kind: "richText" };
+
+/**  A code file's text, with line feeds, and the revision it was read at. */
+export type CodeFile = {
+	text: string,
+	revision: string,
+};
 
 /**  A command failure: the kind the caller branches on, and the message it shows. */
 export type CommandError = {
@@ -223,6 +238,13 @@ export type JotContinued = {
 	path: string,
 };
 
+/**
+ *  Where a link to a host file leads: the tab Open With would give the file it
+ *  resolves to, or the resolved path for the system app when that file is code
+ *  notras cannot show.
+ */
+export type LinkTarget = { to: "app"; path: string } | { to: "tab"; open: PendingOpen };
+
 export type Mention = {
 	lines: MentionLine[],
 	note: NoteMeta,
@@ -295,7 +317,7 @@ export type NotesChanged = {
 	paths: string[],
 };
 
-export type OpenKind = "csv" | "external" | "note";
+export type OpenKind = "code" | "csv" | "external" | "note";
 
 export type PathMutationReceipt = {
 	path: string,
@@ -307,8 +329,8 @@ export type PathMutationReceipt = {
 
 /**
  *  A queued "Open With" path, classified so the webview opens it as the tab
- *  kind the file already is: a csv wherever it sits, a note inside the notes
- *  dir, external otherwise.
+ *  kind the file already is: a note inside the notes dir, external for
+ *  markdown anywhere else, a csv or code wherever it sits.
  */
 export type PendingOpen = {
 	kind: OpenKind,

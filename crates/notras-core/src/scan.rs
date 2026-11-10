@@ -6,7 +6,6 @@ use cap_fs_ext::DirExt;
 use cap_std::fs::{Dir, ReadDir};
 use rusqlite::{Connection, OptionalExtension};
 
-use crate::images::is_image_path;
 use crate::index::{self, IndexError, ScanReport};
 use crate::relative_path::{join, RelativePath};
 
@@ -70,12 +69,12 @@ impl Scan {
         }
     }
 
-    /// An image has no index row to change, and neither has a csv or anything in
-    /// the attachments store but a note, so each is reported as seen. A removed path
-    /// cannot say whether it was a folder, so the whole store counts. A folder the
-    /// index already holds has no row to change either, though its images may have.
-    /// Taken up front, since a folder change in the batch replaces the entries with
-    /// a walk.
+    /// A file that is not a note has no index row to change, and neither has
+    /// anything in the attachments store but a note, so each is reported as seen
+    /// for the tab that shows it. A removed path cannot say whether it was a
+    /// folder, so the whole store counts. A folder the index already holds has no
+    /// row to change either, though its images may have. Taken up front, since a
+    /// folder change in the batch replaces the entries with a walk.
     pub(crate) fn observed(root: &Path, paths: Vec<PathBuf>) -> Self {
         let seen = paths
             .iter()
@@ -83,7 +82,7 @@ impl Scan {
                 let relative = index::relative_path(root, path)?;
                 let note = path.is_file() && index::is_note_file(path);
                 let folder = path.is_dir() && !relative.is_empty();
-                let unindexed = is_image_path(&relative) || index::is_csv_file(path);
+                let unindexed = !(index::is_note_file(path) || path.is_dir());
                 (unindexed || folder || !(index::is_note_folder(&relative) || note))
                     .then(|| reported_folder_path(&relative))
             })
@@ -384,12 +383,13 @@ mod tests {
     }
 
     #[test]
-    fn should_report_a_csv_changed_or_removed_anywhere_in_the_library() {
+    fn should_report_a_csv_or_code_file_changed_or_removed_anywhere_in_the_library() {
         let directory = tempfile::tempdir().unwrap();
         fs::create_dir(directory.path().join("projects")).unwrap();
         let library = Library::open(directory.path(), &directory.path().join(".index")).unwrap();
         let root = library.directory().join("data.csv");
         let filed = library.directory().join("projects/data.tsv");
+        let code = library.directory().join("projects/config.json");
         let observe = |paths: Vec<std::path::PathBuf>| {
             let mut scan = library.begin_observations(paths);
             while !library.advance_scan(&mut scan).unwrap() {}
@@ -398,9 +398,10 @@ mod tests {
 
         fs::write(&root, "a,b").unwrap();
         fs::write(&filed, "a\tb").unwrap();
+        fs::write(&code, "{}").unwrap();
         assert_eq!(
-            observe(vec![root.clone(), filed.clone()]),
-            ["data.csv", "projects/data.tsv"]
+            observe(vec![root.clone(), filed.clone(), code.clone()]),
+            ["data.csv", "projects/config.json", "projects/data.tsv"]
         );
 
         fs::remove_file(&root).unwrap();
@@ -449,7 +450,7 @@ mod tests {
     }
 
     #[test]
-    fn should_report_an_image_seen_in_the_same_batch_as_a_removed_file() {
+    fn should_report_an_image_and_a_removed_file_seen_in_the_same_batch() {
         let directory = tempfile::tempdir().unwrap();
         fs::write(directory.path().join("photo.png"), [0]).unwrap();
         let library = Library::open(directory.path(), &directory.path().join(".index")).unwrap();
@@ -459,11 +460,14 @@ mod tests {
             library.begin_observations(vec![root.join("gone.txt"), root.join("photo.png")]);
         while !library.advance_scan(&mut scan).unwrap() {}
 
-        assert_eq!(library.finish_scan(scan).unwrap(), ["photo.png"]);
+        assert_eq!(
+            library.finish_scan(scan).unwrap(),
+            ["gone.txt", "photo.png"]
+        );
     }
 
     #[test]
-    fn should_stay_quiet_about_a_hidden_image_and_other_files() {
+    fn should_stay_quiet_about_a_hidden_file_while_reporting_a_visible_one() {
         let directory = tempfile::tempdir().unwrap();
         fs::create_dir(directory.path().join(".trash")).unwrap();
         fs::write(directory.path().join(".trash/old.png"), [0]).unwrap();
@@ -475,7 +479,7 @@ mod tests {
             library.begin_observations(vec![root.join(".trash/old.png"), root.join("ticket.pdf")]);
         while !library.advance_scan(&mut scan).unwrap() {}
 
-        assert!(library.finish_scan(scan).unwrap().is_empty());
+        assert_eq!(library.finish_scan(scan).unwrap(), ["ticket.pdf"]);
     }
 
     #[test]

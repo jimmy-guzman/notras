@@ -18,10 +18,6 @@ import {
 } from "@/components/ui/resizable";
 import { SidebarProvider, useSidebar } from "@/components/ui/sidebar";
 import { toast } from "@/components/ui/toast";
-import { CsvSession } from "@/components/workspace/csv-session";
-import { Home } from "@/components/workspace/home";
-import { NotePanel, NotePanelToggles } from "@/components/workspace/note-panel";
-import { NoteSession } from "@/components/workspace/note-session";
 import { attachFile } from "@/data/attach-file";
 import { disposeLater } from "@/lib/dispose-later";
 import {
@@ -58,6 +54,12 @@ import {
 import { useHotkey, useHotkeys } from "@/lib/ui/shortcuts";
 import { pressView, useGraphMode } from "@/lib/ui/view";
 import { attachmentLink } from "@/lib/utils/attachments";
+
+import { CodeSession } from "./code-session";
+import { CsvSession } from "./csv-session";
+import { Home } from "./home";
+import { NotePanel, NotePanelToggles } from "./note-panel";
+import { NoteSession } from "./note-session";
 
 /** ⌘9 is the last tab rather than the ninth, which is the macOS convention. */
 const TAB_JUMPS = [
@@ -497,8 +499,12 @@ export function Workspace({ onOpenSearch }: { onOpenSearch: () => void }) {
     },
   ]);
 
-  // A csv has no outline, mentions or tags, so the panel has nothing to show for it.
-  const panelApplies = activeTab !== undefined && activeTab.kind !== "csv";
+  // A csv or a code file has no outline, mentions or tags, so the panel has nothing to show for it.
+  const panelApplies =
+    activeTab !== undefined &&
+    activeTab.kind !== "csv" &&
+    activeTab.kind !== "code";
+
   const leftOpen = notePanelOpen && panelApplies;
 
   const panelButton = (
@@ -560,6 +566,16 @@ export function Workspace({ onOpenSearch }: { onOpenSearch: () => void }) {
                   if (tab.kind === "csv") {
                     return (
                       <CsvSession
+                        active={tab.id === activeId}
+                        key={tab.id}
+                        tab={tab}
+                      />
+                    );
+                  }
+
+                  if (tab.kind === "code") {
+                    return (
+                      <CodeSession
                         active={tab.id === activeId}
                         key={tab.id}
                         tab={tab}

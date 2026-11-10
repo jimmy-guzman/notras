@@ -15,8 +15,8 @@ export async function readSessionFile(
   kind: OpenKind,
   path: string
 ): Promise<SessionFile> {
-  if (kind === "csv") {
-    throw new Error("A csv has no editing session");
+  if (kind === "code" || kind === "csv") {
+    throw new Error(`A ${kind} tab has no editing session`);
   }
 
   return kind === "external"
