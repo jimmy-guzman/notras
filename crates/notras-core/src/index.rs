@@ -136,6 +136,9 @@ pub fn ensure_schema(conn: &Connection) -> rusqlite::Result<()> {
     tx.commit()
 }
 
+/// `isNoteFile` in `src/core/links.ts` reads paths the same way, except that
+/// it takes a trailing slash to mean a folder, where this reads `archive.md/`
+/// as a note.
 pub fn is_note_file(path: &Path) -> bool {
     path.extension()
         .and_then(|ext| ext.to_str())

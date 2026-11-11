@@ -19,6 +19,8 @@ const MAX_SCALE = 4;
 interface ViewerDialogProps {
   /** The content at the full width of its box. */
   children: ReactNode;
+  /** True closes the dialog the way Escape does, for content that went away. */
+  dismissed: boolean;
   onClosed: () => void;
   /** `card` draws the content on the fence's card, for a drawing whose inks are derived for it. */
   surface: "card" | "none";
@@ -46,6 +48,7 @@ function pinchHandler(zoomBy: (factor: number) => void) {
  */
 function ViewerDialog({
   children,
+  dismissed,
   onClosed,
   surface,
   title,
@@ -97,7 +100,7 @@ function ViewerDialog({
           onClosed();
         }
       }}
-      open={open}
+      open={open && !dismissed}
     >
       <DialogContent
         className={cn(

@@ -4,6 +4,7 @@ import { NodeSelection } from "@tiptap/pm/state";
 import { ImageOffIcon, Maximize2Icon } from "lucide-react";
 
 import { hasNumber, hasString } from "@/components/editor/attrs";
+import { onImagesReloaded } from "@/lib/image-reloads";
 
 import { nodeViewIcons } from "./node-view-icons";
 
@@ -83,7 +84,8 @@ function applyAttributes(
  * source to what the line can show, so the number stored is the one seen. A
  * toolbar shows on hover with the one action an image has, the way a code
  * block shows copy, so the double-click has something to teach it. An image
- * that is refused or fails to load shows why in its place.
+ * that is refused or fails to load shows why in its place. Each image reload
+ * resolves the source again, and a source that changed loads.
  */
 export function imageNodeView(
   resolveSrc: (src: string) => ImageSource,
@@ -142,6 +144,17 @@ export function imageNodeView(
       markLoaded();
     }
 
+    signal.addEventListener(
+      "abort",
+      onImagesReloaded(() => {
+        // The drag's end applies the attributes, so a reload waits for it
+        // rather than snapping the width back mid-drag.
+        if (resize === null) {
+          applyAttributes(dom, image, reason, node.attrs, resolveSrc);
+        }
+      })
+    );
+
     open.addEventListener(
       "click",
       () => {
@@ -189,8 +202,9 @@ export function imageNodeView(
       { signal }
     );
 
-    // A press that never moved, or a pointer the system took back, writes
-    // nothing and the image goes back to what the doc says.
+    // A press that never moved, a pointer the system took back, or a drag back
+    // to the stored width writes nothing, so it spends no undo, and the image
+    // goes back to what the doc says.
     const end = (event: PointerEvent) => {
       if (resize === null || event.pointerId !== resize.pointerId) {
         return;
@@ -207,7 +221,12 @@ export function imageNodeView(
         handle.releasePointerCapture(event.pointerId);
       }
 
-      if (!moved || event.type === "pointercancel" || pos === undefined) {
+      if (
+        !moved ||
+        event.type === "pointercancel" ||
+        pos === undefined ||
+        (hasNumber(node.attrs, "width") && node.attrs.width === width)
+      ) {
         applyAttributes(dom, image, reason, node.attrs, resolveSrc);
 
         return;
