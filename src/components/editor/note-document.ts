@@ -14,6 +14,7 @@ import type { Transaction } from "@tiptap/pm/state";
 import { titleSource } from "@/core/notes";
 import { styleNonce } from "@/lib/style-nonce";
 
+import { FROM_DISK } from "./find";
 import { renameDocument } from "./retitle-buffer";
 import { changedRange } from "./source-change";
 import {
@@ -235,13 +236,15 @@ export function createNoteDocument(
         titleEdited: true,
       });
     },
-    replace: (next: string) => {
+    /** `fromDisk` marks the file as read from disk, which nobody typed. */
+    replace: (next: string, fromDisk: boolean) => {
       pendingSelection = undefined;
       const patch = changedRange(content(), next);
       dispatch(
         editor.state.tr
           .insertText(patch.text, patch.from + 1, patch.to + 1)
           .setMeta("addToHistory", false)
+          .setMeta(FROM_DISK, fromDisk)
       );
       // Removing history's plugin state resets undo without replacing the view
       // or the syntax and find plugins attached to the same document.

@@ -403,7 +403,8 @@ function SessionBuffer({ active, file, stash, tab }: SessionBufferProps) {
     const replaceDocument = (
       content: string,
       selection: { anchor: number; head: number } | undefined,
-      sourceMode: boolean
+      sourceMode: boolean,
+      fromDisk: boolean
     ) => {
       if (sourceMode) {
         return;
@@ -418,7 +419,8 @@ function SessionBuffer({ active, file, stash, tab }: SessionBufferProps) {
           : {
               anchor: Math.max(0, selection.anchor - prefix),
               head: Math.max(0, selection.head - prefix),
-            }
+            },
+        fromDisk
       );
     };
 

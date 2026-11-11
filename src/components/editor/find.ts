@@ -42,11 +42,14 @@ export interface FindHandle {
   setQuery: (query: string | null) => void;
   snapshot: () => FindSnapshot;
   /**
-   * `moved` is true when the user changed the text or the caret. A change kept
-   * out of undo history, such as a reload from disk, is not theirs.
+   * `moved` is true when the user changed the text or the caret. A reload
+   * from disk, marked with `FROM_DISK`, is not theirs.
    */
   subscribe: (listener: (moved: boolean) => void) => () => void;
 }
+
+/** Transaction meta for a replacement that applies the file as read from disk. */
+export const FROM_DISK = "fromDisk";
 
 const findKey = new PluginKey<FindState>("noteFind");
 
@@ -395,7 +398,7 @@ export function createFindHandle(editor: Editor): FindHandle {
       const onTransaction = ({ transaction }: EditorEvents["transaction"]) => {
         listener(
           (transaction.docChanged || transaction.selectionSet) &&
-            transaction.getMeta("addToHistory") !== false
+            transaction.getMeta(FROM_DISK) !== true
         );
       };
 
