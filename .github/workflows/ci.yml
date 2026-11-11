@@ -82,15 +82,13 @@ jobs:
           persist-credentials: false
           ref: ${{ inputs.ref }}
 
-      # Two packages, not release.yml's four: this job bundles nothing.
+      # Same set as release.yml's build, so this run on main warms its cache.
       - name: 🐧 Setup Linux Deps
         if: matrix.platform == 'ubuntu-latest'
-        run: |
-          set -euo pipefail
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends \
-            libwebkit2gtk-4.1-dev \
-            librsvg2-dev
+        timeout-minutes: 10
+        uses: $/.github/actions/setup-linux-deps
+        with:
+          save-cache: ${{ !inputs.skip-cache && github.ref == 'refs/heads/main' }}
 
       - name: 🏗️ Setup Rust
         uses: $/.github/actions/setup-rust
