@@ -79,6 +79,25 @@ describe("syntax tokenizing", () => {
     });
   });
 
+  it("should colour added, removed, and hunk lines in a diff", async () => {
+    const tokens = await coloredText(
+      "index 1234567..89abcde 100644\n--- a/note.md\n+++ b/note.md\n@@ -1,2 +1,2 @@\n kept line\n-old line\n+new line\n! changed line",
+      "diff"
+    );
+
+    for (const [content, color] of [
+      [" a/note.md", "var(--syntax-comment)"],
+      ["@@ -1,2 +1,2 @@", "var(--syntax-function)"],
+      [" kept line", "var(--foreground)"],
+      ["-old line", "var(--destructive)"],
+      ["+new line", "var(--success)"],
+      ["! changed line", "var(--warning)"],
+      ["index 1234567..89abcde 100644", "var(--syntax-comment)"],
+    ]) {
+      expect(tokens).toContainEqual({ color, content });
+    }
+  });
+
   it("should load the grammars a Markdown note embeds", async () => {
     const tokens = await coloredText(
       "---\npinned: true\n...\n# title\n\n```python\nreturn 42\n```",

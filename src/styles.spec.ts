@@ -104,7 +104,7 @@ const SYNTAX = [
 /**
  * Every pair a reader actually sees, as `[text, surface]`. A code block sits on
  * `--card` while source mode is transparent onto `--background`, so the syntax
- * ramp is painted on both and has to clear the floor on both. `--muted` carries
+ * ramp and the diff inks are painted on both and have to clear the floor on both. `--muted` carries
  * the inline-code chip Typeset paints, which body text and a muted
  * heading both sit inside, and the `Kbd` chip, whose own text is
  * `--muted-foreground`.
@@ -127,6 +127,11 @@ const PAIRS: [text: string, surface: string][] = [
   ["primary", "background"],
   ["destructive", "background"],
   ["destructive", "popover"],
+  ["destructive", "card"],
+  ["success", "background"],
+  ["success", "card"],
+  ["warning", "background"],
+  ["warning", "card"],
   ["foreground", "selection"],
   ...SYNTAX.flatMap((role): [string, string][] => [
     [role, "background"],
