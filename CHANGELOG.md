@@ -1,5 +1,24 @@
 # Changelog
 
+## [0.12.6](https://github.com/jimmy-guzman/notras/compare/v0.12.5...v0.12.6) (2026-11-11)
+
+
+### Features
+
+* **editor:** ✨ show an image again once its file changes ([#522](https://github.com/jimmy-guzman/notras/issues/522)) ([0dfb874](https://github.com/jimmy-guzman/notras/commit/0dfb874feedc57b67f9e95f5de905066afefc1eb))
+
+
+### Bug Fixes
+
+* **editor:** 🐛 keep the caret & underline in setext headings ([#521](https://github.com/jimmy-guzman/notras/issues/521)) ([a66d535](https://github.com/jimmy-guzman/notras/commit/a66d53557c7c8773a27c0459ece20562c93c4ca2))
+* **ui:** 🐛 keep tabs still when switching to csv & code ([#519](https://github.com/jimmy-guzman/notras/issues/519)) ([7ad2ef5](https://github.com/jimmy-guzman/notras/commit/7ad2ef518d2680c0efd22a834d0422b9468952b8))
+* **ui:** 🐛 stop find opening on title search hits ([#523](https://github.com/jimmy-guzman/notras/issues/523)) ([cbfd87f](https://github.com/jimmy-guzman/notras/commit/cbfd87f61d7a66677b566c948e8f6d93f6ea79d5))
+
+
+### Refactoring
+
+* **notes:** 🔄 point the frontmatter header at the rust parser ([#518](https://github.com/jimmy-guzman/notras/issues/518)) ([a94bbc8](https://github.com/jimmy-guzman/notras/commit/a94bbc8f809cd5507bfcbaedc09d4c84ef905191))
+
 ## [0.12.5](https://github.com/jimmy-guzman/notras/compare/v0.12.4...v0.12.5) (2026-11-10)
 
 
