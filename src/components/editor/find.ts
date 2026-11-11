@@ -41,7 +41,10 @@ export interface FindHandle {
   setClearance: (on: boolean) => void;
   setQuery: (query: string | null) => void;
   snapshot: () => FindSnapshot;
-  /** `moved` is true when the text or the caret changed. */
+  /**
+   * `moved` is true when the user changed the text or the caret. A change kept
+   * out of undo history, such as a reload from disk, is not theirs.
+   */
   subscribe: (listener: (moved: boolean) => void) => () => void;
 }
 
@@ -390,7 +393,10 @@ export function createFindHandle(editor: Editor): FindHandle {
     },
     subscribe: (listener) => {
       const onTransaction = ({ transaction }: EditorEvents["transaction"]) => {
-        listener(transaction.docChanged || transaction.selectionSet);
+        listener(
+          (transaction.docChanged || transaction.selectionSet) &&
+            transaction.getMeta("addToHistory") !== false
+        );
       };
 
       editor.on("transaction", onTransaction);
