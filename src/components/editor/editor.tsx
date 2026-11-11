@@ -4,7 +4,6 @@ import { openUrl } from "@tauri-apps/plugin-opener";
 import type { Editor as TiptapEditor } from "@tiptap/core";
 import {
   Extension,
-  findParentNodeClosestToPos,
   getMarkRange,
   getTextBetween,
   getTextSerializersFromSchema,
@@ -47,6 +46,7 @@ import {
   copiedMarkdown,
   createEditorExtensions,
   fileMarkdown,
+  isBlankParagraph,
   rememberSources,
   serializeMarkdown,
 } from "./extensions";
@@ -500,18 +500,24 @@ function sourceOffset(
       ).doc
     );
 
-    const inTable =
-      findParentNodeClosestToPos(
-        state.doc.resolve(position),
-        (node) => node.type.name === "table"
-      ) !== undefined;
+    const offset = marked.indexOf(SENTINEL);
+    const file = fileMarkdown(converter, state.doc);
 
-    // A table that cannot keep the file's text renders with other padding, so
-    // an offset into that render says nothing about the file.
-    return inTable &&
-      marked.replace(SENTINEL, "") !== fileMarkdown(converter, state.doc)
-      ? -1
-      : marked.indexOf(SENTINEL);
+    const $position = state.doc.resolve(position);
+
+    // The sentinel changes only the caret's block, so the blocks before a
+    // blank paragraph keep their text and the caret lands where the line
+    // starts, short of extra blank lines the file left before it. The file
+    // leaves out the editor's blank line after its last block, where the
+    // caret is at the file's end.
+    if ($position.depth === 1 && isBlankParagraph($position.parent)) {
+      return Math.min(offset, file.length);
+    }
+
+    // A block that cannot keep the file's text with the sentinel in it is
+    // rendered instead, so an offset into that render says nothing about the
+    // file.
+    return marked.replace(SENTINEL, "") === file ? offset : -1;
   } catch {
     return -1;
   }

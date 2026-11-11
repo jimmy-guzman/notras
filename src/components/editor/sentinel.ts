@@ -3,8 +3,9 @@ import type { Node } from "@tiptap/pm/model";
 /**
  * The caret rides through the markdown converters as a sentinel character:
  * serialize/parse the document with the sentinel at the caret, then look at
- * where it landed. No fuzzy anchor matching: a table that cannot keep the
- * file's text reports no offset at all.
+ * where it landed. No fuzzy anchor matching: a block that cannot keep the
+ * file's text reports no offset at all, apart from a blank line, whose caret
+ * sits where the line starts.
  *
  * U+E000 (private use area): never produced by typing. The table renderer keeps
  * it out of a column's width, and marked drops it past a table's last pipe and
