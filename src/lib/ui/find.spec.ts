@@ -2,7 +2,7 @@ import { Editor } from "@tiptap/core";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { createEditorExtensions } from "@/components/editor/extensions";
-import { createFindHandle, Find } from "@/components/editor/find";
+import { createFindHandle, Find, FROM_DISK } from "@/components/editor/find";
 
 import { createFindController } from "./find";
 
@@ -128,10 +128,25 @@ describe("find", () => {
       controller.bind(handle, "tab");
       controller.search("Atlas", "tab");
       editor.view.dispatch(
-        editor.state.tr.insertText("Our ", 1).setMeta("addToHistory", false)
+        editor.state.tr
+          .insertText("Our ", 1)
+          .setMeta("addToHistory", false)
+          .setMeta(FROM_DISK, true)
       );
       expect(controller.store.state.open).toBeTruthy();
       expect(handle.snapshot().total).toBe(1);
+    });
+
+    it("should end a search's find without a bar on an undo, which replaces the note outside editor history", () => {
+      const { editor, handle } = mount("Plan Atlas");
+      const controller = createFindController();
+      controller.bind(handle, "tab");
+      controller.search("Atlas", "tab");
+      editor.view.dispatch(
+        editor.state.tr.insertText("Our ", 1).setMeta("addToHistory", false)
+      );
+      expect(controller.store.state.open).toBeFalsy();
+      expect(handle.snapshot().total).toBe(0);
     });
 
     it("should leave the caret on a search's match when closing a find without a bar", () => {

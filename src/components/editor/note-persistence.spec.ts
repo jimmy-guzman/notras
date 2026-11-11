@@ -19,6 +19,42 @@ const initial = {
 } as const;
 
 describe("note persistence", () => {
+  it("should tell its document listener which replacements were read from disk", async () => {
+    let disk: DiskFile = initial;
+    const observed: [string, boolean][] = [];
+
+    const note = createNotePersistence(initial, {
+      changePath: () => {
+        throw new Error("no move requested");
+      },
+      clearStash: async () => {},
+      onPathChanged: () => {},
+      read: async () => disk,
+      stash: async () => {},
+      write: async (path) => ({
+        kind: "committed",
+        receipt: { path, revision: "r2", updatedAt: new Date(2) },
+      }),
+    });
+
+    note.onDocumentChanged((content, _selection, _sourceMode, fromDisk) => {
+      observed.push([content, fromDisk]);
+    });
+    disk = {
+      content: "# Errands\n\nfrom disk",
+      revision: "r1",
+      updatedAt: new Date(1),
+    };
+    await note.refresh();
+    note.edit({ content: "# Errands\n\nfrom disk, typed", mode: "document" });
+    note.applyHistory("undo");
+    expect(observed).toStrictEqual([
+      ["# Errands\n\nfrom disk", true],
+      ["# Errands\n\nfrom disk", false],
+    ]);
+    await note.flush();
+  });
+
   it("should keep the replacement document listener when the previous listener unsubscribes", async () => {
     const observed: string[] = [];
     let disk: DiskFile | undefined = initial;

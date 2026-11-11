@@ -140,7 +140,7 @@ describe("note document", () => {
     note.edit("# Title\nbody typed", { titleEdited: false });
     note.editor.commands.setTextSelection(19);
     const surface = host.querySelector(".ProseMirror");
-    note.replace("# Longer title\nbody typed");
+    note.replace("# Longer title\nbody typed", true);
     expect(host.querySelector(".ProseMirror")).toBe(surface);
     expect(note.selection()).toStrictEqual({ anchor: 25, head: 25 });
     expect(note.editor.commands.undo()).toBeFalsy();
@@ -203,7 +203,7 @@ describe("note document", () => {
     const note = createNoteDocument("body", "a.md");
     const read = vi.fn<SelectionReader>(() => ({ anchor: 0, head: 0 }));
     note.deferSelection(read);
-    note.replace("new body");
+    note.replace("new body", true);
     note.edit("new body typed", { titleEdited: false });
     expect(read).not.toHaveBeenCalled();
     note.deferSelection(read);
