@@ -122,6 +122,18 @@ describe("find", () => {
       expect(several.handle.snapshot().total).toBe(2);
     });
 
+    it("should keep a search's find without a bar when the note reloads from disk", () => {
+      const { editor, handle } = mount("Plan Atlas");
+      const controller = createFindController();
+      controller.bind(handle, "tab");
+      controller.search("Atlas", "tab");
+      editor.view.dispatch(
+        editor.state.tr.insertText("Our ", 1).setMeta("addToHistory", false)
+      );
+      expect(controller.store.state.open).toBeTruthy();
+      expect(handle.snapshot().total).toBe(1);
+    });
+
     it("should leave the caret on a search's match when closing a find without a bar", () => {
       const { editor, handle } = mount("Plan Atlas");
       const controller = createFindController();
