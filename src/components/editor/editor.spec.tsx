@@ -419,6 +419,34 @@ describe("image viewer", () => {
     );
   });
 
+  it("should close an open viewer and focus the note once the note's image fails to load its file again", async () => {
+    const { editor } = await mount({
+      initialContent: "![shot](attachments/shot.png)",
+      resolveImageSrc: (src) => ({
+        failure: `No image is at ${src}`,
+        src: `asset://localhost/notes/${src}?v=${imageVersion(src)}`,
+      }),
+    });
+
+    const image = editor.view.dom.querySelector('img[alt="shot"]');
+
+    if (!(image instanceof HTMLImageElement)) {
+      throw new TypeError("the image did not render");
+    }
+
+    Object.defineProperty(image, "naturalWidth", { value: 1 });
+    fireEvent.dblClick(image);
+    await screen.findByRole("dialog");
+
+    reloadImages(["attachments/shot.png"]);
+    fireEvent.error(image);
+
+    await waitFor(() => {
+      expect(screen.queryByRole("dialog")).toBeNull();
+    });
+    expect(editor.view.hasFocus()).toBeTruthy();
+  });
+
   it("should show a selected image from its open button", async () => {
     const { editor } = await mountImage(1);
 

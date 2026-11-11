@@ -370,6 +370,7 @@ function drawingIn(element: Node | null | undefined) {
 type ViewerState =
   | {
       alt: string;
+      dismissed: boolean;
       image: HTMLImageElement;
       kind: "image";
       src: string;
@@ -381,6 +382,7 @@ type ViewerState =
 function viewerStateFor(image: HTMLImageElement): ViewerState {
   return {
     alt: image.alt,
+    dismissed: false,
     image,
     kind: "image",
     src: image.src,
@@ -677,7 +679,8 @@ export function Editor(mountProps: EditorProps) {
   const [linkHover, setLinkHover] = useState<LinkHoverState | null>(null);
   const [viewer, setViewer] = useState<ViewerState | null>(null);
 
-  // An image reload can load a new file into the image while the viewer is open.
+  // An image reload can load a new file into the image while the viewer is
+  // open, or find the file gone, where the note's image says why.
   useEffect(() => {
     const listening = new AbortController();
 
@@ -688,6 +691,17 @@ export function Editor(mountProps: EditorProps) {
         "load",
         () => {
           setViewer(viewerStateFor(image));
+        },
+        { signal: listening.signal }
+      );
+      image.addEventListener(
+        "error",
+        () => {
+          setViewer((current) =>
+            current?.kind === "image"
+              ? { ...current, dismissed: true }
+              : current
+          );
         },
         { signal: listening.signal }
       );
@@ -1524,6 +1538,7 @@ export function Editor(mountProps: EditorProps) {
         )}
         {viewer === null ? null : (
           <ViewerDialog
+            dismissed={viewer.kind === "image" && viewer.dismissed}
             onClosed={() => {
               setViewer(null);
               const scroller = scrollerRef.current;
