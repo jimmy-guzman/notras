@@ -98,15 +98,13 @@ jobs:
           ref: ${{ env.TAG }}
           persist-credentials: false
 
+      # CI on main owns this cache, as it owns the pnpm store below.
       - name: 🐧 Setup Linux Deps
         if: matrix.platform == 'ubuntu-latest'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends \
-            libwebkit2gtk-4.1-dev \
-            libappindicator3-dev \
-            librsvg2-dev \
-            patchelf
+        timeout-minutes: 10
+        uses: $/.github/actions/setup-linux-deps
+        with:
+          save-cache: false
 
       # The ubuntu leg keys the pnpm store on `runner.os`, the same key the
       # direct run writes on this push. CI owns it.

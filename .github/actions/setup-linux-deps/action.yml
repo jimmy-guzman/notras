@@ -1,0 +1,75 @@
+name: Setup Linux Deps
+description: Install the system libraries Tauri builds against, from cache when the runner image matches
+
+inputs:
+  save-cache:
+    description: whether this run writes the apt package cache
+    default: "true"
+
+runs:
+  using: composite
+  steps:
+    # The runner image fixes what is already installed, so a set downloaded on
+    # one image version is the exact closure for that version and no other.
+    - name: 🗃️ Resolve Package Set
+      id: packages
+      shell: bash
+      env:
+        PACKAGES: libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+      run: |
+        set -euo pipefail
+        if [ -z "${ImageOS:-}" ] || [ -z "${ImageVersion:-}" ]; then
+          echo "::error::ImageOS or ImageVersion is unset, so the cache key cannot name the runner image"
+          exit 1
+        fi
+        hash=$(printf '%s' "$PACKAGES" | sha256sum | cut -c1-16)
+        echo "key=apt-$ImageOS-$ImageVersion-$hash" >> "$GITHUB_OUTPUT"
+        echo "list=$PACKAGES" >> "$GITHUB_OUTPUT"
+
+    # Only the archives: apt leaves a root-owned lock and partial/ beside them,
+    # which the runner user cannot read to save.
+    - name: ♻️ Restore apt Cache
+      id: apt-cache
+      uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: ${{ runner.temp }}/apt-debs/*.deb
+        key: ${{ steps.packages.outputs.key }}
+
+    # Some azure.archive.ubuntu.com nodes trickle archives at tens of kB/s, and
+    # apt's timeout fires only on silence, so it never fails over to the next
+    # mirror. `apt-get update` exits 0 when every index fails, and the install
+    # would then spend a timeout on each package.
+    - name: 📥 Download Packages
+      if: steps.apt-cache.outputs.cache-hit != 'true'
+      shell: bash
+      env:
+        DEBS: ${{ runner.temp }}/apt-debs
+        PACKAGES: ${{ steps.packages.outputs.list }}
+      run: |
+        set -euo pipefail
+        read -ra packages <<< "$PACKAGES"
+        sudo sed -i '/azure\.archive\.ubuntu\.com/d' /etc/apt/apt-mirrors.txt
+        sudo apt-get update --error-on=any
+        mkdir -p "$DEBS/partial"
+        sudo apt-get install -y --no-install-recommends --download-only \
+          -o Dir::Cache::archives="$DEBS" "${packages[@]}"
+
+    # Installing the files rather than the names resolves without package
+    # lists, which a cache hit never fetches. `dpkg -i` cannot: it unpacks in
+    # argument order and fails on pre-dependencies inside the set.
+    - name: 📦 Install Packages
+      shell: bash
+      env:
+        DEBS: ${{ runner.temp }}/apt-debs
+      run: |
+        set -euo pipefail
+        mkdir -p "$DEBS/partial"
+        sudo apt-get install -y --no-install-recommends --no-download \
+          -o Dir::Cache::archives="$DEBS" "$DEBS"/*.deb
+
+    - name: 💾 Save apt Cache
+      if: inputs.save-cache == 'true' && steps.apt-cache.outputs.cache-hit != 'true'
+      uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: ${{ runner.temp }}/apt-debs/*.deb
+        key: ${{ steps.apt-cache.outputs.cache-primary-key }}
