@@ -705,7 +705,7 @@ interface Source {
  */
 const sources = new WeakMap<Node, Source>();
 
-function isBlankParagraph(node: Node) {
+export function isBlankParagraph(node: Node) {
   return node.type.name === "paragraph" && node.childCount === 0;
 }
 

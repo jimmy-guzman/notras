@@ -4366,6 +4366,19 @@ describe("markdown written elsewhere", () => {
       "a\n\nb",
       "- item\n\n  |a|b|\n  |-|-|\n  |x|y|\n\n  ```\n  a\n".length,
     ],
+    [
+      "a setext heading",
+      "# one\n\nTitle\n---\n\npara\n",
+      "Title",
+      "# one\n\nTi".length,
+    ],
+    [
+      "a setext heading in a list",
+      "- item\n\n  Title\n  ---\n\n  para\n",
+      "Title",
+      "- item\n\n  Ti".length,
+    ],
+    ["a level one setext heading", "Title\n=====\n", "Title", "Ti".length],
   ])("should find the caret in %s", async (_, initialContent, text, offset) => {
     const { editor, handle } = await mount({ initialContent });
     const positions: number[] = [];
@@ -4439,6 +4452,85 @@ describe("markdown written elsewhere", () => {
     });
 
     expect(handle.getCaretSourceOffset()).toBe(-1);
+  });
+
+  it("should report no caret offset in a paragraph the file spells in no shared text", async () => {
+    const { editor, handle } = await mount({ initialContent: "&#60;&#62;\n" });
+
+    act(() => {
+      editor.commands.setTextSelection(2);
+    });
+
+    expect(handle.getCaretSourceOffset()).toBe(-1);
+  });
+
+  it("should report no caret offset inside an entity the file spells", async () => {
+    const { editor, handle } = await mount({ initialContent: "a&amp;b\n" });
+
+    act(() => {
+      editor.commands.setTextSelection(3);
+    });
+
+    expect(handle.getCaretSourceOffset()).toBe(-1);
+  });
+
+  it("should find the caret on a blank line between paragraphs", async () => {
+    const { editor, handle } = await mount({
+      initialContent: "a\n\n&nbsp;\n\nb\n",
+    });
+
+    act(() => {
+      editor.commands.setTextSelection(4);
+    });
+
+    expect(handle.getCaretSourceOffset()).toBe("a\n\n".length);
+  });
+
+  it.each([
+    ["a list", "- item\n"],
+    ["a setext heading", "Title\n---\n"],
+  ])(
+    "should find the caret at the end of the file on the line after %s",
+    async (_, initialContent) => {
+      const { editor, handle } = await mount({ initialContent });
+
+      act(() => {
+        editor.commands.setTextSelection(editor.state.doc.content.size - 1);
+      });
+
+      expect(handle.getCaretSourceOffset()).toBe(initialContent.length);
+    }
+  );
+
+  it("should report no caret offset in an empty table cell", async () => {
+    const { editor, handle } = await mount({
+      initialContent: "|a|b|\n|-|-|\n||c|\n",
+    });
+
+    const positions: number[] = [];
+
+    editor.state.doc.descendants((node, pos) => {
+      if (node.type.name === "paragraph" && node.childCount === 0) {
+        positions.push(pos + 1);
+      }
+    });
+    act(() => {
+      editor.commands.setTextSelection(positions[0] ?? -1);
+    });
+
+    expect(handle.getCaretSourceOffset()).toBe(-1);
+  });
+
+  it("should keep a setext heading's underline when its text changes", async () => {
+    const { editor, handle } = await mount({
+      initialContent: "Title\n---\n\npara\n",
+    });
+
+    act(() => {
+      editor.commands.insertContentAt(1 + "Title".length, "s");
+    });
+
+    expect(handle.getContent()).toBe("Titles\n---\n\npara\n");
   });
 
   it("should keep the file's text when a cell of a table in a list changes", async () => {

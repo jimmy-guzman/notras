@@ -39,19 +39,22 @@ function alignedRow(before: string[], source: string[], row: number) {
   return row + shift;
 }
 
-/** Nothing on the row but space or a quote's markers. */
-const BLANK_ROW = /^[\s>]*$/u;
+/** Nothing on the row but space, a quote's markers, or a setext underline. */
+const BLANK_ROW = /^[\s>]*(?:=+|-+)?\s*$/u;
 
 function filledRows(lines: string[]) {
   return lines.flatMap((line, index) =>
-    BLANK_ROW.test(line) ? [] : [{ index, text: line.replaceAll(/\s/gu, "") }]
+    BLANK_ROW.test(line)
+      ? []
+      : [{ index, text: line.replaceAll(/[\s#]/gu, "") }]
   );
 }
 
 /**
  * The source line standing where `row` stands. A render can drop the file's
- * blank lines and pad its rows, which anchors a diff on the wrong blank line,
- * so rows that do not line up are compared without either.
+ * blank lines, pad its rows, and write a setext heading on one `#` row, which
+ * anchors a diff on the wrong line, so rows that do not line up are compared
+ * without any of those.
  */
 function sourceRow(before: string[], source: string[], row: number) {
   const aligned = alignedRow(before, source, row);
