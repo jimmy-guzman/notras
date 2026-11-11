@@ -4635,6 +4635,64 @@ describe("markdown written elsewhere", () => {
   });
 
   it.each([
+    ["blank lines open the file", "\n\n&nbsp;\n\na\n"],
+    ["extra blank lines precede it", "a\n\n\n\n&nbsp;\n\nb\n"],
+  ])(
+    "should keep a blank line written as &nbsp; when %s",
+    async (_, initialContent) => {
+      const { handle } = await mount({ initialContent });
+
+      expect(handle.getContent()).toBe(initialContent);
+    }
+  );
+
+  it("should keep the closing newline of a note of &nbsp; lines through an edit", async () => {
+    const { editor, handle } = await mount({ initialContent: "&nbsp;\n" });
+
+    act(() => {
+      editor.commands.insertContentAt(1, "x");
+    });
+
+    expect(handle.getContent()).toBe("x\n");
+  });
+
+  it("should keep a closing blank line written as &nbsp; through an edit", async () => {
+    const { editor, handle } = await mount({
+      initialContent: "a\n\n&nbsp;\n",
+    });
+
+    act(() => {
+      editor.commands.insertContentAt(1, "x");
+    });
+
+    expect(handle.getContent()).toBe("xa\n\n&nbsp;\n");
+  });
+
+  it("should find the caret on a blank line under extra blank lines", async () => {
+    const { editor, handle } = await mount({
+      initialContent: "a\n\n\n&nbsp;\n\nb\n",
+    });
+
+    act(() => {
+      editor.commands.setTextSelection(4);
+    });
+
+    expect(handle.getCaretSourceOffset()).toBe("a\n\n\n".length);
+  });
+
+  it("should keep extra blank lines above a blank line typed into", async () => {
+    const { editor, handle } = await mount({
+      initialContent: "a\n\n\n&nbsp;\n\nb\n",
+    });
+
+    act(() => {
+      editor.commands.insertContentAt(4, "x");
+    });
+
+    expect(handle.getContent()).toBe("a\n\n\nx\n\nb\n");
+  });
+
+  it.each([
     ["a list", "- item\n"],
     ["a setext heading", "Title\n---\n"],
   ])(

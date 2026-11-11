@@ -23,7 +23,7 @@ import { Paragraph } from "@tiptap/extension-paragraph";
 import { Strike } from "@tiptap/extension-strike";
 import { TableKit } from "@tiptap/extension-table";
 import { Placeholder, UndoRedo } from "@tiptap/extensions";
-import { Markdown } from "@tiptap/markdown";
+import { extractAbsorbedBlankLines, Markdown } from "@tiptap/markdown";
 import type { MarkdownExtensionOptions } from "@tiptap/markdown";
 import { DOMSerializer } from "@tiptap/pm/model";
 import type { Node } from "@tiptap/pm/model";
@@ -876,23 +876,15 @@ function readsAs(
   );
 }
 
-/** Blank lines beyond the first separator are paragraphs of their own. */
-function pastBlankParagraphs(
-  doc: Node,
-  index: number,
-  parsed: readonly Node[] | null
-) {
-  let at = index;
+/**
+ * The blank paragraphs a run of blank lines stands for, counted as tiptap's
+ * parser counts them (its private `createImplicitEmptyParagraphsFromSpace`):
+ * every separator at the file's edges, and all but one between two blocks.
+ */
+function blanksIn(raw: string, between: boolean) {
+  const separators = raw.replaceAll("\r\n", "\n").match(/\n\n/gu)?.length ?? 0;
 
-  while (
-    at < doc.childCount &&
-    isBlankParagraph(doc.child(at)) &&
-    parsed?.[0]?.eq(doc.child(at)) !== true
-  ) {
-    at += 1;
-  }
-
-  return at;
+  return between ? Math.max(separators - 1, 0) : separators;
 }
 
 /**
@@ -909,7 +901,23 @@ export function rememberSources(
   let lead = "";
   let last: { at: number; source: Source } | undefined;
   const parse = blockParser(manager, doc);
-  const tokens = manager.instance.lexer(markdown);
+
+  // The parser splits a block's trailing blank lines off this way before it
+  // counts them as paragraphs.
+  const tokens = extractAbsorbedBlankLines(
+    manager.instance.lexer(markdown)
+  ).map((token) => {
+    if (!hasString(token, "raw")) {
+      throw new Error("The markdown lexer returned a token without its text");
+    }
+
+    return token;
+  });
+
+  const first = tokens.findIndex((token) => token.type !== "space");
+  const final = tokens.findLastIndex((token) => token.type !== "space");
+  // A note of blank lines alone ends at its last token.
+  let closingAt = final;
 
   // A replacement reuses the nodes it did not change, whose text may have.
   // oxlint-disable-next-line unicorn/no-array-for-each -- a ProseMirror node, not an array
@@ -917,7 +925,7 @@ export function rememberSources(
     sources.delete(node);
   });
 
-  for (const token of tokens) {
+  for (const [position, token] of tokens.entries()) {
     if (token.type === "space") {
       if (last === undefined) {
         lead += token.raw;
@@ -925,14 +933,13 @@ export function rememberSources(
         last.source.gap.text += token.raw;
       }
 
+      index += blanksIn(token.raw, position > first && position < final);
       continue;
     }
 
     const text = token.raw.replace(/\n+$/u, "");
-    // Blank paragraphs hold no definitions, so the index before them places
-    // the token's text among the note's definitions as well as its block does.
     const parsed = parse(text, index);
-    const at = pastBlankParagraphs(doc, index, parsed);
+    const at = index;
 
     const follows =
       parsed !== null &&
@@ -942,6 +949,10 @@ export function rememberSources(
 
     // A token that does not parse most likely stood for one block.
     index = at + (parsed?.length ?? 1);
+
+    if (parsed === null || !parsed.every(isBlankParagraph)) {
+      closingAt = position;
+    }
 
     // Indented code reads as a list item's continuation once it lands after
     // a list, so it is always written as a fence.
@@ -966,11 +977,11 @@ export function rememberSources(
     last = { at, source };
   }
 
-  const final = tokens.findLastIndex((token) => token.type !== "space");
-  const closing = tokens[final];
+  const closing = tokens[closingAt];
 
-  // Blank lines past the last block are paragraphs no token claims, so the
-  // file's text after that block stands for them.
+  // Blank lines past the last block, `&nbsp;` lines among them, are blank
+  // paragraphs the closing blocks never write, so the file's text after that
+  // block stands for them.
   if (closing === undefined) {
     endings.delete(doc);
   } else {
@@ -978,7 +989,7 @@ export function rememberSources(
       blanks: closingBlanks(doc.content.content),
       text: [
         closing.raw.slice(closing.raw.replace(/\n+$/u, "").length),
-        ...tokens.slice(final + 1).map((token) => token.raw),
+        ...tokens.slice(closingAt + 1).map((token) => token.raw),
       ].join(""),
     });
   }
@@ -1051,20 +1062,31 @@ function carrySource(manager: MarkdownConverter, before: Node, after: Node) {
   const at = editedBlock(old, now);
   const was = old[at];
   const node = now[at];
-  const source = was === undefined ? undefined : sources.get(was);
 
-  if (was === undefined || node === undefined || source === undefined) {
+  if (was === undefined || node === undefined) {
+    return;
+  }
+
+  const source = sources.get(was);
+
+  if (source === undefined) {
     return;
   }
 
   const definedBefore = definitionsOf(manager, before);
   const definedAfter = definitionsOf(manager, after);
 
-  const text = carryChange(
-    source.text,
-    written(renderBlock(manager, was, old[at - 1], definedBefore)),
-    written(renderBlock(manager, node, now[at - 1], definedAfter))
-  );
+  const edited = written(renderBlock(manager, node, now[at - 1], definedAfter));
+
+  // A blank paragraph's text only spells an empty line, and its render can
+  // be empty, so nothing of it lines up to carry into.
+  const text = isBlankParagraph(was)
+    ? edited
+    : carryChange(
+        source.text,
+        written(renderBlock(manager, was, old[at - 1], definedBefore)),
+        edited
+      );
 
   const parse = blockParser(manager, after);
 
