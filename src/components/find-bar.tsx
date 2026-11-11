@@ -10,6 +10,7 @@ import {
   InputGroupInput,
   InputGroupText,
 } from "@/components/ui/input-group";
+import { isFindBarShown } from "@/lib/ui/find";
 import type { createFindController } from "@/lib/ui/find";
 
 function isFindNavigation(event: KeyboardEvent, inInput: boolean) {
@@ -109,7 +110,7 @@ export function FindBar({ controller }: FindBarProps) {
     };
   }, [controller, state.available, state.open]);
 
-  if (!(state.open && (state.available || state.searchPending))) {
+  if (!(isFindBarShown(state) && state.available)) {
     return null;
   }
 

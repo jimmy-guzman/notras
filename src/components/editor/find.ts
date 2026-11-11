@@ -1,5 +1,5 @@
 import { Extension } from "@tiptap/core";
-import type { Editor } from "@tiptap/core";
+import type { Editor, EditorEvents } from "@tiptap/core";
 import type { Node } from "@tiptap/pm/model";
 import { Plugin, PluginKey, TextSelection } from "@tiptap/pm/state";
 import type { EditorState, SelectionBookmark } from "@tiptap/pm/state";
@@ -16,6 +16,8 @@ interface Match {
 
 interface FindState {
   active: number;
+  /** The floating find bar covers the top of the editor. */
+  clearance: boolean;
   matches: Match[];
   prior: SelectionBookmark;
   query: string | null;
@@ -35,9 +37,12 @@ export interface FindHandle {
   navigate: (direction: -1 | 1) => void;
   restoreFocus: () => void;
   selectionText: () => string;
+  /** Makes room above the first line while the find bar shows over it. */
+  setClearance: (on: boolean) => void;
   setQuery: (query: string | null) => void;
   snapshot: () => FindSnapshot;
-  subscribe: (listener: () => void) => () => void;
+  /** `moved` is true when the text or the caret changed. */
+  subscribe: (listener: (moved: boolean) => void) => () => void;
 }
 
 const findKey = new PluginKey<FindState>("noteFind");
@@ -64,6 +69,10 @@ function isFindOpen(state: EditorState) {
   const query = findKey.getState(state)?.query;
 
   return query !== undefined && query !== null;
+}
+
+function hasClearance(state: EditorState) {
+  return findKey.getState(state)?.clearance === true;
 }
 
 function textOf(node: Node) {
@@ -210,13 +219,17 @@ function revealMatch(editor: Editor) {
     '[data-slot="scroll-area-viewport"]'
   );
 
-  if (match === undefined || !(viewport instanceof HTMLElement)) {
+  if (
+    state === undefined ||
+    match === undefined ||
+    !(viewport instanceof HTMLElement)
+  ) {
     return;
   }
 
   const rect = editor.view.coordsAtPos(match.from);
   const bounds = viewport.getBoundingClientRect();
-  const top = bounds.top + FIND_CLEARANCE;
+  const top = bounds.top + (state.clearance ? FIND_CLEARANCE : 0);
   const bottom = bounds.bottom - 16;
 
   if (rect.top < top || rect.bottom > bottom) {
@@ -307,6 +320,27 @@ export function createFindHandle(editor: Editor): FindHandle {
 
       return editor.state.doc.textBetween(from, to, "\n", textOf);
     },
+    setClearance: (on) => {
+      if (view.isDestroyed) {
+        return;
+      }
+
+      const state = findKey.getState(editor.state);
+
+      if (state === undefined || state.clearance === on) {
+        return;
+      }
+
+      editor.view.dispatch(
+        editor.state.tr
+          .setMeta(findKey, { ...state, clearance: on } satisfies FindState)
+          .setMeta("addToHistory", false)
+      );
+
+      if (on) {
+        revealMatch(editor);
+      }
+    },
     setQuery: (query) => {
       if (view.isDestroyed) {
         return;
@@ -328,6 +362,7 @@ export function createFindHandle(editor: Editor): FindHandle {
         editor.state.tr
           .setMeta(findKey, {
             active: Math.max(0, next),
+            clearance: state.clearance,
             matches,
             prior:
               state.query === null
@@ -354,19 +389,23 @@ export function createFindHandle(editor: Editor): FindHandle {
       };
     },
     subscribe: (listener) => {
-      editor.on("transaction", listener);
+      const onTransaction = ({ transaction }: EditorEvents["transaction"]) => {
+        listener(transaction.docChanged || transaction.selectionSet);
+      };
+
+      editor.on("transaction", onTransaction);
 
       const onDestroy = () => {
         // Tiptap emits destroy before it destroys the view.
         destroyed = true;
-        listener();
+        listener(false);
       };
 
       editor.on("destroy", onDestroy);
       editor.on("unmount", onDestroy);
 
       return () => {
-        editor.off("transaction", listener);
+        editor.off("transaction", onTransaction);
         editor.off("destroy", onDestroy);
         editor.off("unmount", onDestroy);
       };
@@ -381,7 +420,7 @@ export const Find = Extension.create({
         key: findKey,
         props: {
           attributes: (state) => ({
-            class: isFindOpen(state) ? "note-find-open" : "",
+            class: hasClearance(state) ? "note-find-open" : "",
           }),
           decorations: (state) => {
             const find = findKey.getState(state);
@@ -415,6 +454,7 @@ export const Find = Extension.create({
 
             return {
               active: Math.max(0, active),
+              clearance: previous.clearance,
               matches,
               prior: previous.prior.map(transaction.mapping),
               query: previous.query,
@@ -426,6 +466,7 @@ export const Find = Extension.create({
           },
           init: (_, state) => ({
             active: 0,
+            clearance: false,
             matches: [],
             prior: state.selection.getBookmark(),
             query: null,
@@ -467,17 +508,24 @@ export const Find = Extension.create({
               window.removeEventListener("resize", follow);
             },
             update: (view, previous) => {
-              const wasOpen = isFindOpen(previous);
               const open = isFindOpen(view.state);
+
+              const hadClearance = hasClearance(previous);
+              const clearance = hasClearance(view.state);
 
               const viewport = view.dom.closest(
                 '[data-slot="scroll-area-viewport"]'
               );
 
-              if (wasOpen !== open && viewport instanceof HTMLElement) {
+              if (
+                hadClearance !== clearance &&
+                viewport instanceof HTMLElement
+              ) {
                 // The extra scroll space lets the first line clear the floating bar.
-                // Compensating here keeps opening find from shifting the document.
-                viewport.scrollTop += open ? FIND_CLEARANCE : -FIND_CLEARANCE;
+                // Compensating here keeps showing the bar from shifting the document.
+                viewport.scrollTop += clearance
+                  ? FIND_CLEARANCE
+                  : -FIND_CLEARANCE;
               }
 
               // An edit can pull text on screen without a scroll.
