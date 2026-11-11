@@ -50,7 +50,7 @@ import {
   rememberSources,
   serializeMarkdown,
 } from "./extensions";
-import { createFindHandle, Find } from "./find";
+import { createFindHandle, Find, FROM_DISK } from "./find";
 import type { FindHandle } from "./find";
 import { headingAnchors } from "./heading-anchors";
 import { HeadingKeys } from "./heading-navigation";
@@ -597,9 +597,11 @@ export interface EditorHandle {
   getCaretSourceOffset: () => number;
   getContent: () => string;
   insertText: (text: string) => void;
+  /** `fromDisk` marks the file as read from disk, which nobody typed. */
   replaceContent: (
     content: string,
-    selection?: { anchor: number; head: number }
+    selection?: { anchor: number; head: number },
+    fromDisk?: boolean
   ) => void;
   /** Colors every code block for a print; the returned function windows them again. */
   revealSyntax: () => () => void;
@@ -1207,7 +1209,7 @@ export function Editor(mountProps: EditorProps) {
           instance.commands.insertContent(text, { contentType: "markdown" });
           instance.commands.focus();
         },
-        replaceContent: (content, selection) => {
+        replaceContent: (content, selection, fromDisk = false) => {
           if (instance.isDestroyed || instance.markdown === undefined) {
             return;
           }
@@ -1253,7 +1255,11 @@ export function Editor(mountProps: EditorProps) {
           suppressChangeRef.current = true;
 
           try {
-            instance.view.dispatch(transaction.setMeta("addToHistory", false));
+            instance.view.dispatch(
+              transaction
+                .setMeta("addToHistory", false)
+                .setMeta(FROM_DISK, fromDisk)
+            );
           } catch (error) {
             suppressChangeRef.current = false;
             throw error;

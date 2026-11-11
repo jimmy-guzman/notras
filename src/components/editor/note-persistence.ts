@@ -84,7 +84,9 @@ export type NotePersistence = ReturnType<typeof createNotePersistence>;
 type DocumentListener = (
   content: string,
   selection: { anchor: number; head: number } | undefined,
-  sourceMode: boolean
+  sourceMode: boolean,
+  /** The replacement applies the file as read from disk, which nobody typed. */
+  fromDisk: boolean
 ) => void;
 
 function refused() {
@@ -428,7 +430,12 @@ export function createNotePersistence(
     if (change.kind === "retitle") {
       document.rename(change.title);
       changed();
-      documentListener?.(document.content(), undefined, state.state.sourceMode);
+      documentListener?.(
+        document.content(),
+        undefined,
+        state.state.sourceMode,
+        false
+      );
       debouncer.cancel();
       await enqueue(write);
 
@@ -506,22 +513,28 @@ export function createNotePersistence(
     documentListener?.(
       document.content(),
       document.selection(),
-      state.state.sourceMode
+      state.state.sourceMode,
+      false
     );
 
     return true;
   };
 
-  const replaceDocument = (content: string) => {
-    document.replace(content);
-    documentListener?.(document.content(), undefined, state.state.sourceMode);
+  const replaceDocument = (content: string, fromDisk: boolean) => {
+    document.replace(content, fromDisk);
+    documentListener?.(
+      document.content(),
+      undefined,
+      state.state.sourceMode,
+      fromDisk
+    );
   };
 
   const absorb = (file: FileContent) => {
     const current = state.state;
 
     if (current.status === "saved") {
-      replaceDocument(file.content);
+      replaceDocument(file.content, true);
       state.setState((previous) => ({
         ...previous,
         base: file,
@@ -549,7 +562,7 @@ export function createNotePersistence(
     );
 
     if (merge.kind === "merged") {
-      replaceDocument(merge.content);
+      replaceDocument(merge.content, true);
       edits += 1;
       state.setState((previous) => ({
         ...previous,
@@ -683,7 +696,7 @@ export function createNotePersistence(
       throw new Error("Nothing to review");
     }
 
-    replaceDocument(content);
+    replaceDocument(content, false);
     edits += 1;
     state.setState((previous) => ({
       ...previous,
@@ -702,7 +715,12 @@ export function createNotePersistence(
     const next = updateFrontmatter(document.content(), change);
     document.edit(next, { separate: true, titleEdited: false });
     changed();
-    documentListener?.(document.content(), undefined, state.state.sourceMode);
+    documentListener?.(
+      document.content(),
+      undefined,
+      state.state.sourceMode,
+      false
+    );
 
     if (!(await flush())) {
       throw new Error(state.state.reason ?? "The note could not be saved");

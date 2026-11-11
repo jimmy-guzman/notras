@@ -58,7 +58,7 @@ pub fn open(index_dir: &Path) -> Result<Connection, IndexError> {
 
 /// Bump when a row's derivation changes. The mtime skip would otherwise leave
 /// every unedited note on the old derivation until someone ran "reindex".
-pub(crate) const SCHEMA_VERSION: i64 = 15;
+pub(crate) const SCHEMA_VERSION: i64 = 16;
 
 /// The derived, disposable search index. Files are the source of truth; this
 /// database can be deleted at any time and rebuilt from the notes directory.
@@ -119,8 +119,9 @@ pub fn ensure_schema(conn: &Connection) -> rusqlite::Result<()> {
          -- A rebuild deletes by path once per note as the table grows:
          -- measured at 4.3s for 10k notes of 5 links unindexed, 0.04s indexed.
          CREATE INDEX IF NOT EXISTS note_link_path ON note_link (path);
-         -- `text` is what a reader sees and is searched; `content` is the raw
-         -- body that previews and mention scans parse as markdown.
+         -- `text` is what a reader sees less the title line, and is searched;
+         -- `content` is the raw body that previews and mention scans parse as
+         -- markdown.
          CREATE VIRTUAL TABLE IF NOT EXISTS note_fts USING fts5(
            path UNINDEXED,
            title,
@@ -475,7 +476,7 @@ pub(crate) fn index_note(
         rusqlite::params![
             rel_path,
             title,
-            crate::markdown::readable_text(parsed.body),
+            crate::markdown::search_text(parsed.body),
             parsed.body
         ],
     )?;
@@ -962,7 +963,7 @@ mod tests {
         assert_eq!(notes[0].tags, ["z", "a"]);
         assert_eq!(
             notes[0].snippet.as_deref(),
-            Some("Current\n\u{1}fresh\u{2} [[Other]]")
+            Some("\u{1}fresh\u{2} [[Other]]")
         );
         assert!(core
             .read_view()

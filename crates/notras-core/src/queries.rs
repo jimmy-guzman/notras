@@ -826,8 +826,25 @@ mod tests {
                     .collect::<Vec<_>>()
             );
             assert!(notes.iter().all(|note| note.tags == ["z", "review"]
-                && note.snippet.as_deref() == Some("Note\n\u{1}needle\u{2} Atlas site")));
+                && note.snippet.as_deref() == Some("\u{1}needle\u{2} Atlas site")));
         }
+    }
+
+    #[test]
+    fn should_mark_a_title_only_hit_in_the_title_and_not_the_snippet() {
+        let (_directory, core) = library();
+        save(&core, "roadmap.md", "# Roadmap\nthe planning doc", 1);
+        let notes = core
+            .read_view()
+            .unwrap()
+            .list_notes(&NoteFilters {
+                query: Some("road".into()),
+                ..Default::default()
+            })
+            .unwrap();
+        assert_eq!(notes.len(), 1);
+        assert_eq!(notes[0].title, "\u{1}Roadmap\u{2}");
+        assert_eq!(notes[0].snippet.as_deref(), Some("the planning doc"));
     }
 
     #[test]
@@ -878,10 +895,7 @@ mod tests {
         assert_eq!(notes.len(), 1);
         assert_eq!(notes[0].path, "kept.md");
         assert_eq!(notes[0].tags, ["z", "a"]);
-        assert_eq!(
-            notes[0].snippet.as_deref(),
-            Some("Kept\n\u{1}replacement\u{2}")
-        );
+        assert_eq!(notes[0].snippet.as_deref(), Some("\u{1}replacement\u{2}"));
     }
 
     #[test]

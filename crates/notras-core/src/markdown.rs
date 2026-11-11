@@ -1132,19 +1132,31 @@ pub(crate) fn resolve_title(parsed: &frontmatter::Parsed<'_>, rel_path: &str) ->
         .unwrap_or_else(|| title_of(rel_path))
 }
 
-/// The body text rich mode shows, less reference definitions, which is what
-/// search indexes. Link destinations and images show as no text in the editor,
+/// The body text search indexes: what rich mode shows less the title line,
+/// which the index already holds as the title. A hit there is a title hit, and
+/// counting it again would mark every title search as a body hit too.
+pub(crate) fn search_text(body: &str) -> String {
+    readable_text(body, body_title(body).map(|title| title.line))
+}
+
+/// The body text rich mode shows, less reference definitions and the text on
+/// `skip_line`. Link destinations and images show as no text in the editor,
 /// so a hit on them could never be found in the note. A definition shows as
 /// code, but it holds a link's destination, so it is left out the way an inline
 /// link's destination is. `link:` finds the destinations links use.
-pub(crate) fn readable_text(body: &str) -> String {
+fn readable_text(body: &str, skip_line: Option<usize>) -> String {
+    let starts = line_starts(body);
+    let on_skip_line =
+        |at: usize| skip_line == Some(starts.partition_point(|&start| start <= at) - 1);
     let mut text = String::new();
     let mut images = 0_usize;
     // An HTML block arrives one line per event, and whether rich mode draws it
     // as an image is a question about the whole block.
     let mut html_block: Option<String> = None;
-    for event in Parser::new_ext(body, OPTIONS) {
+    for (event, range) in Parser::new_ext(body, OPTIONS).into_offset_iter() {
         match event {
+            Event::InlineHtml(_) | Event::Text(_) | Event::Code(_) if on_skip_line(range.start) => {
+            }
             Event::Start(Tag::Image { .. }) => images += 1,
             // Find reads an image as a line break, so it splits words here too.
             Event::End(TagEnd::Image) => {
@@ -1186,8 +1198,7 @@ pub(crate) fn readable_text(body: &str) -> String {
             _ => {}
         }
     }
-    text.truncate(text.trim_end_matches('\n').len());
-    text
+    text.trim_matches('\n').to_owned()
 }
 
 /// Kept in parity with the editor's tokenizer: `should_find_the_wikilinks_the_editor_renders`
@@ -1361,6 +1372,7 @@ mod tests {
             "See the [roadmap](https://hidden.example/plan) and ![diagram alt](hidden.png).\n\n\
              word![inline](x.png)next\n\n\
              [ref]: https://also.hidden/definition\n",
+            None,
         );
 
         assert!(text.contains("roadmap"));
@@ -1391,6 +1403,7 @@ mod tests {
              word<img src=\"x.png\">next\n\n\
              <img src=\"y.png\">\ncaption\n\n\
              <img src=\"z.png\" style=\"width: 1px\">\n",
+            None,
         );
 
         assert!(!text.contains("shot") && !text.contains("400"), "{text:?}");
@@ -1405,6 +1418,7 @@ mod tests {
             "Ada **Lovelace** wrote `notes` and [[Atlas]].\n\n\
              | left | right |\n| --- | --- |\n| cell | other |\n\n\
              <kbd>raw</kbd>\n\n```ts\nconst fenced = 1;\n```\n",
+            None,
         );
 
         assert!(text.contains("Ada Lovelace"), "{text:?}");
@@ -1412,6 +1426,19 @@ mod tests {
             assert!(text.contains(shown), "{shown} missing from {text:?}");
         }
         assert!(!text.contains("leftright") && !text.contains("cellother"));
+    }
+
+    #[test]
+    fn should_leave_only_the_title_line_out_of_search_text() {
+        assert_eq!(
+            search_text("```\nabove\n```\n# Road *map*\nThe road ahead\n"),
+            "above\n\n\nThe road ahead"
+        );
+        assert_eq!(
+            search_text("Road map\n===\n\nThe road ahead\n"),
+            "The road ahead"
+        );
+        assert_eq!(search_text("- Road map\n- road two\n"), "road two");
     }
 
     /// The extension strips case-insensitively, the same way `noteTitle` does in

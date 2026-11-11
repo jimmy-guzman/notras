@@ -147,13 +147,16 @@ describe("find", () => {
       });
       const find = createFindHandle(editor);
 
+      // Showing the bar adds 52px of room above the text and scrolls past it.
+      find.setClearance(true);
       find.setQuery("atlas");
-      // Opening find adds 52px of room above the text and scrolls past it.
       expect(viewport.scrollTop).toBe(52 + 684);
 
       find.setQuery(null);
+      find.setClearance(false);
       viewport.scrollTop = 0;
       matchTop = 300;
+      find.setClearance(true);
       find.setQuery("atlas");
       expect(viewport.scrollTop).toBe(52);
     });

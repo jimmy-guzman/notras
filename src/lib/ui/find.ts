@@ -9,16 +9,42 @@ import { getSnippetParts } from "@/lib/utils/fts-snippet";
 
 const SINGLE_LINE = /[\r\n]/u;
 
+interface FindState {
+  available: boolean;
+  current: number;
+  focusRequest: number;
+  open: boolean;
+  query: string;
+  /** The tab a search result's find belongs to, until someone uses find. */
+  searchOwner: string | undefined;
+  /** A search result's word has not landed in its editor yet. */
+  searchPending: boolean;
+  /**
+   * The search result's note had more than one match when the search settled.
+   * Decided once, so editing the note never makes the bar come or go.
+   */
+  searchShowsBar: boolean;
+  total: number;
+}
+
+/** A search result's find shows the bar only when there was a match to step to. */
+export function isFindBarShown(state: FindState): boolean {
+  return (
+    state.open && (state.searchOwner === undefined || state.searchShowsBar)
+  );
+}
+
 /** One controller per window, lending navigation only to its active editor. */
 export function createFindController() {
-  const store = createStore({
+  const store = createStore<FindState>({
     available: false,
     current: 0,
     focusRequest: 0,
     open: false,
     query: "",
-    /** A search result's word is waiting for its editor to bind. */
+    searchOwner: undefined,
     searchPending: false,
+    searchShowsBar: false,
     total: 0,
   });
 
@@ -26,7 +52,6 @@ export function createFindController() {
   let unsubscribe: (() => void) | undefined;
   let seedOnBind = false;
   let targetOwner: string | undefined;
-  let searchOwner: string | undefined;
   let input: HTMLInputElement | null = null;
   /** Focus the field cannot take yet, paid when it shows or an editor binds. */
   let owed = false;
@@ -39,11 +64,9 @@ export function createFindController() {
 
   const refresh = () => {
     const available = target?.alive() === true;
-    // A search between notes keeps the count it showed until the next one binds.
-    const kept = !available && store.state.searchPending;
     const snapshot = available ? target?.snapshot() : undefined;
-    const current = kept ? store.state.current : (snapshot?.current ?? 0);
-    const total = kept ? store.state.total : (snapshot?.total ?? 0);
+    const current = snapshot?.current ?? 0;
+    const total = snapshot?.total ?? 0;
 
     if (
       store.state.available !== available ||
@@ -71,24 +94,56 @@ export function createFindController() {
   /** Closes find without moving focus or the caret. */
   const dismiss = () => {
     owed = false;
-    searchOwner = undefined;
     target?.setQuery(null);
     store.setState((state) => ({
       ...state,
       current: 0,
       open: false,
+      searchOwner: undefined,
       searchPending: false,
       total: 0,
     }));
   };
 
+  /** Puts the caret on a search's match and decides whether the bar shows. */
+  const land = () => {
+    placeCaret();
+    store.setState((state) => ({
+      ...state,
+      searchPending: false,
+      searchShowsBar: state.total > 1,
+    }));
+  };
+
+  // Without a bar, a search's highlight has no close button, so the first
+  // caret move or edit after it lands ends it.
+  const follow = (moved: boolean) => {
+    refresh();
+
+    const { searchOwner, searchPending } = store.state;
+
+    if (
+      moved &&
+      searchOwner !== undefined &&
+      !searchPending &&
+      !isFindBarShown(store.state)
+    ) {
+      dismiss();
+    }
+  };
+
   const unbind = () => {
     unsubscribe?.();
     unsubscribe = undefined;
+    target?.setClearance(false);
     target?.setQuery(null);
     target = null;
     refresh();
   };
+
+  store.subscribe((state) => {
+    target?.setClearance(isFindBarShown(state));
+  });
 
   return {
     attachInput: (element: HTMLInputElement) => {
@@ -110,6 +165,8 @@ export function createFindController() {
       target = handle;
       targetOwner = owner;
 
+      const { searchOwner } = store.state;
+
       if (searchOwner !== undefined && owner !== searchOwner) {
         dismiss();
       }
@@ -119,15 +176,13 @@ export function createFindController() {
         seedOnBind = false;
       }
 
-      unsubscribe = handle.subscribe(refresh);
+      unsubscribe = handle.subscribe(follow);
       handle.setQuery(store.state.open ? store.state.query : null);
+      refresh();
 
       if (store.state.searchPending) {
-        store.setState((state) => ({ ...state, searchPending: false }));
-        placeCaret();
+        land();
       }
-
-      refresh();
 
       if (owed && input !== null) {
         takeFocus(input);
@@ -144,7 +199,12 @@ export function createFindController() {
         return;
       }
 
-      target?.restoreFocus();
+      // Without a bar the caret already sits on the match, and selecting it
+      // would let the next keystroke replace the word.
+      if (isFindBarShown(store.state)) {
+        target?.restoreFocus();
+      }
+
       dismiss();
     },
     dismiss,
@@ -165,50 +225,54 @@ export function createFindController() {
         return;
       }
 
-      searchOwner = undefined;
+      const { open } = store.state;
+      store.setState((state) => ({
+        ...state,
+        focusRequest: open ? state.focusRequest : state.focusRequest + 1,
+        open: true,
+        searchOwner: undefined,
+      }));
 
-      if (!store.state.open) {
-        store.setState((state) => ({
-          ...state,
-          focusRequest: state.focusRequest + 1,
-          open: true,
-        }));
+      if (!open) {
         target.setQuery(store.state.query);
       }
 
       target.navigate(direction);
     },
     open: () => {
-      searchOwner = undefined;
       seedOnBind = target === null;
       seedSelection();
       store.setState((state) => ({
         ...state,
         focusRequest: state.focusRequest + 1,
         open: true,
+        searchOwner: undefined,
       }));
       target?.setQuery(store.state.query);
     },
-    /** Opens on `query` with the caret on its match and the bar unfocused, once `owner`'s editor binds. */
+    /**
+     * Highlights `query` with the caret on its match once `owner`'s editor
+     * binds. The bar stays hidden unless the note has more than one match,
+     * and a hidden one ends on the first caret move or edit.
+     */
     search: (query: string, owner: string) => {
       seedOnBind = false;
-      searchOwner = owner;
-      const searchPending = target === null || targetOwner !== owner;
       store.setState((state) => ({
         ...state,
         open: true,
         query,
-        searchPending,
+        searchOwner: owner,
+        searchPending: true,
+        searchShowsBar: false,
       }));
 
-      if (!searchPending) {
-        target?.setQuery(query);
-        placeCaret();
+      if (target !== null && targetOwner === owner) {
+        target.setQuery(query);
+        land();
       }
     },
     setQuery: (query: string) => {
-      searchOwner = undefined;
-      store.setState((state) => ({ ...state, query }));
+      store.setState((state) => ({ ...state, query, searchOwner: undefined }));
 
       if (store.state.open) {
         target?.setQuery(query);
@@ -235,10 +299,15 @@ export function openNoteFind(): void {
   noteFind.open();
 }
 
-/** Opens a search result, running find on its first body hit when it has one. */
+/**
+ * Opens a search result. A title hit opens the note as it is; a body-only hit
+ * runs find on its first matched word.
+ */
 export function openSearchResult(note: NoteMeta, inNewTab: boolean): void {
+  const titleHit = getSnippetParts(note.title).some((part) => part.match);
+
   const hit =
-    note.snippet === null
+    titleHit || note.snippet === null
       ? undefined
       : getSnippetParts(note.snippet).find((part) => part.match)?.text;
 

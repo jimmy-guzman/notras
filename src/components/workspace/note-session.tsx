@@ -82,7 +82,7 @@ import {
 import type { Tab } from "@/lib/tabs/tab";
 import { fileKind, tabButtonId, tabPanelId } from "@/lib/tabs/tab";
 import { reasonOf } from "@/lib/ui/failure";
-import { noteFind, useNoteFind } from "@/lib/ui/find";
+import { isFindBarShown, noteFind, useNoteFind } from "@/lib/ui/find";
 import { noteBrowserHasFocus, useNoteBrowser } from "@/lib/ui/note-browser";
 import {
   notePanelHasFocus,
@@ -314,7 +314,10 @@ function SessionBuffer({ active, file, stash, tab }: SessionBufferProps) {
   const graphMode = useGraphMode(id);
   const findState = useNoteFind();
   const browserOpen = useNoteBrowser();
-  const focusOnMount = active && !findState.open && !noteBrowserHasFocus();
+
+  const focusOnMount =
+    active && !isFindBarShown(findState) && !noteBrowserHasFocus();
+
   const [findHandle, setFindHandle] = useState<FindHandle | null>(null);
 
   useEffect(
@@ -400,7 +403,8 @@ function SessionBuffer({ active, file, stash, tab }: SessionBufferProps) {
     const replaceDocument = (
       content: string,
       selection: { anchor: number; head: number } | undefined,
-      sourceMode: boolean
+      sourceMode: boolean,
+      fromDisk: boolean
     ) => {
       if (sourceMode) {
         return;
@@ -415,7 +419,8 @@ function SessionBuffer({ active, file, stash, tab }: SessionBufferProps) {
           : {
               anchor: Math.max(0, selection.anchor - prefix),
               head: Math.max(0, selection.head - prefix),
-            }
+            },
+        fromDisk
       );
     };
 
@@ -917,7 +922,7 @@ function SessionBuffer({ active, file, stash, tab }: SessionBufferProps) {
     const focus = () => {
       if (graphMode) {
         focusGraph();
-      } else if (noteFind.store.state.open) {
+      } else if (isFindBarShown(noteFind.store.state)) {
         noteFind.focus();
       } else if (persistence.store.state.sourceMode) {
         sourceRef.current?.focus();
@@ -957,7 +962,7 @@ function SessionBuffer({ active, file, stash, tab }: SessionBufferProps) {
 
       persistence.setSourceMode(on);
 
-      if (noteFind.store.state.open) {
+      if (isFindBarShown(noteFind.store.state)) {
         noteFind.focusOnReturn();
       }
     };

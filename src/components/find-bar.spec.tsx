@@ -94,7 +94,7 @@ describe("find controls", () => {
     document.body.append(surface);
 
     const editor = new Editor({
-      content: "Plan Atlas",
+      content: "Plan Atlas Atlas",
       contentType: "markdown",
       element: surface,
       extensions: [...createEditorExtensions({}), Find],
@@ -116,43 +116,183 @@ describe("find controls", () => {
     act(() => {
       controller.search("atlas", "tab");
     });
-    expect(screen.getByText("1 / 1")).toBeInTheDocument();
+    expect(screen.getByText("1 / 2")).toBeInTheDocument();
     expect(
       screen.getByRole("textbox", { name: "find text" })
     ).not.toHaveFocus();
     expect(document.activeElement).toHaveClass("ProseMirror");
   });
 
-  it("should keep the bar and its count while a search waits for its note's editor", ({
+  it("should highlight a search's one match without the bar or its space until ⌘G, ⌘F or Escape", async ({
     onTestFinished,
   }) => {
+    const user = userEvent.setup();
+    const surface = document.createElement("div");
+    document.body.append(surface);
+
     const editor = new Editor({
-      content: "Atlas Atlas",
+      content: "Plan Atlas",
+      contentType: "markdown",
+      element: surface,
+      extensions: [...createEditorExtensions({}), Find],
+    });
+
+    onTestFinished(() => {
+      editor.destroy();
+      surface.remove();
+    });
+    const controller = createFindController();
+    controller.bind(createFindHandle(editor), "tab");
+    render(createElement(FindBar, { controller }));
+    act(() => {
+      controller.search("atlas", "tab");
+    });
+    expect(
+      screen.queryByRole("textbox", { name: "find text" })
+    ).not.toBeInTheDocument();
+    expect(surface.querySelector(".note-find-match")).toHaveTextContent(
+      "Atlas"
+    );
+    expect(surface.querySelector(".note-find-open")).toBeNull();
+
+    await user.keyboard("{Meta>}g{/Meta}");
+    expect(screen.getByText("1 / 1")).toBeInTheDocument();
+    expect(surface.querySelector(".note-find-open")).not.toBeNull();
+
+    act(() => {
+      controller.close();
+      controller.search("atlas", "tab");
+    });
+    expect(surface.querySelector(".note-find-open")).toBeNull();
+    act(() => {
+      controller.open();
+    });
+    expect(screen.getByText("1 / 1")).toBeInTheDocument();
+    expect(surface.querySelector(".note-find-open")).not.toBeNull();
+
+    act(() => {
+      controller.close();
+      controller.search("atlas", "tab");
+    });
+    await user.keyboard("{Escape}");
+    expect(surface.querySelector(".note-find-match")).toBeNull();
+    expect(surface.querySelector(".note-find-open")).toBeNull();
+    expect(
+      screen.queryByRole("textbox", { name: "find text" })
+    ).not.toBeInTheDocument();
+  });
+
+  it("should keep a search's bar shown or hidden as edits change its match count", ({
+    onTestFinished,
+  }) => {
+    const one = new Editor({
+      content: "Plan Atlas",
+      contentType: "markdown",
+      element: document.createElement("div"),
+      extensions: [...createEditorExtensions({}), Find],
+    });
+
+    const two = new Editor({
+      content: "Plan Atlas Atlas",
       contentType: "markdown",
       element: document.createElement("div"),
       extensions: [...createEditorExtensions({}), Find],
     });
 
     onTestFinished(() => {
-      editor.destroy();
+      one.destroy();
+      two.destroy();
     });
     const controller = createFindController();
-    const detach = controller.bind(createFindHandle(editor), "first");
+    controller.bind(createFindHandle(one), "one");
     render(createElement(FindBar, { controller }));
     act(() => {
-      controller.search("atlas", "first");
+      controller.search("atlas", "one");
+    });
+    act(() => {
+      one.commands.insertContentAt(one.state.doc.content.size - 1, " Atlas");
+    });
+    expect(
+      screen.queryByRole("textbox", { name: "find text" })
+    ).not.toBeInTheDocument();
+
+    act(() => {
+      controller.search("atlas", "two");
+      controller.bind(createFindHandle(two), "two");
+    });
+    expect(screen.getByText("1 / 2")).toBeInTheDocument();
+    act(() => {
+      two.commands.deleteRange({
+        from: two.state.doc.content.size - 7,
+        to: two.state.doc.content.size - 1,
+      });
+    });
+    expect(screen.getByText("1 / 1")).toBeInTheDocument();
+  });
+
+  it("should hide the bar while a search waits for its note and show it only when that note has several matches", ({
+    onTestFinished,
+  }) => {
+    const two = new Editor({
+      content: "Atlas Atlas",
+      contentType: "markdown",
+      element: document.createElement("div"),
+      extensions: [...createEditorExtensions({}), Find],
+    });
+
+    const one = new Editor({
+      content: "Atlas",
+      contentType: "markdown",
+      element: document.createElement("div"),
+      extensions: [...createEditorExtensions({}), Find],
+    });
+
+    const three = new Editor({
+      content: "Atlas Atlas Atlas",
+      contentType: "markdown",
+      element: document.createElement("div"),
+      extensions: [...createEditorExtensions({}), Find],
+    });
+
+    onTestFinished(() => {
+      two.destroy();
+      one.destroy();
+      three.destroy();
+    });
+    const controller = createFindController();
+    controller.bind(createFindHandle(two), "two");
+    render(createElement(FindBar, { controller }));
+    act(() => {
+      controller.search("atlas", "two");
     });
     expect(screen.getByText("1 / 2")).toBeInTheDocument();
 
     act(() => {
-      controller.search("atlas", "next");
-      detach();
+      controller.search("atlas", "one");
     });
-
-    expect(screen.getByText("1 / 2")).toBeInTheDocument();
     expect(
-      screen.getByRole("button", { name: "next match" })
-    ).not.toBeDisabled();
+      screen.queryByRole("textbox", { name: "find text" })
+    ).not.toBeInTheDocument();
+
+    act(() => {
+      controller.bind(createFindHandle(one), "one");
+    });
+    expect(
+      screen.queryByRole("textbox", { name: "find text" })
+    ).not.toBeInTheDocument();
+
+    act(() => {
+      controller.search("atlas", "three");
+    });
+    expect(
+      screen.queryByRole("textbox", { name: "find text" })
+    ).not.toBeInTheDocument();
+
+    act(() => {
+      controller.bind(createFindHandle(three), "three");
+    });
+    expect(screen.getByText("1 / 3")).toBeInTheDocument();
+    expect(three.view.dom).toHaveClass("note-find-open");
   });
 
   it("should search raw source including frontmatter and update without changing it", ({
