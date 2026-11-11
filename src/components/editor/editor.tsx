@@ -516,9 +516,8 @@ function sourceOffset(
 
     // The sentinel changes only the caret's block, so the blocks before a
     // blank paragraph keep their text and the caret lands where the line
-    // starts, short of extra blank lines the file left before it. The file
-    // leaves out the editor's blank line after its last block, where the
-    // caret is at the file's end.
+    // starts. The file leaves out the editor's blank line after its last
+    // block, where the caret is at the file's end.
     if ($position.depth === 1 && isBlankParagraph($position.parent)) {
       return Math.min(offset, file.length);
     }
