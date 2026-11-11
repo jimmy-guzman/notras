@@ -23,6 +23,7 @@ import {
 import { mermaidSettled } from "@/components/editor/mermaid-diagram";
 import { SENTINEL } from "@/components/editor/sentinel";
 import { Toaster } from "@/components/ui/toast";
+import { imageVersion, reloadImages } from "@/lib/image-reloads";
 
 import type { EditorHandle } from "./editor";
 import { Editor } from "./editor";
@@ -224,6 +225,89 @@ describe("image resize", () => {
     expect(serializeMarkdown(editor)).toBe("![shot](attachments/shot.png)");
   });
 
+  it("should hold a dragged width through a reload and load the file once a drag ends at the stored width", async () => {
+    const { editor } = await mount({
+      initialContent: '<img src="attachments/shot.png" alt="shot" width="500">',
+      resolveImageSrc: (src) => ({
+        failure: `No image is at ${src}`,
+        src: `asset://localhost/notes/${src}?v=${imageVersion(src)}`,
+      }),
+    });
+
+    const image = editor.view.dom.querySelector('img[alt="shot"]');
+    const handle = editor.view.dom.querySelector(".image-handle");
+    const paragraph = image?.closest("p");
+
+    if (
+      !(image instanceof HTMLImageElement) ||
+      handle === null ||
+      !(paragraph instanceof HTMLElement)
+    ) {
+      throw new Error("the image did not render in a paragraph with a handle");
+    }
+
+    Object.defineProperty(paragraph, "clientWidth", { value: 600 });
+    image.getBoundingClientRect = () =>
+      DOMRect.fromRect({ width: Number(image.style.width.replace("px", "")) });
+    act(() => {
+      editor.commands.setNodeSelection(1);
+    });
+
+    const before = image.getAttribute("src");
+
+    fireEvent.pointerDown(handle, pointer(1, 500));
+    fireEvent.pointerMove(handle, pointer(1, 550));
+    reloadImages(["attachments/shot.png"]);
+
+    expect(image.style.width).toBe("550px");
+    expect(image.getAttribute("src")).toBe(before);
+
+    fireEvent.pointerMove(handle, pointer(1, 500));
+    fireEvent.pointerUp(handle, pointer(1, 500));
+
+    expect(editor.state.doc.firstChild?.firstChild?.attrs.width).toBe(500);
+    expect(image.style.width).toBe("500px");
+    expect(image.getAttribute("src")).not.toBe(before);
+  });
+
+  it("should write nothing for a drag that ends at the stored width", async () => {
+    const { editor } = await mount({
+      initialContent: '<img src="attachments/shot.png" alt="shot" width="500">',
+      resolveImageSrc: (src) => ({
+        failure: `No image is at ${src}`,
+        src: `asset://localhost/notes/${src}`,
+      }),
+    });
+
+    const image = editor.view.dom.querySelector('img[alt="shot"]');
+    const handle = editor.view.dom.querySelector(".image-handle");
+    const paragraph = image?.closest("p");
+
+    if (
+      !(image instanceof HTMLImageElement) ||
+      handle === null ||
+      !(paragraph instanceof HTMLElement)
+    ) {
+      throw new Error("the image did not render in a paragraph with a handle");
+    }
+
+    Object.defineProperty(paragraph, "clientWidth", { value: 600 });
+    image.getBoundingClientRect = () =>
+      DOMRect.fromRect({ width: Number(image.style.width.replace("px", "")) });
+    act(() => {
+      editor.commands.setNodeSelection(1);
+    });
+
+    fireEvent.pointerDown(handle, pointer(1, 500));
+    fireEvent.pointerMove(handle, pointer(1, 550));
+    fireEvent.pointerMove(handle, pointer(1, 500.4));
+    fireEvent.pointerUp(handle, pointer(1, 500.4));
+
+    expect(editor.can().undo()).toBeFalsy();
+    expect(image.style.width).toBe("500px");
+    expect(editor.state.selection).toBeInstanceOf(NodeSelection);
+  });
+
   it("should not hand the press to the drag of the selection", async () => {
     const { editor, handle } = await mountSelectedImage(600);
     const dragged = vi.fn<(event: Event) => void>();
@@ -297,6 +381,42 @@ describe("image viewer", () => {
     );
     expect(editor.state.selection).toBeInstanceOf(NodeSelection);
     expect(editor.state.selection.from).toBe(1);
+  });
+
+  it("should show the new file in an open viewer once the note's image loads it", async () => {
+    const { editor } = await mount({
+      initialContent: "![shot](attachments/shot.png)",
+      resolveImageSrc: (src) => ({
+        failure: `No image is at ${src}`,
+        src: `asset://localhost/notes/${src}?v=${imageVersion(src)}`,
+      }),
+    });
+
+    const image = editor.view.dom.querySelector('img[alt="shot"]');
+
+    if (!(image instanceof HTMLImageElement)) {
+      throw new TypeError("the image did not render");
+    }
+
+    Object.defineProperty(image, "naturalWidth", { value: 1 });
+    fireEvent.dblClick(image);
+
+    const viewer = await screen.findByRole("dialog");
+    const before = image.src;
+
+    expect(within(viewer).getByRole("img", { name: "shot" })).toHaveAttribute(
+      "src",
+      before
+    );
+
+    reloadImages(["attachments/shot.png"]);
+    fireEvent.load(image);
+
+    expect(image.src).not.toBe(before);
+    expect(within(viewer).getByRole("img", { name: "shot" })).toHaveAttribute(
+      "src",
+      image.src
+    );
   });
 
   it("should show a selected image from its open button", async () => {

@@ -231,6 +231,90 @@ describe("layout", () => {
     expect(await screen.findByText("changed elsewhere")).toBeInTheDocument();
   });
 
+  it("should load an external tab's images again when the window regains focus", async () => {
+    const path = "/Users/me/outside.md";
+    localStorage.setItem(
+      "tabs",
+      JSON.stringify({
+        activeId: "saved",
+        carets: {},
+        tabs: [{ id: "saved", kind: "external", path }],
+      })
+    );
+    mockWindows("main");
+    mockConvertFileSrc("macos");
+    mockIPC((command) => {
+      if (command === "classify_open_paths") {
+        return [{ kind: "external", path }];
+      }
+
+      if (command === "get_notes_dir") {
+        return "/notes";
+      }
+
+      if (command === "index_status") {
+        return { state: "ready" };
+      }
+
+      if (command === "list_notes" || command === "list_tags") {
+        return [];
+      }
+
+      if (command === "read_conflict") {
+        return null;
+      }
+
+      if (command === "read_external") {
+        return {
+          content: "# Outside\n\n![shot](shot.png)",
+          revision: "r1",
+          updatedAt: 1,
+        };
+      }
+
+      if (command === "take_pending_open") {
+        return [];
+      }
+
+      if (command.startsWith("plugin:")) {
+        return 0;
+      }
+
+      throw new Error(`unexpected command: ${command}`);
+    });
+
+    const client = new QueryClient({
+      defaultOptions: {
+        queries: { retry: false, staleTime: Number.POSITIVE_INFINITY },
+      },
+    });
+
+    onTestFinished(() => {
+      for (const tab of getTabState().tabs) {
+        closeTab(tab.id);
+      }
+
+      client.clear();
+      clearMocks();
+      localStorage.removeItem("tabs");
+    });
+    render(
+      <QueryClientProvider client={client}>
+        <Layout />
+      </QueryClientProvider>
+    );
+
+    const image = await screen.findByRole("img", { name: "shot" });
+    const before = image.getAttribute("src");
+
+    act(() => {
+      fireEvent.focus(window);
+    });
+
+    expect(image.getAttribute("src")).not.toBe(before);
+    expect(image.getAttribute("src")).toContain("external-image");
+  });
+
   it("should make every open tab follow its file when the notes folder changes", async () => {
     const path = "/new/chosen.md";
     localStorage.setItem(
@@ -1641,6 +1725,11 @@ describe("layout", () => {
     await waitFor(() => {
       expect(walks).toBe(2);
     });
+
+    await emit("notes-changed", { paths: ["pics.md#1/c.png"] });
+    await waitFor(() => {
+      expect(walks).toBe(3);
+    });
   });
 
   it.each([
@@ -1899,6 +1988,149 @@ describe("layout", () => {
           expect(await screen.findByRole("img", { name })).toBeInTheDocument();
         })
       );
+    }
+  );
+
+  it.each([
+    {
+      change: "its path",
+      paths: ["attachments/a.png"],
+      reloaded: ["plain a", "a.png"],
+    },
+    {
+      change: "its path in another case",
+      paths: ["Attachments/A.png"],
+      reloaded: ["plain a", "a.png"],
+    },
+    {
+      change: "its folder",
+      paths: ["attachments"],
+      reloaded: ["plain a", "a.png"],
+    },
+    {
+      change: "its folder named like a note",
+      paths: ["shots.md/"],
+      reloaded: ["plain b", "b.png"],
+    },
+    {
+      change: "its path under a folder with a hash after .md",
+      paths: ["pics.md#1/c.png"],
+      reloaded: ["plain c"],
+    },
+    {
+      change: "no paths",
+      paths: [],
+      reloaded: ["plain a", "a.png", "plain b", "b.png", "plain c"],
+    },
+  ])(
+    "should load an image again when a change names $change",
+    async ({ paths, reloaded }) => {
+      localStorage.setItem(
+        "tabs",
+        JSON.stringify({
+          activeId: "first",
+          carets: {},
+          tabs: [{ id: "first", kind: "note", path: "first.md" }],
+        })
+      );
+      mockWindows("main");
+      mockConvertFileSrc("macos");
+      mockIPC(
+        (command) => {
+          if (command === "list_images") {
+            return {
+              paths: ["attachments/a.png", "shots.md/b.png", "pics.md#1/c.png"],
+              unreadable: [],
+            };
+          }
+
+          if (command === "classify_open_paths") {
+            return [{ kind: "note", path: "first.md" }];
+          }
+
+          if (command === "get_notes_dir") {
+            return "/notes";
+          }
+
+          if (command === "index_status") {
+            return { state: "ready" };
+          }
+
+          if (command === "list_notes" || command === "list_tags") {
+            return [];
+          }
+
+          if (command === "read_conflict") {
+            return null;
+          }
+
+          if (command === "read_note") {
+            return {
+              content:
+                "# First\n\n![plain a](attachments/a.png)\n\n![plain b](shots.md/b.png)\n\n![plain c](pics.md#1/c.png)\n\n![[a.png]]\n\n![[b.png]]",
+              revision: "r1",
+              updatedAt: 1,
+            };
+          }
+
+          if (
+            command === "take_pending_open" ||
+            command === "find_mentions" ||
+            command === "pending_open_files"
+          ) {
+            return [];
+          }
+
+          if (command.startsWith("plugin:")) {
+            return null;
+          }
+
+          throw new Error(`unexpected command: ${command}`);
+        },
+        { shouldMockEvents: true }
+      );
+
+      const client = new QueryClient({
+        defaultOptions: {
+          queries: { retry: false, staleTime: Number.POSITIVE_INFINITY },
+        },
+      });
+
+      onTestFinished(() => {
+        for (const tab of getTabState().tabs) {
+          closeTab(tab.id);
+        }
+
+        client.clear();
+        clearMocks();
+        localStorage.removeItem("tabs");
+      });
+      render(
+        <QueryClientProvider client={client}>
+          <Layout />
+        </QueryClientProvider>
+      );
+
+      expect(await screen.findByRole("img", { name: "b.png" })).toBeVisible();
+      expect(await screen.findByRole("img", { name: "a.png" })).toBeVisible();
+
+      const names = ["plain a", "a.png", "plain b", "b.png", "plain c"];
+
+      const before = names.map((name) =>
+        screen.getByRole("img", { name }).getAttribute("src")
+      );
+
+      await emit("notes-changed", { paths });
+
+      await waitFor(() => {
+        expect(
+          names.filter(
+            (name, at) =>
+              screen.getByRole("img", { name }).getAttribute("src") !==
+              before[at]
+          )
+        ).toStrictEqual(reloaded);
+      });
     }
   );
 

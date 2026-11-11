@@ -16,11 +16,12 @@ import { toast } from "@/components/ui/toast";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { WorkspaceError } from "@/components/workspace-error";
 import { Workspace } from "@/components/workspace/workspace";
-import { isNotePath } from "@/core/links";
+import { isNoteFile } from "@/core/links";
 import { applyIndexStatus } from "@/data/index-status";
 import { invalidateImages, noteQueries, notesDirQuery } from "@/data/queries";
 import { startupQuery } from "@/data/restore-session";
 import { disposeLater } from "@/lib/dispose-later";
+import { reloadExternalImages, reloadImages } from "@/lib/image-reloads";
 import { flushPendingWrites } from "@/lib/pending-flush";
 import {
   openDraft,
@@ -125,8 +126,10 @@ function MainWindow() {
     const unlisten = events.notesChanged.listen((event) => {
       const { paths } = event.payload;
 
+      reloadImages(paths);
+
       // First, so an embed the refresh below reads again finds the new list.
-      if (paths.length === 0 || !paths.every((path) => isNotePath(path))) {
+      if (paths.length === 0 || !paths.every((path) => isNoteFile(path))) {
         invalidateImages(queryClient);
       }
 
@@ -155,12 +158,13 @@ function MainWindow() {
     return disposeLater(unlisten, unlistenStatus);
   }, [notesDir, queryClient]);
 
-  // The watcher covers only the notes folder, so an external file is re-read
-  // whenever the window comes back, in case another app changed it meanwhile.
-  // A csv or a code file is edited in another app by design, so it re-reads
-  // the same way.
+  // The watcher covers only the notes folder, so an external file and its
+  // images are read again whenever the window comes back, in case another app
+  // changed them meanwhile. A csv or a code file is edited in another app by
+  // design, so it re-reads the same way.
   useEffect(() => {
     const refreshExternal = () => {
+      reloadExternalImages();
       refreshTabs((tab) => tab.kind !== "note" && tab.kind !== "draft");
     };
 

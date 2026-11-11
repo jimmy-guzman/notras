@@ -61,6 +61,7 @@ import { resolveExternalLink } from "@/data/resolve-external-link";
 import { resolveLinkedFile } from "@/data/resolve-linked-file";
 import { saveNote } from "@/data/save-note";
 import { exportPdf } from "@/lib/export-pdf";
+import { externalImageVersion, imageVersion } from "@/lib/image-reloads";
 import { renameRecentNote } from "@/lib/recent-notes";
 import {
   activateTab,
@@ -210,9 +211,13 @@ const externalEmbed: WatchEmbed = (_title, show) => {
  * host the note was opened. Another source with a scheme passes through for
  * the webview to judge. A note's image loads through the asset protocol under
  * the notes dir, and one that climbs out or names a part a library path
- * refuses never loads. An external file's image goes to the `external-image`
- * scheme with the document and the source, and Rust resolves the pair on each
- * request. A load that fails means no image the webview can draw is there.
+ * refuses never loads. Its URL carries a version once its file is reported
+ * changed, since the webview serves a URL it has loaded from its cache and the
+ * asset protocol reads only the path. An external file's image goes to the
+ * `external-image` scheme with the document and the source, and Rust resolves
+ * the pair on each request. Its version changes whenever the window comes back,
+ * since nothing watches outside the library. A load that fails means no image
+ * the webview can draw is there.
  */
 function imageSrc(src: string, kind: OpenKind, from: string, notesDir: string) {
   const path = decodeAttachmentPath(src);
@@ -235,20 +240,25 @@ function imageSrc(src: string, kind: OpenKind, from: string, notesDir: string) {
   }
 
   if (kind === "external") {
+    const version = externalImageVersion();
     const query = new URLSearchParams({ doc: from, src: path });
+    const image = `${convertFileSrc("", "external-image")}?${query}`;
 
     return {
       failure: missing,
-      src: `${convertFileSrc("", "external-image")}?${query}`,
+      src: version === 0 ? image : `${image}&v=${version}`,
     };
   }
 
   const folded = foldPath(path, from);
 
   if ("path" in folded) {
+    const version = imageVersion(folded.path);
+    const asset = convertFileSrc(`${notesDir}/${folded.path}`);
+
     return {
       failure: missing,
-      src: convertFileSrc(`${notesDir}/${folded.path}`),
+      src: version === 0 ? asset : `${asset}?v=${version}`,
     };
   }
 

@@ -15,7 +15,7 @@ import { NodeSelection, Selection, TextSelection } from "@tiptap/pm/state";
 import { AddMarkStep, RemoveMarkStep } from "@tiptap/pm/transform";
 import type { EditorView } from "@tiptap/pm/view";
 import { EditorContent, useEditor } from "@tiptap/react";
-import { useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import { hasString } from "@/components/editor/attrs";
 import {
@@ -368,13 +368,20 @@ function drawingIn(element: Node | null | undefined) {
 }
 
 type ViewerState =
-  | { alt: string; kind: "image"; src: string; width: number }
+  | {
+      alt: string;
+      image: HTMLImageElement;
+      kind: "image";
+      src: string;
+      width: number;
+    }
   | { kind: "diagram"; svg: SVGSVGElement; width: number };
 
 /** The image at its size on this screen, so a 2x screenshot shows at the size it was taken. */
 function viewerStateFor(image: HTMLImageElement): ViewerState {
   return {
     alt: image.alt,
+    image,
     kind: "image",
     src: image.src,
     width: image.naturalWidth / window.devicePixelRatio,
@@ -669,6 +676,27 @@ export function Editor(mountProps: EditorProps) {
   const [linkEditor, setLinkEditor] = useState<LinkEditorState | null>(null);
   const [linkHover, setLinkHover] = useState<LinkHoverState | null>(null);
   const [viewer, setViewer] = useState<ViewerState | null>(null);
+
+  // An image reload can load a new file into the image while the viewer is open.
+  useEffect(() => {
+    const listening = new AbortController();
+
+    if (viewer?.kind === "image") {
+      const { image } = viewer;
+
+      image.addEventListener(
+        "load",
+        () => {
+          setViewer(viewerStateFor(image));
+        },
+        { signal: listening.signal }
+      );
+    }
+
+    return () => {
+      listening.abort();
+    };
+  }, [viewer]);
 
   const closeHover = useDebouncer(
     () => {

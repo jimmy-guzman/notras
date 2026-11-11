@@ -81,6 +81,17 @@ export function isCsvPath(destination: string) {
   return isRelativeDestination(destination) && CSV_EXTENSION.test(name);
 }
 
+/**
+ * A path the watcher reports, read as a note by its extension alone, as
+ * `is_note_file` in `crates/notras-core/src/index.rs` reads a file. A path on
+ * disk has no fragment or query to cut, unlike a link destination, and the
+ * trailing slash the watcher keeps on a folder named like a note reads as not
+ * a note.
+ */
+export function isNoteFile(path: string) {
+  return NOTE_EXTENSION.test(path);
+}
+
 /** Kept in parity with `is_note_path` in `crates/notras-core/src/markdown.rs`. */
 export function isNotePath(destination: string) {
   if (!isRelativeDestination(destination)) {
