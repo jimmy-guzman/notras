@@ -963,7 +963,7 @@ mod tests {
         assert_eq!(notes[0].tags, ["z", "a"]);
         assert_eq!(
             notes[0].snippet.as_deref(),
-            Some("Current\n\u{1}fresh\u{2} [[Other]]")
+            Some("\u{1}fresh\u{2} [[Other]]")
         );
         assert!(core
             .read_view()

@@ -297,7 +297,7 @@ describe("note browser", () => {
     expect(localStorage.getItem("note-browser-open")).toBe("true");
   });
 
-  it("should open a body hit at its match while focus stays on the row", async () => {
+  it("should highlight a body hit's one match without the find bar while focus stays on the row", async () => {
     const user = mount((query) => [
       {
         createdAt: 0,
@@ -335,9 +335,11 @@ describe("note browser", () => {
     );
     await user.keyboard("{ArrowDown}{Enter}");
     expect(
-      await screen.findByRole("textbox", { name: "find text" })
-    ).toHaveValue("Document");
-    expect(await screen.findByText("1 / 1")).toBeInTheDocument();
+      await screen.findByText("Document", { selector: ".note-find-match" })
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("textbox", { name: "find text" })
+    ).not.toBeInTheDocument();
     expect(
       browser.getByRole("button", { name: /^One Document body/u })
     ).toHaveFocus();
@@ -391,8 +393,8 @@ describe("note browser", () => {
     );
     await user.keyboard("{ArrowDown}{Enter}");
     expect(
-      await screen.findByRole("textbox", { name: "find text" })
-    ).toHaveValue("Document");
+      await screen.findByText("Document", { selector: ".note-find-match" })
+    ).toBeInTheDocument();
     await user.keyboard("{ArrowDown}{Enter}");
     await waitFor(() => {
       expect(getTabState().tabs.map((tab) => tab.path)).toStrictEqual([

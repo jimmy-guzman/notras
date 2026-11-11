@@ -1372,6 +1372,7 @@ mod tests {
             "See the [roadmap](https://hidden.example/plan) and ![diagram alt](hidden.png).\n\n\
              word![inline](x.png)next\n\n\
              [ref]: https://also.hidden/definition\n",
+            None,
         );
 
         assert!(text.contains("roadmap"));
@@ -1402,6 +1403,7 @@ mod tests {
              word<img src=\"x.png\">next\n\n\
              <img src=\"y.png\">\ncaption\n\n\
              <img src=\"z.png\" style=\"width: 1px\">\n",
+            None,
         );
 
         assert!(!text.contains("shot") && !text.contains("400"), "{text:?}");
@@ -1416,6 +1418,7 @@ mod tests {
             "Ada **Lovelace** wrote `notes` and [[Atlas]].\n\n\
              | left | right |\n| --- | --- |\n| cell | other |\n\n\
              <kbd>raw</kbd>\n\n```ts\nconst fenced = 1;\n```\n",
+            None,
         );
 
         assert!(text.contains("Ada Lovelace"), "{text:?}");
@@ -1423,6 +1426,19 @@ mod tests {
             assert!(text.contains(shown), "{shown} missing from {text:?}");
         }
         assert!(!text.contains("leftright") && !text.contains("cellother"));
+    }
+
+    #[test]
+    fn should_leave_only_the_title_line_out_of_search_text() {
+        assert_eq!(
+            search_text("```\nabove\n```\n# Road *map*\nThe road ahead\n"),
+            "above\n\n\nThe road ahead"
+        );
+        assert_eq!(
+            search_text("Road map\n===\n\nThe road ahead\n"),
+            "The road ahead"
+        );
+        assert_eq!(search_text("- Road map\n- road two\n"), "road two");
     }
 
     /// The extension strips case-insensitively, the same way `noteTitle` does in

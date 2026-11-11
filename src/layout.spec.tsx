@@ -791,7 +791,7 @@ describe("layout", () => {
     );
   });
 
-  it("should open a palette body hit with the caret on its match and the find bar unfocused", async () => {
+  it("should open a palette body hit with one match highlighted and the caret on it, without the find bar or its space, through ⌘E", async () => {
     localStorage.setItem(
       "tabs",
       JSON.stringify({
@@ -893,9 +893,12 @@ describe("layout", () => {
     await user.click(await screen.findByRole("option", { name: /Found/u }));
 
     expect(
-      await screen.findByRole("textbox", { name: "find text" })
-    ).toHaveValue("atlas");
-    expect(await screen.findByText("1 / 1")).toBeInTheDocument();
+      await screen.findByText("atlas", { selector: ".note-find-match" })
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("textbox", { name: "find text" })
+    ).not.toBeInTheDocument();
+    expect(document.querySelector(".note-find-open")).toBeNull();
     await waitFor(() =>
       expect(document.activeElement).toHaveClass("ProseMirror")
     );
@@ -919,6 +922,33 @@ describe("layout", () => {
     before.setStart(paragraph, 0);
     before.setEnd(anchor, caret.anchorOffset);
     expect(before.toString()).toBe("An ");
+
+    await user.keyboard("{Control>}\\{/Control}");
+    await screen.findByRole("textbox", { name: "search all notes" });
+    await user.keyboard("{Control>}\\{/Control}");
+    await waitFor(() => {
+      expect(document.querySelector(".ProseMirror")).toHaveFocus();
+    });
+    expect(document.querySelector(".note-find-match")).not.toBeNull();
+
+    await user.keyboard("{Control>}e{/Control}");
+    await waitFor(() => {
+      expect(
+        document.querySelector("[data-source-editor] .ProseMirror")
+      ).toHaveFocus();
+    });
+    expect(
+      screen.queryByRole("textbox", { name: "find text" })
+    ).not.toBeInTheDocument();
+    expect(
+      document.querySelector("[data-source-editor] .note-find-match")
+    ).not.toBeNull();
+
+    await user.keyboard("{Control>}g{/Control}");
+    expect(await screen.findByText("1 / 1")).toBeInTheDocument();
+    expect(
+      document.querySelector("[data-source-editor] .ProseMirror")
+    ).toHaveFocus();
   });
 
   it.each([

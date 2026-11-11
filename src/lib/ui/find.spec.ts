@@ -97,6 +97,43 @@ describe("find", () => {
       expect(controller.store.state.focusRequest).toBe(0);
     });
 
+    it("should end a search's find without a bar on the first caret move or edit, and keep one with a bar", () => {
+      const moved = mount("Plan Atlas");
+      const edited = mount("Plan Atlas");
+      const several = mount("Plan Atlas Atlas");
+      const controller = createFindController();
+      controller.bind(moved.handle, "moved");
+      controller.search("Atlas", "moved");
+      expect(moved.handle.snapshot().total).toBe(1);
+      moved.editor.commands.setTextSelection(1);
+      expect(controller.store.state.open).toBeFalsy();
+      expect(moved.handle.snapshot().total).toBe(0);
+
+      controller.bind(edited.handle, "edited");
+      controller.search("Atlas", "edited");
+      edited.editor.commands.insertContent("x");
+      expect(controller.store.state.open).toBeFalsy();
+      expect(edited.handle.snapshot().total).toBe(0);
+
+      controller.bind(several.handle, "several");
+      controller.search("Atlas", "several");
+      several.editor.commands.setTextSelection(1);
+      expect(controller.store.state.open).toBeTruthy();
+      expect(several.handle.snapshot().total).toBe(2);
+    });
+
+    it("should leave the caret on a search's match when closing a find without a bar", () => {
+      const { editor, handle } = mount("Plan Atlas");
+      const controller = createFindController();
+      controller.bind(handle, "tab");
+      controller.search("Atlas", "tab");
+      controller.close();
+      expect(controller.store.state.open).toBeFalsy();
+      expect(handle.snapshot().total).toBe(0);
+      expect(editor.state.selection.empty).toBeTruthy();
+      expect(editor.state.selection.from).toBe(6);
+    });
+
     it("should end a search's find when another tab's editor binds", () => {
       const found = mount("An Atlas entry");
       const other = mount("Atlas elsewhere");
