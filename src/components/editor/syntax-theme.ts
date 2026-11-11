@@ -92,5 +92,26 @@ export const syntaxTheme: ThemeRegistration = {
       scope: "markup.underline.link",
       settings: { foreground: "var(--syntax-function)" },
     },
+    // The marker scopes outrank the punctuation rule, which would grey them.
+    {
+      scope: ["markup.inserted", "punctuation.definition.inserted"],
+      settings: { foreground: "var(--success)" },
+    },
+    {
+      scope: ["markup.deleted", "punctuation.definition.deleted"],
+      settings: { foreground: "var(--destructive)" },
+    },
+    {
+      scope: ["markup.changed", "punctuation.definition.changed"],
+      settings: { foreground: "var(--warning)" },
+    },
+    {
+      scope: ["meta.diff.header", "meta.diff.index"],
+      settings: { foreground: "var(--syntax-comment)" },
+    },
+    {
+      scope: ["meta.diff.range", "punctuation.definition.range"],
+      settings: { foreground: "var(--syntax-function)" },
+    },
   ],
 };
