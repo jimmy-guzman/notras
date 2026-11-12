@@ -3,9 +3,9 @@ import type { Node } from "@tiptap/pm/model";
 import { NodeSelection } from "@tiptap/pm/state";
 import { ImageOffIcon, Maximize2Icon } from "lucide-react";
 
-import { hasNumber, hasString } from "@/components/editor/attrs";
 import { onImagesReloaded } from "@/lib/image-reloads";
 
+import { hasNumber, hasString } from "./attrs";
 import { nodeViewIcons } from "./node-view-icons";
 
 const MIN_WIDTH = 64;

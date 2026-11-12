@@ -1,6 +1,8 @@
 use std::ops::Range;
+use std::sync::LazyLock;
 
 use pulldown_cmark::{Event, LinkType, Options, Parser, Tag, TagEnd};
+use regex::Regex;
 use unicode_properties::general_category::{GeneralCategoryGroup, UnicodeGeneralCategory};
 
 use crate::frontmatter;
@@ -10,6 +12,63 @@ use crate::frontmatter;
 const OPTIONS: Options = Options::ENABLE_TABLES
     .union(Options::ENABLE_TASKLISTS)
     .union(Options::ENABLE_STRIKETHROUGH);
+
+/// GitHub reads a quote as an alert when its first line holds only this.
+/// pulldown-cmark's own alerts read a marker over `---` as an alert, where
+/// marked reads a setext heading, so this follows `CALLOUT_MARKER` in
+/// `src/core/notes.ts` instead.
+static CALLOUT_MARKER: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"(?i)^\[!(note|tip|important|warning|caution)\][ \t]*(?:\r?\n|$)")
+        .expect("valid callout marker pattern")
+});
+
+/// Reads the callout markers a parse passes: a marker on the first line of a
+/// quote, opening its first paragraph as text.
+#[derive(Default)]
+struct CalloutMarkers {
+    quote_start: Option<usize>,
+    /// The label and end of an opening marker, held until the paragraph's
+    /// first inline event shows it is text: a reference definition can make
+    /// it a link, which the editor reads as a plain quote.
+    pending: Option<(String, usize)>,
+    label: Option<String>,
+    end: usize,
+}
+
+impl CalloutMarkers {
+    /// Moves past `event`, recording the marker it confirms.
+    fn pass(&mut self, event: &Event<'_>, range: &Range<usize>, source: &str) {
+        let quote_start = self.quote_start.take();
+        let pending = self.pending.take();
+        self.label = None;
+        match event {
+            Event::Start(Tag::BlockQuote(_)) => self.quote_start = Some(range.start),
+            Event::Start(Tag::Paragraph) => {
+                self.pending = quote_start
+                    .filter(|start| !source[*start..range.start].contains('\n'))
+                    .and_then(|_| CALLOUT_MARKER.captures(&source[range.clone()]))
+                    .map(|found| (found[1].to_lowercase(), range.start + found[0].len()));
+            }
+            Event::Text(_) => {
+                if let Some((label, end)) = pending {
+                    self.label = Some(label);
+                    self.end = end;
+                }
+            }
+            _ => {}
+        }
+    }
+
+    /// The label of the marker the last event passed confirmed.
+    fn label(&self) -> Option<&str> {
+        self.label.as_deref()
+    }
+
+    /// Whether `range` lies inside the last marker confirmed.
+    fn covers(&self, range: &Range<usize>) -> bool {
+        range.end <= self.end
+    }
+}
 
 /// `strip_suffix`, ignoring ASCII case, so `.MD` strips the way `.md` does.
 fn strip_suffix_ignore_case<'a>(name: &'a str, suffix: &str) -> Option<&'a str> {
@@ -989,7 +1048,12 @@ fn readable_line(text: &str) -> Option<BodyTitle> {
     let mut excluded = 0;
     let mut title = String::new();
     let mut title_line = None;
+    let mut markers = CalloutMarkers::default();
     for (event, range) in Parser::new_ext(&masked, OPTIONS).into_offset_iter() {
+        markers.pass(&event, &range, &masked);
+        if markers.covers(&range) {
+            continue;
+        }
         if excluded > 0 {
             match event {
                 Event::Start(_) => excluded += 1,
@@ -1153,7 +1217,17 @@ fn readable_text(body: &str, skip_line: Option<usize>) -> String {
     // An HTML block arrives one line per event, and whether rich mode draws it
     // as an image is a question about the whole block.
     let mut html_block: Option<String> = None;
+    let mut markers = CalloutMarkers::default();
     for (event, range) in Parser::new_ext(body, OPTIONS).into_offset_iter() {
+        // Rich mode draws a callout's marker as its type's label.
+        markers.pass(&event, &range, body);
+        if let Some(label) = markers.label() {
+            text.push_str(label);
+            text.push('\n');
+        }
+        if markers.covers(&range) {
+            continue;
+        }
         match event {
             Event::InlineHtml(_) | Event::Text(_) | Event::Code(_) if on_skip_line(range.start) => {
             }
@@ -1426,6 +1500,18 @@ mod tests {
             assert!(text.contains(shown), "{shown} missing from {text:?}");
         }
         assert!(!text.contains("leftright") && !text.contains("cellother"));
+    }
+
+    #[test]
+    fn should_read_a_callout_marker_as_its_label() {
+        assert_eq!(
+            readable_text("> [!WARNING]\n> body\n\n> \\[!TIP\\]\n> kept\n", None),
+            "warning\nbody\n\n[!TIP]\nkept"
+        );
+        assert_eq!(
+            readable_text("> [!NOTE]\n> body\n\n[!note]: https://example.com", None),
+            "!NOTE\nbody"
+        );
     }
 
     #[test]

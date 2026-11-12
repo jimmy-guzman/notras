@@ -2,8 +2,7 @@ import { Editor } from "@tiptap/core";
 import { undoDepth } from "@tiptap/pm/history";
 import { afterEach, describe, expect, it, onTestFinished, vi } from "vitest";
 
-import { createEditorExtensions } from "@/components/editor/extensions";
-
+import { createEditorExtensions } from "./extensions";
 import { createFindHandle, Find } from "./find";
 
 const editors: Editor[] = [];
@@ -64,6 +63,50 @@ describe("find", () => {
       const { find } = mount("visit ![[Atlas]] today");
       find.setQuery("atlas");
       expect(find.snapshot()).toStrictEqual({ current: 1, total: 1 });
+    });
+
+    it("should match a callout's label before its body and highlight the label", () => {
+      const { editor, find } = mount(
+        "> [!WARNING]\n> a warning here\n\n> plain warning"
+      );
+
+      find.setQuery("warn");
+
+      expect(find.snapshot()).toStrictEqual({ current: 1, total: 3 });
+      expect(
+        editor.view.dom.querySelector(
+          ".note-find-label-active [data-callout-title]"
+        )
+      ).toHaveTextContent("warning");
+
+      find.navigate(1);
+
+      expect(
+        editor.view.dom.querySelector(".note-find-label-active")
+      ).toBeNull();
+      expect(
+        editor.view.dom.querySelector(".note-find-active")
+      ).toHaveTextContent("warn");
+    });
+
+    it("should put the caret at a callout's body for a label match", () => {
+      const { editor, find } = mount("> [!TIP]\n> - first item");
+
+      find.setQuery("tip");
+      find.caretToMatch();
+
+      expect(editor.state.selection.$from.parent.textContent).toBe(
+        "first item"
+      );
+      expect(editor.state.selection.$from.parentOffset).toBe(0);
+    });
+
+    it("should not match a callout's marker as text in the source it was read from", () => {
+      const { find } = mount("> [!NOTE]\n> body");
+
+      find.setQuery("[!");
+
+      expect(find.snapshot().total).toBe(0);
     });
 
     it("should keep prose matches aligned after a wikilink title with an astral character", () => {

@@ -17,14 +17,6 @@ import type { EditorView } from "@tiptap/pm/view";
 import { EditorContent, useEditor } from "@tiptap/react";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 
-import { hasString } from "@/components/editor/attrs";
-import {
-  revealSyntax,
-  syntaxSettled,
-  windowSyntaxToScreen,
-} from "@/components/editor/code-block-shiki";
-import type { ImageSource } from "@/components/editor/image-resize";
-import { dragRange, isRowRange } from "@/components/editor/move-selection";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { toast } from "@/components/ui/toast";
 import { ViewerDialog } from "@/components/ui/viewer-dialog";
@@ -39,6 +31,12 @@ import {
 } from "@/lib/utils/attachments";
 import { commands } from "@/server/adapters/bindings";
 
+import { hasString } from "./attrs";
+import {
+  revealSyntax,
+  syntaxSettled,
+  windowSyntaxToScreen,
+} from "./code-block-shiki";
 import type { WatchEmbed } from "./embed";
 import {
   caretKey,
@@ -54,10 +52,12 @@ import { createFindHandle, Find, FROM_DISK } from "./find";
 import type { FindHandle } from "./find";
 import { headingAnchors } from "./heading-anchors";
 import { HeadingKeys } from "./heading-navigation";
+import type { ImageSource } from "./image-resize";
 import type { LinkEditorState } from "./link-editor";
 import { LinkEditor } from "./link-editor";
 import type { LinkHoverState } from "./link-hover";
 import { LinkHover } from "./link-hover";
+import { dragRange, isRowRange } from "./move-selection";
 import type { DocumentEdit, SelectionReader } from "./note-document";
 import { NoteOutline } from "./note-outline";
 import { findSentinel, insertSentinel, SENTINEL } from "./sentinel";

@@ -7,17 +7,14 @@ import type { NodeView } from "@tiptap/pm/view";
 import { Decoration, DecorationSet } from "@tiptap/pm/view";
 import { CheckIcon, CopyIcon, Maximize2Icon } from "lucide-react";
 
-import { hasString } from "@/components/editor/attrs";
-import {
-  drawMermaid,
-  mermaidSettled,
-} from "@/components/editor/mermaid-diagram";
-import { codeLanguages } from "@/components/editor/syntax-highlighter";
 import { toast } from "@/components/ui/toast";
 import { reasonOf } from "@/lib/ui/failure";
 
+import { hasString } from "./attrs";
 import { codeBlockScrollbar } from "./code-block-scrollbar";
+import { drawMermaid, mermaidSettled } from "./mermaid-diagram";
 import { nodeViewIcons } from "./node-view-icons";
+import { codeLanguages } from "./syntax-highlighter";
 
 const icon = nodeViewIcons({
   copied: CheckIcon,

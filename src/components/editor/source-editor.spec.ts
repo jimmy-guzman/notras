@@ -10,9 +10,9 @@ import userEvent from "@testing-library/user-event";
 import { createElement } from "react";
 import { describe, expect, it } from "vitest";
 
-import { createNoteDocument } from "@/components/editor/note-document";
-import { SourceEditor } from "@/components/editor/source-editor";
-import type { SourceEditorHandle } from "@/components/editor/source-editor";
+import { createNoteDocument } from "./note-document";
+import { SourceEditor } from "./source-editor";
+import type { SourceEditorHandle } from "./source-editor";
 
 describe("focus through the handle", () => {
   it("should keep the viewport where it was when focus reveals the caret", ({

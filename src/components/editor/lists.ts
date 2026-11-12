@@ -13,7 +13,7 @@ import {
 } from "@tiptap/extension-list";
 import type { Attrs } from "@tiptap/pm/model";
 
-import { hasNumber, hasString, isAttrs } from "@/components/editor/attrs";
+import { hasNumber, hasString, isAttrs } from "./attrs";
 
 /** `extend` falls back to the parent for an undefined field. */
 const NO_TOKENIZER: MarkdownTokenizer = {

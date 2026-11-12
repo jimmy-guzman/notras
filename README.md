@@ -7,7 +7,7 @@
 </p>
 
 <p align="center">
-  <img src="assets/editor.png" alt="A note open in notras: a heading, wikilinks, a task list, a highlighted TypeScript block and a drawn mermaid flowchart, with three tabs above" width="960">
+  <img src="assets/editor.png" alt="A note open in notras: a heading, wikilinks, a task list, a tip callout, a highlighted TypeScript block and a drawn mermaid flowchart, with three tabs above" width="960">
 </p>
 
 ## Features
@@ -20,6 +20,7 @@
 - **Capture from anywhere**: `⌘⇧N` opens a jot window over any app, and `esc` saves it.
 - **Made for code**: code copied from VS Code, Cursor or Zed pastes as code, and highlighting works offline.
 - **Diagrams as text**: a `mermaid` block draws as you type and folds its code away when you leave it. The PDF export prints the drawing.
+- **Callouts as GitHub writes them**: a quote opening on `[!NOTE]`, `[!TIP]`, `[!IMPORTANT]`, `[!WARNING]` or `[!CAUTION]` shows its type as a label, and search and find match that label.
 - **Tabs like a browser**: undo per tab, `⌘⇧T` reopens a closed one, `⌘1` to `⌘9` jump, and the open set comes back on relaunch.
 - **A graph you navigate**: `⌘⌥G` puts the note in the middle, with mentions on the left, links on the right, and its folder and tags on top. `←` and `→` walk it, and `⏎` opens the note you land on and re-centres there.
 - **Tags in the file**: a frontmatter `tags:` list rather than a database. `⌘⇧Y` edits them, `#tag` filters search, the sidebar lists them, and the graph shows every note that carries one.

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { tokenize } from "@/components/editor/syntax-worker";
+import { tokenize } from "./syntax-worker";
 
 let nextDocument = 0;
 

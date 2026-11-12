@@ -9,7 +9,9 @@ A 15g dose on the V60, the way the [[Beans]] and the [[Grinder settings]] have s
 - [x] rinse the filter
 - [x] bloom for 45 seconds
 - [ ] try a coarser grind on the Ethiopian
-- [ ] weigh the kettle, not the cup
+
+> [!TIP]
+> Let the kettle sit 30 seconds off the boil for a light roast.
 
 ```ts
 export function pours(dose: number, ratio = 16) {

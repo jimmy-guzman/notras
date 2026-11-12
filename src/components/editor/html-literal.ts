@@ -2,7 +2,7 @@ import { Node } from "@tiptap/core";
 import type { JSONContent } from "@tiptap/core";
 import { Lexer } from "marked";
 
-import { imageTagAttrs } from "@/components/editor/image-tag";
+import { imageTagAttrs } from "./image-tag";
 
 function textOf(node: JSONContent) {
   return (node.content ?? []).map((child) => child.text ?? "").join("");

@@ -35,20 +35,6 @@ import { StarterKit } from "@tiptap/starter-kit";
 import type { Marked } from "marked";
 import { encode } from "mdurl";
 
-import { contentOf, hasNumber, hasString } from "@/components/editor/attrs";
-import { BoundedTable } from "@/components/editor/bounded-tokenizers";
-import { CodeBlockShiki } from "@/components/editor/code-block-shiki";
-import { HtmlBlock, HtmlInline } from "@/components/editor/html-literal";
-import { imageNodeView } from "@/components/editor/image-resize";
-import type { ImageSource } from "@/components/editor/image-resize";
-import { imageTag, imageTagAt } from "@/components/editor/image-tag";
-import {
-  NoteBulletList,
-  NoteListItem,
-  NoteOrderedList,
-  NoteTaskList,
-} from "@/components/editor/lists";
-import { createNoteMarked } from "@/components/editor/marked-blocks";
 import { isRelativeDestination } from "@/core/links";
 import type {
   ReadClipboardSource,
@@ -60,15 +46,30 @@ import {
 } from "@/lib/utils/attachments";
 
 import { AtomCaret } from "./atom-caret";
+import { contentOf, hasNumber, hasString } from "./attrs";
+import { BoundedTable } from "./bounded-tokenizers";
+import { NoteBlockquote } from "./callout";
 import { CaretAfterBreak } from "./caret-after-break";
 import { codeBlockNodeView, editingCodeBlock } from "./code-block-node-view";
+import { CodeBlockShiki } from "./code-block-shiki";
 import { CodeBlockTab } from "./code-block-tab";
 import { DragSelection } from "./drag-selection";
 import { Embed, embedNodeView } from "./embed";
 import type { WatchEmbed } from "./embed";
+import { HtmlBlock, HtmlInline } from "./html-literal";
+import { imageNodeView } from "./image-resize";
+import type { ImageSource } from "./image-resize";
+import { imageTag, imageTagAt } from "./image-tag";
 import { LinkDefinition } from "./link-definition";
+import {
+  NoteBulletList,
+  NoteListItem,
+  NoteOrderedList,
+  NoteTaskList,
+} from "./lists";
 import { MarkdownPaste } from "./markdown-paste";
 import type { SaveImage } from "./markdown-paste";
+import { createNoteMarked } from "./marked-blocks";
 import { MoveSelectionKeys } from "./move-selection-keys";
 import { SelectionHighlight } from "./selection-highlight";
 import { SlashMenu } from "./slash-menu";
@@ -1375,6 +1376,7 @@ export function createEditorExtensions(
 ): Extensions {
   return [
     StarterKit.configure({
+      blockquote: false,
       bulletList: false,
       code: false,
       codeBlock: false,
@@ -1434,6 +1436,7 @@ export function createEditorExtensions(
       shouldAutoLink: (value) => AUTOLINK.test(value),
     }),
     NoteParagraph,
+    NoteBlockquote,
     NoteListItem,
     NoteMarkdown.configure({
       marked: createNoteMarked(),

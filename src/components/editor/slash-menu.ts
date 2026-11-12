@@ -80,6 +80,18 @@ const SLASH_COMMANDS: SlashCommand[] = [
     },
   },
   {
+    hint: "[!note]",
+    label: "callout",
+    run: (editor, range) => {
+      editor
+        .chain()
+        .focus()
+        .deleteRange(range)
+        .wrapIn("blockquote", { callout: "note" })
+        .run();
+    },
+  },
+  {
     hint: "```",
     label: "code block",
     run: (editor, range) => {

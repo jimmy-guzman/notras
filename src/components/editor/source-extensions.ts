@@ -6,13 +6,13 @@ import { UndoRedo } from "@tiptap/extensions";
 import type { Plugin, Transaction } from "@tiptap/pm/state";
 import type { Token, Tokens } from "marked";
 
-import { CodeBlockShiki } from "@/components/editor/code-block-shiki";
-import { Find } from "@/components/editor/find";
-import { SelectionHighlight } from "@/components/editor/selection-highlight";
 import { parseNote } from "@/core/frontmatter";
 import { titleSource } from "@/core/notes";
 
+import { CodeBlockShiki } from "./code-block-shiki";
+import { Find } from "./find";
 import { createNoteMarked } from "./marked-blocks";
+import { SelectionHighlight } from "./selection-highlight";
 import { SENTINEL } from "./sentinel";
 
 const INDENT = "  ";

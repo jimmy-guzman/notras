@@ -12,9 +12,9 @@ import {
   measureViewport,
   revealSyntax,
   syntaxSettled,
-} from "@/components/editor/code-block-shiki";
-import { highlightCode } from "@/components/editor/syntax-highlighter";
-import type { SyntaxRequest } from "@/components/editor/syntax-highlighter";
+} from "./code-block-shiki";
+import { highlightCode } from "./syntax-highlighter";
+import type { SyntaxRequest } from "./syntax-highlighter";
 
 /** Resolves once the worker has answered every job queued ahead of this one, which ranks last. */
 async function drained() {

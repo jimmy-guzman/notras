@@ -220,6 +220,9 @@ importers:
       '@tiptap/core':
         specifier: 3.33.0
         version: 3.33.0(@tiptap/pm@3.33.0)
+      '@tiptap/extension-blockquote':
+        specifier: 3.33.0
+        version: 3.33.0(@tiptap/core@3.33.0(@tiptap/pm@3.33.0))(@tiptap/pm@3.33.0)
       '@tiptap/extension-code':
         specifier: 3.33.0
         version: 3.33.0(@tiptap/core@3.33.0(@tiptap/pm@3.33.0))

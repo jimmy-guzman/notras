@@ -1,7 +1,7 @@
 import { Editor } from "@tiptap/core";
 import { afterEach, describe, expect, it } from "vitest";
 
-import { createEditorExtensions } from "@/components/editor/extensions";
+import { createEditorExtensions } from "./extensions";
 
 const editors: Editor[] = [];
 

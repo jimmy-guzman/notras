@@ -1,9 +1,9 @@
 import { Editor } from "@tiptap/core";
 import { describe, expect, it } from "vitest";
 
-import { hasString } from "@/components/editor/attrs";
 import { isNotePath } from "@/core/links";
 
+import { hasString } from "./attrs";
 import { createEditorExtensions } from "./extensions";
 
 /**

@@ -1,4 +1,4 @@
-import { Extension } from "@tiptap/core";
+import { Extension, findChildren } from "@tiptap/core";
 import type { Editor, EditorEvents } from "@tiptap/core";
 import type { Node } from "@tiptap/pm/model";
 import { Plugin, PluginKey, TextSelection } from "@tiptap/pm/state";
@@ -6,10 +6,13 @@ import type { EditorState, SelectionBookmark } from "@tiptap/pm/state";
 import type { EditorView } from "@tiptap/pm/view";
 import { Decoration, DecorationSet } from "@tiptap/pm/view";
 
-import { hasString } from "@/components/editor/attrs";
-import { measureViewport } from "@/components/editor/code-block-shiki";
+import { hasString } from "./attrs";
+import { calloutOf } from "./callout";
+import { measureViewport } from "./code-block-shiki";
 
 interface Match {
+  /** The callout whose drawn label holds the match; the match itself is the caret at its body's start. */
+  callout?: { from: number; to: number };
   from: number;
   to: number;
 }
@@ -131,6 +134,32 @@ function blockMatches(block: Node, position: number, pattern: RegExp) {
   });
 }
 
+/**
+ * A callout's label is drawn, not text, so a hit on it puts the caret where
+ * the body starts. A callout with no text block in it has nowhere to put one.
+ */
+function labelMatches(quote: Node, position: number, pattern: RegExp) {
+  const label = calloutOf(quote.attrs);
+
+  if (label === null) {
+    return [];
+  }
+
+  const [body] = findChildren(quote, (node) => node.isTextblock);
+
+  if (body === undefined) {
+    return [];
+  }
+
+  const start = position + 1 + body.pos + 1;
+
+  return [...label.matchAll(pattern)].map(() => ({
+    callout: { from: position, to: position + quote.nodeSize },
+    from: start,
+    to: start,
+  }));
+}
+
 function matchesIn(doc: Node, query: string | null) {
   if (query === null || query === "") {
     return [];
@@ -140,6 +169,8 @@ function matchesIn(doc: Node, query: string | null) {
   const matches: Match[] = [];
   doc.descendants((node, position) => {
     if (!node.isTextblock) {
+      matches.push(...labelMatches(node, position, pattern));
+
       return true;
     }
 
@@ -163,6 +194,17 @@ function decorations(doc: Node, { active, matches, screen }: FindState) {
         (match.to < screen.from || match.from > screen.to)
       ) {
         return [];
+      }
+
+      if (match.callout !== undefined) {
+        return [
+          Decoration.node(match.callout.from, match.callout.to, {
+            class:
+              index === active
+                ? "note-find-label note-find-label-active"
+                : "note-find-label",
+          }),
+        ];
       }
 
       const attributes = {
@@ -213,6 +255,19 @@ function highlightScreen(view: EditorView) {
   }
 }
 
+/** Where a match shows: its text, or the label it was found in. */
+function matchRect(view: EditorView, match: Match) {
+  const quote =
+    match.callout === undefined ? null : view.nodeDOM(match.callout.from);
+
+  const label =
+    quote instanceof HTMLElement
+      ? quote.querySelector("[data-callout-title]")
+      : null;
+
+  return label?.getBoundingClientRect() ?? view.coordsAtPos(match.from);
+}
+
 function revealMatch(editor: Editor) {
   if (editor.isDestroyed) {
     return;
@@ -233,7 +288,7 @@ function revealMatch(editor: Editor) {
     return;
   }
 
-  const rect = editor.view.coordsAtPos(match.from);
+  const rect = matchRect(editor.view, match);
   const bounds = viewport.getBoundingClientRect();
   const top = bounds.top + (state.clearance ? FIND_CLEARANCE : 0);
   const bottom = bounds.bottom - 16;

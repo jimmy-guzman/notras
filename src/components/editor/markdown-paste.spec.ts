@@ -6,12 +6,10 @@ import { Editor } from "@tiptap/core";
 import { createElement } from "react";
 import { afterEach, describe, expect, it } from "vitest";
 
-import {
-  createEditorExtensions,
-  serializeMarkdown,
-} from "@/components/editor/extensions";
 import { Toaster } from "@/components/ui/toast";
 import type { ClipboardSource } from "@/lib/ui/clipboard-source";
+
+import { createEditorExtensions, serializeMarkdown } from "./extensions";
 
 let editor: Editor | undefined;
 

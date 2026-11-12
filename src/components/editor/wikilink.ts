@@ -4,9 +4,9 @@ import { PluginKey } from "@tiptap/pm/state";
 import type { SuggestionOptions } from "@tiptap/suggestion";
 import { Suggestion } from "@tiptap/suggestion";
 
-import { hasString } from "@/components/editor/attrs";
 import { isWikilinkTitle, WIKILINK_TOKEN } from "@/core/notes";
 
+import { hasString } from "./attrs";
 import type { SuggestionMenuItem } from "./suggestion-menu";
 import { suggestionMenuOptions } from "./suggestion-menu";
 
