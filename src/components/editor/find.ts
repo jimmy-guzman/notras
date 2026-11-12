@@ -140,9 +140,14 @@ function blockMatches(block: Node, position: number, pattern: RegExp) {
  */
 function labelMatches(quote: Node, position: number, pattern: RegExp) {
   const label = calloutOf(quote.attrs);
+
+  if (label === null) {
+    return [];
+  }
+
   const [body] = findChildren(quote, (node) => node.isTextblock);
 
-  if (label === null || body === undefined) {
+  if (body === undefined) {
     return [];
   }
 
