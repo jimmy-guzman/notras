@@ -1,4 +1,5 @@
 import { globSync } from "node:fs";
+import path from "node:path";
 
 import { defineConfig } from "oxlint";
 import type { OxlintOverride } from "oxlint";
@@ -14,22 +15,26 @@ const jsPlugins = selectJsPlugins(["react-doctor"]);
 
 const sameFolderImports = globSync("src/**/", {
   cwd: import.meta.dirname,
-}).map((folder): OxlintOverride => ({
-  files: [`${folder}/*.{ts,tsx}`],
-  rules: {
-    "no-restricted-imports": [
-      "error",
-      {
-        patterns: [
-          {
-            message: "Import a file in the same folder with ./",
-            regex: `^${folder.replace(/^src/u, "@")}/[^/]+$`,
-          },
-        ],
-      },
-    ],
-  },
-}));
+}).map((nativeFolder): OxlintOverride => {
+  const folder = nativeFolder.replaceAll(path.sep, "/");
+
+  return {
+    files: [`${folder}/*.{ts,tsx}`],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          patterns: [
+            {
+              message: "Import a file in the same folder with ./",
+              regex: `^${folder.replace(/^src/u, "@")}/[^/]+$`,
+            },
+          ],
+        },
+      ],
+    },
+  };
+});
 
 export default defineConfig({
   extends: [
