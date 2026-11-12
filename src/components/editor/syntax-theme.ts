@@ -22,7 +22,6 @@ export const syntaxTheme = {
       keyword: "keyword",
       "keyword.control": "keyword-control",
       "keyword.import": "keyword-import",
-      "keyword.operator": "operator",
       label: "member",
       link_uri: "function",
       namespace: "member",
