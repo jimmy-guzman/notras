@@ -49,6 +49,30 @@ describe("syntax highlighter", () => {
     ).toStrictEqual(['"😀"', '"字"']);
   });
 
+  it("should color an operator spelled as a word like a keyword and a symbol like an operator", () => {
+    const code = "WHERE a = 1 AND b IS NOT NULL";
+
+    const colored = highlightCode(code, "sql").map(
+      ({ color, length, offset }) => ({
+        color,
+        content: code.slice(offset, offset + length),
+      })
+    );
+
+    expect(colored).toContainEqual({
+      color: "var(--syntax-keyword)",
+      content: "AND ",
+    });
+    expect(colored).toContainEqual({
+      color: "var(--syntax-keyword)",
+      content: "IS NOT ",
+    });
+    expect(colored).toContainEqual({
+      color: "var(--syntax-operator)",
+      content: "= ",
+    });
+  });
+
   it("should color added, removed, and hunk lines in a diff", () => {
     const code = "@@ -1,2 +1,2 @@\n kept line\n-old line\n+new line";
 
