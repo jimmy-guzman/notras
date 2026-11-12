@@ -7,7 +7,7 @@ import type { EditorView } from "@tiptap/pm/view";
 import { Decoration, DecorationSet } from "@tiptap/pm/view";
 
 import { calloutOf } from "./callout";
-import { measureViewport } from "./code-block-shiki";
+import { measureViewport } from "./code-block-syntax";
 import { pillText } from "./wikilink";
 
 interface Match {

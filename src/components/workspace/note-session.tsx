@@ -173,7 +173,7 @@ async function exportRevealed(
   const windowSyntax = editor.revealSyntax();
 
   try {
-    return await exportPdf(editor.surface(), name, title, editor.syntaxSettled);
+    return await exportPdf(editor.surface(), name, title);
   } finally {
     windowSyntax();
   }

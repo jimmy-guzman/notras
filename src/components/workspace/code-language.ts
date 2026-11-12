@@ -6,19 +6,14 @@ import {
   isRelativeDestination,
 } from "@/core/links";
 
-/**
- * Extensions shiki names differently or not at all. No grammar has the id
- * `text`, so a file sent there is shown without highlighting.
- */
+/** Extensions shown without highlighting, which no lexer would open as code. */
 const BY_EXTENSION = new Map([
-  ["env", "text"],
-  ["h", "c"],
-  ["hpp", "cpp"],
   ["lock", "text"],
-  ["mk", "makefile"],
-  ["patch", "diff"],
   ["txt", "text"],
 ]);
+
+/** Pictures a lexer could read, which a link opens as the picture in the system app. */
+const PICTURES = new Set(["svg"]);
 
 /** The language a file name's extension names, or undefined for one nothing here names. */
 export function codeFileLanguage(name: string): string | undefined {
@@ -46,5 +41,9 @@ export function codeLanguage(destination: string): string | undefined {
     return undefined;
   }
 
-  return codeFileLanguage(bareDestination(destination).split("/").at(-1) ?? "");
+  const name = bareDestination(destination).split("/").at(-1) ?? "";
+
+  return PICTURES.has(name.slice(name.lastIndexOf(".") + 1).toLowerCase())
+    ? undefined
+    : codeFileLanguage(name);
 }

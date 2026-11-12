@@ -38,6 +38,10 @@ const fileAt = (path: string) =>
         updatedAt: 1,
       };
 
+/** Highlighting splits a code file's text across spans inside the code element. */
+const shows = (text: string) => (_: string, element: Element | null) =>
+  element?.tagName === "CODE" && element.textContent === text;
+
 describe("layout", () => {
   beforeEach(() => {
     closeNoteBrowser();
@@ -668,7 +672,9 @@ describe("layout", () => {
       </QueryClientProvider>
     );
 
-    expect(await screen.findByText('{ "first": 1 }')).toBeInTheDocument();
+    expect(
+      await screen.findByText(shows('{ "first": 1 }'))
+    ).toBeInTheDocument();
     expect(
       screen.getByRole("tab", { name: "config.json" })
     ).toBeInTheDocument();
@@ -676,7 +682,7 @@ describe("layout", () => {
     await wake();
 
     expect(
-      await screen.findByText('{ "changed": "elsewhere" }')
+      await screen.findByText(shows('{ "changed": "elsewhere" }'))
     ).toBeInTheDocument();
   });
 

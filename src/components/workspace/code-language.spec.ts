@@ -5,13 +5,13 @@ import { codeLanguage } from "./code-language";
 describe(codeLanguage, () => {
   it.each([
     ["config.json", "json"],
-    ["../src/cli.TS", "typescript"],
-    ["script.py#L3", "python"],
-    ["attachments/main.rs", "rust"],
-    ["settings.yml", "yaml"],
-    ["header.h", "c"],
+    ["../src/cli.TS", "ts"],
+    ["script.py#L3", "py"],
+    ["attachments/main.rs", "rs"],
+    ["settings.yml", "yml"],
+    ["header.h", "h"],
     ["notes.txt", "text"],
-    ["app.env", "text"],
+    ["app.env", "env"],
     ["Cargo.lock", "text"],
   ])("should open %s as a code tab in %s", (destination, language) => {
     expect(codeLanguage(destination)).toBe(language);
@@ -22,6 +22,7 @@ describe(codeLanguage, () => {
     "data.csv",
     "data.tsv",
     "spec.pdf",
+    "logo.svg",
     "Makefile",
     "/abs/config.json",
     "https://x/config.json",
