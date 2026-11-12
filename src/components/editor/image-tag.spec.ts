@@ -1,6 +1,6 @@
+import cases from "@fixtures/image-tags.json";
 import { describe, expect, it } from "vitest";
 
-import cases from "../../../fixtures/image-tags.json";
 import { imageTag, imageTagAttrs } from "./image-tag";
 
 describe(imageTagAttrs, () => {

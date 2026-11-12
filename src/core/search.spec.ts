@@ -1,12 +1,12 @@
 import { describe, expect, it } from "vitest";
 
-import type { NoteMeta } from "@/core/notes";
+import type { NoteMeta } from "./notes";
 import {
   insertSearchFilter,
   parseSearch,
   searchFolders,
   searchSuggestion,
-} from "@/core/search";
+} from "./search";
 
 function note(path: string, tags: string[] = []): NoteMeta {
   return {

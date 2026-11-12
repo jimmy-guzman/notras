@@ -3,9 +3,10 @@ import { createStore, useSelector } from "@tanstack/react-store";
 import type { FindHandle } from "@/components/editor/find";
 import type { NoteMeta } from "@/core/notes";
 import { getTabHandles, getTabState, openNote } from "@/lib/tabs/store";
-import { noteBrowserHasFocus } from "@/lib/ui/note-browser";
-import { hideGraph } from "@/lib/ui/view";
 import { getSnippetParts } from "@/lib/utils/fts-snippet";
+
+import { noteBrowserHasFocus } from "./note-browser";
+import { hideGraph } from "./view";
 
 const SINGLE_LINE = /[\r\n]/u;
 

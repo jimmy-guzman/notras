@@ -1,4 +1,4 @@
-import { FailureNotice } from "@/components/failure-notice";
+import { FailureNotice } from "./failure-notice";
 
 interface WorkspaceErrorProps {
   reason: string | undefined;

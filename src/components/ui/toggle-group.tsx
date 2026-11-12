@@ -2,8 +2,8 @@ import { ToggleGroup as ToggleGroupPrimitive } from "@base-ui/react/toggle-group
 import { cn } from "cn";
 import { createContext, useContext } from "react";
 
-import { Toggle } from "@/components/ui/toggle";
-import type { ToggleProps } from "@/components/ui/toggle";
+import { Toggle } from "./toggle";
+import type { ToggleProps } from "./toggle";
 
 type ToggleGroupContextValue = Pick<ToggleProps, "size" | "variant"> & {
   spacing?: number;

@@ -1,7 +1,8 @@
 import type { NoteFilters } from "@/core/notes";
-import { nativeCommand } from "@/data/native-command";
-import { noteResult } from "@/data/note-results";
 import { commands } from "@/server/adapters/bindings";
+
+import { nativeCommand } from "./native-command";
+import { noteResult } from "./note-results";
 
 export async function getNotes(filters: NoteFilters = {}) {
   const notes = await nativeCommand(

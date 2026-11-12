@@ -13,7 +13,6 @@ import userEvent from "@testing-library/user-event";
 import { createElement, Suspense } from "react";
 import { beforeEach, describe, expect, it, onTestFinished, vi } from "vitest";
 
-import { CommandPalette } from "@/components/command-palette";
 import { Toaster } from "@/components/ui/toast";
 import { Workspace } from "@/components/workspace/workspace";
 import { SNIPPET_END, SNIPPET_START } from "@/core/fts-markers";
@@ -32,6 +31,8 @@ import {
 } from "@/lib/tabs/store";
 import { noteFind } from "@/lib/ui/find";
 import { closeNoteBrowser } from "@/lib/ui/note-browser";
+
+import { CommandPalette } from "./command-palette";
 
 const FOUND_NOTE = /Found/u;
 const CREATE_NOTE = /create/u;

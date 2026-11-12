@@ -1,7 +1,8 @@
 import { array, check, pipe, string } from "valibot";
 
 import type { NoteMeta } from "@/core/notes";
-import { readStored, writeStored } from "@/lib/storage";
+
+import { readStored, writeStored } from "./storage";
 
 const HistorySchema = pipe(
   array(string()),

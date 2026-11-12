@@ -2,8 +2,9 @@ import { CancelledError, QueryClient } from "@tanstack/react-query";
 import { clearMocks, mockIPC } from "@tauri-apps/api/mocks";
 import { afterEach, describe, expect, it } from "vitest";
 
-import { applyIndexStatus, indexStatusQuery } from "@/data/index-status";
 import type { IndexStatus } from "@/server/adapters/bindings";
+
+import { applyIndexStatus, indexStatusQuery } from "./index-status";
 
 describe("index status", () => {
   afterEach(clearMocks);

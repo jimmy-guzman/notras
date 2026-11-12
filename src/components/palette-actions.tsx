@@ -1,7 +1,5 @@
 import type { LucideIcon } from "lucide-react";
 
-import { Chord } from "@/components/chord";
-import { Mark } from "@/components/mark";
 import {
   CommandEmpty,
   CommandGroup,
@@ -17,6 +15,9 @@ import {
 } from "@/components/ui/empty";
 import { writeRecentActions } from "@/lib/recent-actions";
 import type { useChordsByName } from "@/lib/ui/shortcuts";
+
+import { Chord } from "./chord";
+import { Mark } from "./mark";
 
 /**
  * What an action needs on screen before it is offered. A note action reads

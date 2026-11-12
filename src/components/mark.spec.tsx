@@ -4,7 +4,7 @@ import path from "node:path";
 import { render } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
-import { Mark } from "@/components/mark";
+import { Mark } from "./mark";
 
 const master = readFileSync(
   path.join(process.cwd(), "assets", "icon.svg"),

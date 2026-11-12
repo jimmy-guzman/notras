@@ -35,17 +35,6 @@ import {
 import type { LucideIcon } from "lucide-react";
 import { useLayoutEffect, useRef, useState, useSyncExternalStore } from "react";
 
-import { ActionsView } from "@/components/palette-actions";
-import type { PaletteAction, PaletteScope } from "@/components/palette-actions";
-import { PaletteFilters } from "@/components/palette-filters";
-import {
-  DeleteView,
-  MentionsView,
-  MoveView,
-  RenameView,
-  TagsView,
-} from "@/components/palette-note-views";
-import { PaletteSearch } from "@/components/palette-search";
 import { Button } from "@/components/ui/button";
 import {
   Command,
@@ -90,6 +79,18 @@ import { pressView, useTabView } from "@/lib/ui/view";
 import { findUpdate, offerUpdate, updatesSupported } from "@/lib/updater";
 import { commands } from "@/server/adapters/bindings";
 import type { Appearance } from "@/server/adapters/bindings";
+
+import { ActionsView } from "./palette-actions";
+import type { PaletteAction, PaletteScope } from "./palette-actions";
+import { PaletteFilters } from "./palette-filters";
+import {
+  DeleteView,
+  MentionsView,
+  MoveView,
+  RenameView,
+  TagsView,
+} from "./palette-note-views";
+import { PaletteSearch } from "./palette-search";
 
 const APPEARANCES = [
   { Icon: SunMoonIcon, appearance: "auto" },

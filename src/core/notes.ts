@@ -2,7 +2,7 @@ import { decodeHTML } from "entities";
 import { Marked } from "marked";
 import type { Token, Tokens } from "marked";
 
-import { parseNote } from "@/core/frontmatter";
+import { parseNote } from "./frontmatter";
 
 export interface NoteMeta {
   createdAt: Date;

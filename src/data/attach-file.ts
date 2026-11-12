@@ -1,5 +1,6 @@
-import { nativeCommand } from "@/data/native-command";
 import { commands } from "@/server/adapters/bindings";
+
+import { nativeCommand } from "./native-command";
 
 /** Copy a dragged-in file into attachments, returning its relative path. */
 export async function attachFile(sourcePath: string): Promise<string> {

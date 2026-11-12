@@ -1,6 +1,6 @@
+import queryFixtures from "@fixtures/note-queries.json";
 import { describe, expect, it } from "vitest";
 
-import queryFixtures from "../../fixtures/note-queries.json";
 import {
   contextFrom,
   foldPath,

@@ -1,5 +1,6 @@
-import { nativeCommand } from "@/data/native-command";
 import { commands } from "@/server/adapters/bindings";
+
+import { nativeCommand } from "./native-command";
 
 /** Open a file a note links to in the app the system picks, resolved against that note. */
 export async function openLinkedFile(

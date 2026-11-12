@@ -1,6 +1,7 @@
-import { nativeCommand } from "@/data/native-command";
-import { mentionResult } from "@/data/note-results";
 import { commands } from "@/server/adapters/bindings";
+
+import { nativeCommand } from "./native-command";
+import { mentionResult } from "./note-results";
 
 export async function getMentions(path: string) {
   const mentions = await nativeCommand(

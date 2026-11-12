@@ -1,9 +1,10 @@
 import { FileTextIcon } from "lucide-react";
 
-import { NoteLabel } from "@/components/notes/note-label";
 import { DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import { contextFrom } from "@/core/links";
 import type { Mention } from "@/core/links";
+
+import { NoteLabel } from "./note-label";
 
 interface MentionItemProps {
   mention: Mention;

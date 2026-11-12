@@ -9,7 +9,6 @@ import { disable, enable, isEnabled } from "@tauri-apps/plugin-autostart";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
 import { useEffect } from "react";
 
-import { Chord } from "@/components/chord";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -30,6 +29,8 @@ import { reclassifyTabs } from "@/lib/tabs/store";
 import { reasonOf } from "@/lib/ui/failure";
 import { commands } from "@/server/adapters/bindings";
 import type { Appearance } from "@/server/adapters/bindings";
+
+import { Chord } from "./chord";
 
 interface SettingsDialogProps {
   notesDir: string;

@@ -1,7 +1,7 @@
 import { clearMocks, mockIPC } from "@tauri-apps/api/mocks";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { exportPdf } from "@/lib/export-pdf";
+import { exportPdf } from "./export-pdf";
 
 function surfaceOf(html: string) {
   const surface = document.createElement("div");

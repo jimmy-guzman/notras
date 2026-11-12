@@ -2,13 +2,9 @@ import { useSelector } from "@tanstack/react-store";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { useEffect, useEffectEvent, useRef, useState } from "react";
 
-import { Chord } from "@/components/chord";
 import type { EditorHandle } from "@/components/editor/editor";
 import { Editor } from "@/components/editor/editor";
 import type { FindHandle } from "@/components/editor/find";
-import { FindBar } from "@/components/find-bar";
-import { Mark } from "@/components/mark";
-import { Titlebar } from "@/components/titlebar";
 import { Toaster, toast } from "@/components/ui/toast";
 import { createNote } from "@/data/create-note";
 import { disposeLater } from "@/lib/dispose-later";
@@ -17,6 +13,11 @@ import { createFindController } from "@/lib/ui/find";
 import { useHotkey, useHotkeys } from "@/lib/ui/shortcuts";
 import { commands, events } from "@/server/adapters/bindings";
 import type { Ending, JotContinued } from "@/server/adapters/bindings";
+
+import { Chord } from "./chord";
+import { FindBar } from "./find-bar";
+import { Mark } from "./mark";
+import { Titlebar } from "./titlebar";
 
 async function hideCapture() {
   try {

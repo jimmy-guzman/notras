@@ -2,8 +2,8 @@ import { QueryClient, QueryObserver } from "@tanstack/react-query";
 import { clearMocks, mockIPC } from "@tauri-apps/api/mocks";
 import { afterEach, describe, expect, it, onTestFinished, vi } from "vitest";
 
-import { getNote } from "@/data/get-note";
-import { noteQueries, tabOpeningQuery } from "@/data/queries";
+import { getNote } from "./get-note";
+import { noteQueries, tabOpeningQuery } from "./queries";
 
 describe("queries", () => {
   afterEach(clearMocks);

@@ -7,11 +7,6 @@ import { createElement } from "react";
 import type { ReactNode } from "react";
 import { afterEach, describe, expect, it, onTestFinished, vi } from "vitest";
 
-import {
-  DeleteView,
-  MoveView,
-  TagsView,
-} from "@/components/palette-note-views";
 import { Command, CommandList } from "@/components/ui/command";
 import { NoteSession } from "@/components/workspace/note-session";
 import { parseNote } from "@/core/frontmatter";
@@ -23,6 +18,8 @@ import {
   openNote,
   useTabSnapshot,
 } from "@/lib/tabs/store";
+
+import { DeleteView, MoveView, TagsView } from "./palette-note-views";
 
 function savesContent(
   args: InvokeArgs | undefined

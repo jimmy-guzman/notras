@@ -1,6 +1,7 @@
-import { nativeCommand } from "@/data/native-command";
 import { commands } from "@/server/adapters/bindings";
 import type { OpenKind } from "@/server/adapters/bindings";
+
+import { nativeCommand } from "./native-command";
 
 /** The version an unsaved review started from, and the unsaved text itself. */
 export interface ConflictStash {

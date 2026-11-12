@@ -1,5 +1,6 @@
-import { nativeCommand } from "@/data/native-command";
 import { commands } from "@/server/adapters/bindings";
+
+import { nativeCommand } from "./native-command";
 
 export async function getNotesDir(): Promise<string> {
   return await nativeCommand(async () => await commands.getNotesDir());

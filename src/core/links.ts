@@ -1,7 +1,7 @@
 import { decode } from "mdurl";
 
-import type { NoteMeta } from "@/core/notes";
-import { noteFolder, noteTitle } from "@/core/notes";
+import type { NoteMeta } from "./notes";
+import { noteFolder, noteTitle } from "./notes";
 
 export interface MentionLine {
   /** Where the link or mention starts in `context`, in UTF-16 code units. */

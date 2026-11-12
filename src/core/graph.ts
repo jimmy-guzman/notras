@@ -1,5 +1,5 @@
-import type { Mention } from "@/core/links";
-import type { NoteMeta } from "@/core/notes";
+import type { Mention } from "./links";
+import type { NoteMeta } from "./notes";
 
 export type Hub =
   | { folder: string; kind: "folder" }

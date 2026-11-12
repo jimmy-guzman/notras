@@ -6,7 +6,6 @@ import { Editor } from "@tiptap/core";
 import { createElement } from "react";
 import { describe, expect, it } from "vitest";
 
-import { CaptureWindow } from "@/components/capture-window";
 import { createEditorExtensions } from "@/components/editor/extensions";
 import { createFindHandle, Find } from "@/components/editor/find";
 import { createNoteDocument } from "@/components/editor/note-document";
@@ -14,6 +13,7 @@ import { SourceEditor } from "@/components/editor/source-editor";
 import type { SourceEditorHandle } from "@/components/editor/source-editor";
 import { createFindController } from "@/lib/ui/find";
 
+import { CaptureWindow } from "./capture-window";
 import { FindBar } from "./find-bar";
 
 describe("find controls", () => {

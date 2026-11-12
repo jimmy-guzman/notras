@@ -1,4 +1,4 @@
-import type { NoteMeta } from "@/core/notes";
+import type { NoteMeta } from "./notes";
 
 export interface SearchFilter {
   kind: "folder" | "from" | "link" | "mention" | "tag" | "to";
