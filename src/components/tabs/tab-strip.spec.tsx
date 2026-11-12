@@ -6,7 +6,6 @@ import userEvent from "@testing-library/user-event";
 import { Suspense } from "react";
 import { afterEach, describe, expect, it, onTestFinished } from "vitest";
 
-import { TabStrip } from "@/components/tabs/tab-strip";
 import { Titlebar } from "@/components/titlebar";
 import { readRecentNotes } from "@/lib/recent-notes";
 import {
@@ -22,6 +21,8 @@ import type { Tab } from "@/lib/tabs/tab";
 import { tabPanelId } from "@/lib/tabs/tab";
 import { hideGraph, showGraph } from "@/lib/ui/view";
 import type { NoteMeta } from "@/server/adapters/bindings";
+
+import { TabStrip } from "./tab-strip";
 
 async function mountStrip(
   tabs: Tab[],

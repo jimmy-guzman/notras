@@ -17,7 +17,6 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { KeyboardEvent } from "react";
 
 import { Mark } from "@/components/mark";
-import { Highlighted } from "@/components/notes/note-label";
 import { Button } from "@/components/ui/button";
 import {
   Empty,
@@ -56,6 +55,8 @@ import { useTabState } from "@/lib/tabs/store";
 import { reasonOf } from "@/lib/ui/failure";
 import { openSearchResult } from "@/lib/ui/find";
 import { closeNoteBrowser, useNoteBrowser } from "@/lib/ui/note-browser";
+
+import { Highlighted } from "./note-label";
 
 type Collection =
   | { kind: "all" | "pinned" | "recent" }

@@ -12,7 +12,8 @@
     "noEmit": true,
     "noUncheckedIndexedAccess": true,
     "paths": {
-      "@/*": ["./src/*"]
+      "@/*": ["./src/*"],
+      "@fixtures/*": ["./fixtures/*"]
     },
     "resolveJsonModule": true,
     "skipLibCheck": true,

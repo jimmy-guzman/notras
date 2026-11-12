@@ -1,7 +1,7 @@
+import fixtures from "@fixtures/note-mutations.json";
+import titleCases from "@fixtures/note-titles.json";
 import { describe, expect, it } from "vitest";
 
-import fixtures from "../../fixtures/note-mutations.json";
-import titleCases from "../../fixtures/note-titles.json";
 import { parseNote } from "./frontmatter";
 import {
   bodyTitle,

@@ -5,13 +5,14 @@ import { beforeEach, describe, expect, it, onTestFinished, vi } from "vitest";
 
 import { Toaster } from "@/components/ui/toast";
 import type { NoteMeta } from "@/core/notes";
+
 import {
   forgetNote,
   readRecentNotes,
   recentNotes,
   rememberNote,
   renameRecentNote,
-} from "@/lib/recent-notes";
+} from "./recent-notes";
 
 describe("recent notes", () => {
   beforeEach(() => {

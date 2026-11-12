@@ -7,9 +7,10 @@ import { createElement } from "react";
 import { object, parse, string } from "valibot";
 import { describe, expect, it, vi } from "vitest";
 
-import { CaptureWindow } from "@/components/capture-window";
 import { SENTINEL } from "@/components/editor/sentinel";
 import { chordGlyph } from "@/lib/ui/shortcuts";
+
+import { CaptureWindow } from "./capture-window";
 
 async function mountCapture() {
   mockWindows("capture");

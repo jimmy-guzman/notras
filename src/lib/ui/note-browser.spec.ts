@@ -18,10 +18,8 @@ import {
 } from "vitest";
 
 import { Toaster } from "@/components/ui/toast";
-import {
-  readNoteBrowserWidth,
-  rememberNoteBrowserWidth,
-} from "@/lib/ui/note-browser";
+
+import { readNoteBrowserWidth, rememberNoteBrowserWidth } from "./note-browser";
 
 describe("note browser startup", () => {
   beforeEach(() => {
@@ -42,7 +40,7 @@ describe("note browser startup", () => {
       localStorage.setItem("note-browser-open", saved);
     }
 
-    const { useNoteBrowser } = await import("@/lib/ui/note-browser");
+    const { useNoteBrowser } = await import("./note-browser");
     const { result } = renderHook(useNoteBrowser);
     expect(result.current).toBe(open);
   });
@@ -61,7 +59,7 @@ describe("note browser startup", () => {
       read.mockRestore();
       clearMocks();
     });
-    const { useNoteBrowser } = await import("@/lib/ui/note-browser");
+    const { useNoteBrowser } = await import("./note-browser");
     const { result } = renderHook(useNoteBrowser);
 
     expect(result.current).toBeTruthy();
@@ -83,7 +81,7 @@ describe("note browser startup", () => {
     render(createElement(FreshToaster));
 
     const { toggleNoteBrowser, useNoteBrowser } =
-      await import("@/lib/ui/note-browser");
+      await import("./note-browser");
 
     const { result } = renderHook(useNoteBrowser);
 

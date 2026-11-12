@@ -2,10 +2,11 @@ import { clearMocks, mockIPC } from "@tauri-apps/api/mocks";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { FileError } from "@/core/errors";
-import { createNote } from "@/data/create-note";
-import { writeExternalNote } from "@/data/external-note";
-import { nativeCommand } from "@/data/native-command";
-import { saveNote } from "@/data/save-note";
+
+import { createNote } from "./create-note";
+import { writeExternalNote } from "./external-note";
+import { nativeCommand } from "./native-command";
+import { saveNote } from "./save-note";
 
 describe("native command", () => {
   afterEach(clearMocks);

@@ -1,7 +1,7 @@
 import { clearMocks, mockIPC } from "@tauri-apps/api/mocks";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { reindexAll } from "@/data/reindex";
+import { reindexAll } from "./reindex";
 
 describe("reindex", () => {
   afterEach(clearMocks);

@@ -1,6 +1,6 @@
+import imageNames from "@fixtures/image-names.json";
 import { describe, expect, it } from "vitest";
 
-import imageNames from "../../../fixtures/image-names.json";
 import {
   attachmentDestination,
   attachmentLink,

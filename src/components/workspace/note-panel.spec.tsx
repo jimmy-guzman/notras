@@ -5,7 +5,6 @@ import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, onTestFinished } from "vitest";
 
-import { NotePanel } from "@/components/workspace/note-panel";
 import type { Frontmatter } from "@/core/frontmatter";
 import {
   closeTab,
@@ -20,6 +19,8 @@ import {
   openNotePanel,
   showNotePanelTab,
 } from "@/lib/ui/note-panel";
+
+import { NotePanel } from "./note-panel";
 
 /** A note tab whose tag edits land in the returned list. */
 function openNoteTab() {

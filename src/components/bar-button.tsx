@@ -1,6 +1,5 @@
 import type { LucideIcon } from "lucide-react";
 
-import { Chord } from "@/components/chord";
 import { Button } from "@/components/ui/button";
 import {
   Tooltip,
@@ -9,6 +8,8 @@ import {
 } from "@/components/ui/tooltip";
 import { BAR_GLYPH } from "@/lib/ui/bar";
 import { useChordsByName } from "@/lib/ui/shortcuts";
+
+import { Chord } from "./chord";
 
 interface BarButtonProps {
   /**

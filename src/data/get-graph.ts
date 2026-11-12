@@ -1,11 +1,12 @@
 import type { Picture } from "@/core/graph";
-import { nativeCommand } from "@/data/native-command";
-import { mentionResult, noteResult } from "@/data/note-results";
 import { commands } from "@/server/adapters/bindings";
 import type {
   GraphTarget,
   Picture as NativePicture,
 } from "@/server/adapters/bindings";
+
+import { nativeCommand } from "./native-command";
+import { mentionResult, noteResult } from "./note-results";
 
 function pictureResult(picture: NativePicture): Picture {
   if (picture.kind === "hub") {

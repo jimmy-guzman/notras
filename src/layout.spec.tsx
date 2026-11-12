@@ -22,11 +22,12 @@ import { beforeEach, describe, expect, it, onTestFinished, vi } from "vitest";
 
 import { Toaster } from "@/components/ui/toast";
 import { SNIPPET_END, SNIPPET_START } from "@/core/fts-markers";
-import { Layout } from "@/layout";
 import { registerPendingFlush } from "@/lib/pending-flush";
 import { closeTab, getTabState } from "@/lib/tabs/store";
 import { noteFind } from "@/lib/ui/find";
 import { closeNoteBrowser } from "@/lib/ui/note-browser";
+
+import { Layout } from "./layout";
 
 const fileAt = (path: string) =>
   path === "left.md" || path === "/notes/left.md"

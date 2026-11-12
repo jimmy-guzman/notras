@@ -1,5 +1,6 @@
-import { nativeCommand } from "@/data/native-command";
 import { commands } from "@/server/adapters/bindings";
+
+import { nativeCommand } from "./native-command";
 
 interface CreateNoteOptions {
   content?: string;

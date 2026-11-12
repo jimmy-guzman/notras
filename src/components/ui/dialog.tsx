@@ -5,7 +5,7 @@ import { cn } from "cn";
 import { XIcon } from "lucide-react";
 import type * as React from "react";
 
-import { Button } from "@/components/ui/button";
+import { Button } from "./button";
 
 // A macOS sheet leaves the title bar live, so the window still moves while
 // a dialog is open. `trap-focus` keeps the focus trap and the outside press

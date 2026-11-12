@@ -1,6 +1,6 @@
 import { array, check, pipe, string } from "valibot";
 
-import { readStored, writeStored } from "@/lib/storage";
+import { readStored, writeStored } from "./storage";
 
 const STORAGE_KEY = "recent-actions";
 

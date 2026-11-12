@@ -9,7 +9,7 @@ import {
   useChordsByName,
   useHotkey,
   useHotkeys,
-} from "@/lib/ui/shortcuts";
+} from "./shortcuts";
 
 const NOOP = () => {};
 

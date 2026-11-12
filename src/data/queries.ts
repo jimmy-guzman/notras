@@ -3,7 +3,6 @@ import type { QueryClient } from "@tanstack/react-query";
 
 import type { NoteFilters } from "@/core/notes";
 import type { NoteSearch } from "@/core/search";
-import { getGraph } from "@/data/get-graph";
 import { commands } from "@/server/adapters/bindings";
 import type {
   CodeFile,
@@ -14,6 +13,7 @@ import type {
 
 import { getAppearance } from "./appearance";
 import { readConflictStash } from "./conflict-stash";
+import { getGraph } from "./get-graph";
 import { getMentions } from "./get-mentions";
 import { getNotes } from "./get-notes";
 import { nativeCommand } from "./native-command";

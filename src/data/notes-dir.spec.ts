@@ -2,7 +2,8 @@ import { clearMocks, mockIPC } from "@tauri-apps/api/mocks";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { FileError } from "@/core/errors";
-import { getNotesDir, setNotesDir } from "@/data/notes-dir";
+
+import { getNotesDir, setNotesDir } from "./notes-dir";
 
 describe("notes dir", () => {
   afterEach(clearMocks);

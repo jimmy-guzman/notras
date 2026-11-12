@@ -1,4 +1,7 @@
+import { globSync } from "node:fs";
+
 import { defineConfig } from "oxlint";
+import type { OxlintOverride } from "oxlint";
 import antiSlop from "ultracite/oxlint/anti-slop";
 import core from "ultracite/oxlint/core";
 import { jsPluginSettings, selectJsPlugins } from "ultracite/oxlint/js-plugins";
@@ -8,6 +11,25 @@ import tanstackJsPlugins from "ultracite/oxlint/tanstack/js-plugins";
 import vitest from "ultracite/oxlint/vitest";
 
 const jsPlugins = selectJsPlugins(["react-doctor"]);
+
+const sameFolderImports = globSync("src/**/", {
+  cwd: import.meta.dirname,
+}).map((folder): OxlintOverride => ({
+  files: [`${folder}/*.{ts,tsx}`],
+  rules: {
+    "no-restricted-imports": [
+      "error",
+      {
+        patterns: [
+          {
+            message: "Import a file in the same folder with ./",
+            regex: `^${folder.replace(/^src/u, "@")}/[^/]+$`,
+          },
+        ],
+      },
+    ],
+  },
+}));
 
 export default defineConfig({
   extends: [
@@ -30,6 +52,11 @@ export default defineConfig({
   jsPlugins: [...(jsPlugins.jsPlugins ?? []), ...(shadcn.jsPlugins ?? [])],
   options: { typeAware: true },
   overrides: [
+    ...sameFolderImports,
+    {
+      files: ["src/**"],
+      rules: { "import/no-relative-parent-imports": "error" },
+    },
     {
       files: ["**/*.spec.{ts,tsx}"],
       // The preset's own vitest override wins unless this one enables the plugin.

@@ -3,7 +3,8 @@ import { createElement } from "react";
 import { describe, expect, it } from "vitest";
 
 import { Toaster } from "@/components/ui/toast";
-import { reportNoteWarnings } from "@/lib/ui/note-warnings";
+
+import { reportNoteWarnings } from "./note-warnings";
 
 describe("note warnings", () => {
   it("should show committed-write warnings without a workspace or index query", async () => {

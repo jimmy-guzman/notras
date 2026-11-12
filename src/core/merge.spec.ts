@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { composeResolution, mergeDocuments } from "@/core/merge";
+import { composeResolution, mergeDocuments } from "./merge";
 
 const base = "# Plan\n\nfirst paragraph\n\nsecond paragraph\n";
 

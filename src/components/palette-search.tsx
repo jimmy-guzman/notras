@@ -4,7 +4,6 @@ import { FileTextIcon, FolderIcon, HashIcon, PlusIcon } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { useLayoutEffect, useState } from "react";
 
-import { Mark } from "@/components/mark";
 import { Highlighted, NoteLabel } from "@/components/notes/note-label";
 import { Button } from "@/components/ui/button";
 import { CommandGroup, CommandItem } from "@/components/ui/command";
@@ -29,6 +28,8 @@ import { indexStatusQuery } from "@/data/index-status";
 import { noteQueries } from "@/data/queries";
 import { recentNotes } from "@/lib/recent-notes";
 import { reasonOf } from "@/lib/ui/failure";
+
+import { Mark } from "./mark";
 
 const VISIBLE_TAGS = 3;
 

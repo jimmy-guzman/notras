@@ -4,13 +4,8 @@ import { useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { flushSync } from "react-dom";
 
-import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { Button } from "./button";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "./dialog";
 
 const STEP = 1.25;
 const MIN_SCALE = 0.25;

@@ -7,10 +7,11 @@ import { useEffect } from "react";
 
 import { CaptureWindow } from "@/components/capture-window";
 import { Toaster, toast } from "@/components/ui/toast";
-import { Layout } from "@/layout";
 import { reasonOf } from "@/lib/ui/failure";
 import { reportNoteWarnings } from "@/lib/ui/note-warnings";
 import { events } from "@/server/adapters/bindings";
+
+import { Layout } from "./layout";
 
 /**
  * The watcher decides staleness; a failed read surfaces at once. The cache
