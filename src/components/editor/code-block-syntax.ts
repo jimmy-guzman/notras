@@ -283,7 +283,12 @@ function syntaxPlugin() {
         }
       }
 
+      // A pane that changes width rewraps the text, which shows other code at
+      // the same scroll offset and reports no scroll.
+      const resized = new ResizeObserver(schedule);
+
       schedule();
+      resized.observe(view.dom);
       document.addEventListener("scroll", onScroll, {
         capture: true,
         passive: true,
@@ -292,6 +297,7 @@ function syntaxPlugin() {
       return {
         destroy() {
           cancelAnimationFrame(frame);
+          resized.disconnect();
           document.removeEventListener("scroll", onScroll, { capture: true });
         },
         update(current, previous) {

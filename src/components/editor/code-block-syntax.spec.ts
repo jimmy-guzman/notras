@@ -88,6 +88,10 @@ function fakeViewport(
   });
 
   return {
+    /** A reflow shows other text at the same scroll offset, and no scroll is reported. */
+    reflowTo(character: number) {
+      scrolled = character;
+    },
     scrollTo(character: number) {
       scrolled = character;
       document.dispatchEvent(new Event("scroll"));
@@ -308,6 +312,56 @@ describe("code block highlighting", () => {
     expect(
       coloredText(editor, "syntax-keyword").length / "const ".length
     ).toBeLessThan(lines);
+  });
+
+  it("should color the text a resize brings on screen, with no scroll", async ({
+    onTestFinished,
+  }) => {
+    const Platform = globalThis.ResizeObserver;
+    const reports: ResizeObserverCallback[] = [];
+
+    // happy-dom lays nothing out and never reports, so the test does both.
+    Object.assign(globalThis, {
+      ResizeObserver: class extends Platform {
+        constructor(onResize: ResizeObserverCallback) {
+          super(onResize);
+          reports.push(onResize);
+        }
+      },
+    });
+    onTestFinished(() => {
+      Object.assign(globalThis, { ResizeObserver: Platform });
+    });
+
+    const editor = createEditor(
+      "ts",
+      [
+        ...Array.from({ length: 900 }, (_, i) => `const top${i} = 0;`),
+        "const middle = 555555555;",
+        ...Array.from({ length: 2100 }, (_, i) => `const rest${i} = 0;`),
+        "const last = 987654321;",
+      ].join("\n")
+    );
+
+    onTestFinished(() => {
+      editor.destroy();
+    });
+    const viewport = fakeViewport(editor, onTestFinished);
+
+    // The first measure narrows the window to the top of the block.
+    await vi.waitFor(() => {
+      expect(coloredText(editor, "syntax-number")).not.toContain("555555555");
+    });
+
+    viewport.reflowTo(editor.state.doc.content.size - 4000);
+
+    for (const report of reports) {
+      report([], new Platform(() => {}));
+    }
+
+    await vi.waitFor(() => {
+      expect(coloredText(editor, "syntax-number")).toContain("987654321");
+    });
   });
 
   it("should color the end of a block a little longer than the window", async ({
