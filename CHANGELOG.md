@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.12.7](https://github.com/jimmy-guzman/notras/compare/v0.12.6...v0.12.7) (2026-11-12)
+
+
+### Features
+
+* **editor:** ✨ show github callouts as labelled quotes ([#538](https://github.com/jimmy-guzman/notras/issues/538)) ([ace0cdd](https://github.com/jimmy-guzman/notras/commit/ace0cdd2ad77b68df57a5e80a928a5a37810b541))
+
+
+### Bug Fixes
+
+* **editor:** 🐛 color added & removed diff lines ([#529](https://github.com/jimmy-guzman/notras/issues/529)) ([9d3e5a5](https://github.com/jimmy-guzman/notras/commit/9d3e5a5c16a6587dc90d640500e8fa89e4fada86))
+* **editor:** 🐛 keep &nbsp; blank lines as the file wrote them ([#526](https://github.com/jimmy-guzman/notras/issues/526)) ([7e999ff](https://github.com/jimmy-guzman/notras/commit/7e999ffaf81434150e0827e9870c2a6a32ed13e4))
+
 ## [0.12.6](https://github.com/jimmy-guzman/notras/compare/v0.12.5...v0.12.6) (2026-11-11)
 
 
