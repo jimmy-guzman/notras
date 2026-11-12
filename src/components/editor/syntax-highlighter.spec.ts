@@ -1,25 +1,15 @@
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 
 import { highlightCode, syntaxLanguage } from "./syntax-highlighter";
-import type { SyntaxJob, SyntaxRequest } from "./syntax-highlighter";
-
-function job(fields: Partial<SyntaxJob> & Pick<SyntaxJob, "code">): SyntaxJob {
-  return {
-    distance: 0,
-    document: 0,
-    edited: false,
-    language: "typescript",
-    showing: false,
-    signal: new AbortController().signal,
-    ...fields,
-  };
-}
 
 describe("syntax highlighter", () => {
-  it("should resolve language aliases while leaving plain and unknown labels unhighlighted", () => {
-    expect(syntaxLanguage("ts")).toBe("typescript");
+  it("should resolve language names and aliases while leaving plain and unknown labels unhighlighted", () => {
+    expect(syntaxLanguage("ts")).toBe("ts");
     expect(syntaxLanguage("TSX")).toBe("tsx");
-    expect(syntaxLanguage("sh")).toBe("shellscript");
+    expect(syntaxLanguage("typescript")).toBe("typescript");
+    expect(syntaxLanguage("console")).toBe("shellsession");
+    expect(syntaxLanguage("f18")).toBe("fortran-free-form");
+    expect(syntaxLanguage("mbti")).toBe("moonbit");
 
     for (const label of [
       null,
@@ -33,127 +23,50 @@ describe("syntax highlighter", () => {
     }
   });
 
-  it("should answer each request with its own tokens", async () => {
-    const [json, typescript] = await Promise.all([
-      highlightCode(job({ code: '{"a": 1}', document: 1, language: "json" })),
-      highlightCode(job({ code: "const a = 1;", document: 2 })),
+  it("should color each run with the ink role of its category", () => {
+    expect(highlightCode('{"a": 1}', "json")).toStrictEqual([
+      { color: "var(--syntax-punctuation)", length: 1, offset: 0 },
+      { color: "var(--syntax-member)", length: 3, offset: 1 },
+      { color: "var(--syntax-punctuation)", length: 2, offset: 4 },
+      { color: "var(--syntax-number)", length: 1, offset: 6 },
+      { color: "var(--syntax-punctuation)", length: 1, offset: 7 },
     ]);
-
-    expect(json?.lines.flat()).toContainEqual({
-      color: "var(--syntax-member)",
-      length: 1,
-      offset: 2,
-    });
-    expect(typescript?.lines.flat()).toContainEqual({
-      color: "var(--syntax-keyword)",
-      length: 5,
-      offset: 0,
-    });
   });
 
-  it("should reject with the reason a grammar cannot load", async () => {
-    await expect(
-      highlightCode(job({ code: "x", document: 3, language: "not-a-language" }))
-    ).rejects.toThrow(/not-a-language/u);
+  it("should leave runs in the text color out", () => {
+    expect(highlightCode("const a = 1;", "ts")).not.toContainEqual(
+      expect.objectContaining({ offset: 6 })
+    );
   });
 
-  it("should post a showing editor's block first, then an edit, then the nearest block, then the earliest", async ({
-    onTestFinished,
-  }) => {
-    const posted = vi.spyOn(Worker.prototype, "postMessage");
-    onTestFinished(() => {
-      posted.mockRestore();
-    });
-
-    await Promise.all([
-      highlightCode(job({ code: "const busy = 1;", document: 10 })),
-      highlightCode(
-        job({ code: "const far = 1;", distance: 900, document: 11 })
-      ),
-      highlightCode(
-        job({ code: "const near = 1;", distance: 100, document: 12 })
-      ),
-      highlightCode(
-        job({
-          code: "const edit = 1;",
-          distance: 900,
-          document: 13,
-          edited: true,
-        })
-      ),
-      highlightCode(
-        job({
-          code: "const shown = 1;",
-          distance: 900,
-          document: 14,
-          showing: true,
-        })
-      ),
-    ]);
+  it("should count offsets from the start of the code across line endings, blank lines and wide characters", () => {
+    const code = 'const a = "😀";\r\n\r\nconst b = "字";';
 
     expect(
-      posted.mock.calls.map(
-        ([request]: [SyntaxRequest, ...unknown[]]) => request.code
-      )
-    ).toStrictEqual([
-      "const shown = 1;",
-      "const edit = 1;",
-      "const busy = 1;",
-      "const near = 1;",
-      "const far = 1;",
-    ]);
+      highlightCode(code, "ts")
+        .filter(({ color }) => color === "var(--syntax-string)")
+        .map(({ length, offset }) => code.slice(offset, offset + length))
+    ).toStrictEqual(['"😀"', '"字"']);
   });
 
-  it("should ask once with the latest text for a block edited again before its turn", async ({
-    onTestFinished,
-  }) => {
-    const posted = vi.spyOn(Worker.prototype, "postMessage");
-    onTestFinished(() => {
-      posted.mockRestore();
-    });
+  it("should color added, removed, and hunk lines in a diff", () => {
+    const code = "@@ -1,2 +1,2 @@\n kept line\n-old line\n+new line";
 
-    const busy = highlightCode(job({ code: "const busy = 1;", document: 20 }));
-
-    const stale = highlightCode(
-      job({ code: "const stale = 1;", document: 21 })
+    const colored = highlightCode(code, "diff").map(
+      ({ color, length, offset }) => ({
+        color,
+        content: code.slice(offset, offset + length),
+      })
     );
 
-    const latest = highlightCode(job({ code: "let stale = 1;", document: 21 }));
+    for (const [content, color] of [
+      ["@@ -1,2 +1,2 @@", "var(--syntax-member)"],
+      ["old line", "var(--syntax-removed)"],
+      ["new line", "var(--syntax-added)"],
+    ]) {
+      expect(colored).toContainEqual({ color, content });
+    }
 
-    await expect(stale).resolves.toBeUndefined();
-    await expect(latest).resolves.toMatchObject({ start: 0, tail: 0 });
-    await busy;
-    expect(
-      posted.mock.calls.map(
-        ([request]: [SyntaxRequest, ...unknown[]]) => request.code
-      )
-    ).toStrictEqual(["const busy = 1;", "let stale = 1;"]);
-  });
-
-  it("should never post a job aborted while it waits", async ({
-    onTestFinished,
-  }) => {
-    const posted = vi.spyOn(Worker.prototype, "postMessage");
-    onTestFinished(() => {
-      posted.mockRestore();
-    });
-    const aborter = new AbortController();
-
-    const busy = highlightCode(job({ code: "const busy = 1;", document: 30 }));
-
-    const withdrawn = highlightCode(
-      job({ code: "const gone = 1;", document: 31, signal: aborter.signal })
-    );
-
-    const kept = highlightCode(job({ code: "const kept = 1;", document: 32 }));
-    aborter.abort();
-
-    await expect(withdrawn).resolves.toBeUndefined();
-    await Promise.all([busy, kept]);
-    expect(
-      posted.mock.calls.map(
-        ([request]: [SyntaxRequest, ...unknown[]]) => request.code
-      )
-    ).toStrictEqual(["const busy = 1;", "const kept = 1;"]);
+    expect(colored.map(({ content }) => content)).not.toContain(" kept line");
   });
 });

@@ -32,11 +32,7 @@ import {
 import { commands } from "@/server/adapters/bindings";
 
 import { hasString } from "./attrs";
-import {
-  revealSyntax,
-  syntaxSettled,
-  windowSyntaxToScreen,
-} from "./code-block-shiki";
+import { revealSyntax, windowSyntaxToScreen } from "./code-block-syntax";
 import type { WatchEmbed } from "./embed";
 import {
   caretKey,
@@ -606,8 +602,6 @@ export interface EditorHandle {
   revealSyntax: () => () => void;
   /** The rendered note, read for a copy and never written. */
   surface: () => HTMLElement;
-  /** Resolves once the highlighter owes no answer, for a print. */
-  syntaxSettled: () => Promise<void>;
 }
 
 interface EditorProps {
@@ -1269,9 +1263,6 @@ export function Editor(mountProps: EditorProps) {
         },
         revealSyntax: () => revealSyntax(instance.view),
         surface: () => instance.view.dom,
-        syntaxSettled: async () => {
-          await syntaxSettled(instance.view);
-        },
       });
     },
     onDestroy: () => {

@@ -5,7 +5,7 @@ import { defineConfig } from "vite";
 export default defineConfig({
   build: {
     // Chunks load from the app bundle, not a network. Set just above the largest chunk so growth still warns.
-    chunkSizeWarningLimit: 2000,
+    chunkSizeWarningLimit: 2250,
     target: "safari26",
   },
   clearScreen: false,
@@ -23,9 +23,5 @@ export default defineConfig({
     watch: {
       ignored: ["**/coverage/**", "**/src-tauri/**"],
     },
-  },
-  worker: {
-    // Grammars stay lazy chunks inside the worker instead of one inlined script.
-    format: "es",
   },
 });

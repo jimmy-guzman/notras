@@ -5,7 +5,7 @@ import { Text } from "@tiptap/extension-text";
 import { cn } from "cn";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 
-import { CodeBlockShiki } from "@/components/editor/code-block-shiki";
+import { CodeBlockSyntax } from "@/components/editor/code-block-syntax";
 import { Empty, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import { toast } from "@/components/ui/toast";
@@ -53,7 +53,7 @@ function CodeView({ language, text }: CodeViewProps) {
         extensions: [
           Document.extend({ content: "codeBlock" }),
           Text,
-          CodeBlockShiki,
+          CodeBlockSyntax,
         ],
         injectNonce: styleNonce,
       });
@@ -83,7 +83,7 @@ export function CodeSession({ active, tab }: CodeSessionProps) {
   const { data: file, error, refetch } = useQuery(codeQuery(tab.id, tab.path));
 
   // Plain text for a file opened with notras, or a link whose target resolves
-  // to a name shiki does not know.
+  // to a name the highlighter does not know.
   const language = codeFileLanguage(tab.path.split("/").at(-1) ?? "") ?? "text";
 
   // State rather than a ref: focus needs a render once the viewport exists.

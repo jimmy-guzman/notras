@@ -32,9 +32,7 @@ describe("export pdf", () => {
     mockIPC(invoke);
     const surface = surfaceOf("<p>hello</p>");
 
-    await expect(
-      exportPdf(surface, "hello", "hello", async () => {})
-    ).resolves.toBeNull();
+    await expect(exportPdf(surface, "hello", "hello")).resolves.toBeNull();
 
     expect(invoke).toHaveBeenCalledOnce();
     expect(invoke.mock.calls[0]?.[1]).toMatchObject({
@@ -52,17 +50,15 @@ describe("export pdf", () => {
     );
 
     mockIPC(invoke);
-    const painted = vi.fn<() => Promise<void>>();
 
     await expect(
-      exportPdf(surfaceOf("<p>hello</p>"), "hello", "hello", painted)
+      exportPdf(surfaceOf("<p>hello</p>"), "hello", "hello")
     ).rejects.toThrow("The paper width is unavailable");
 
     expect(invoke.mock.calls.map(([command]) => command)).toStrictEqual([
       "plugin:dialog|save",
       "pdf_layout_width",
     ]);
-    expect(painted).not.toHaveBeenCalled();
     expect(document.querySelector(".print-sheet")).toBeNull();
   });
 
@@ -103,9 +99,9 @@ describe("export pdf", () => {
 
     surface.classList.add("note-find-open");
 
-    await expect(
-      exportPdf(surface, "hello", "Hello", async () => {})
-    ).resolves.toBe("/exports/hello.pdf");
+    await expect(exportPdf(surface, "hello", "Hello")).resolves.toBe(
+      "/exports/hello.pdf"
+    );
 
     expect(printed).toStrictEqual({ state: null, text: "hello" });
     expect(document.querySelector(".print-sheet")).toBeNull();
@@ -209,7 +205,7 @@ describe("export pdf", () => {
       const surface = surfaceOf(`<p>${html}</p>`);
       const written = surface.textContent;
 
-      await exportPdf(surface, "hello", "Hello", async () => {});
+      await exportPdf(surface, "hello", "Hello");
 
       expect(printed).toStrictEqual(expected);
       expect(surface.textContent).toBe(written);
@@ -239,7 +235,7 @@ describe("export pdf", () => {
       '<p><span class="embed" data-shown>a</span>\n<br>tail</p>'
     );
 
-    await exportPdf(surface, "hello", "Hello", async () => {});
+    await exportPdf(surface, "hello", "Hello");
 
     expect(printed).toStrictEqual(["SPAN", "BR", "#text"]);
   });
@@ -269,7 +265,7 @@ describe("export pdf", () => {
       '<p><span class="embed" data-shown>a</span> and <span class="embed">b</span>\nc</p>'
     );
 
-    await exportPdf(surface, "hello", "Hello", async () => {});
+    await exportPdf(surface, "hello", "Hello");
 
     expect(printed).toStrictEqual(["a", " and ", "b", "\nc"]);
   });
@@ -309,9 +305,9 @@ describe("export pdf", () => {
       }
     );
 
-    await expect(
-      exportPdf(surface, "hello", "hello", async () => {})
-    ).resolves.toBe("/exports/hello.pdf");
+    await expect(exportPdf(surface, "hello", "hello")).resolves.toBe(
+      "/exports/hello.pdf"
+    );
 
     expect(zoom).toBe("0.5");
   });
@@ -351,9 +347,9 @@ describe("export pdf", () => {
       }
     );
 
-    await expect(
-      exportPdf(surface, "hello", "hello", async () => {})
-    ).resolves.toBe("/exports/hello.pdf");
+    await expect(exportPdf(surface, "hello", "hello")).resolves.toBe(
+      "/exports/hello.pdf"
+    );
 
     expect(zoom).toBe("0.625");
   });
@@ -394,9 +390,9 @@ describe("export pdf", () => {
       }
     );
 
-    await expect(
-      exportPdf(surface, "hello", "hello", async () => {})
-    ).resolves.toBe("/exports/hello.pdf");
+    await expect(exportPdf(surface, "hello", "hello")).resolves.toBe(
+      "/exports/hello.pdf"
+    );
 
     expect(keep).toBe("300px");
   });
@@ -444,9 +440,9 @@ describe("export pdf", () => {
       }
     );
 
-    await expect(
-      exportPdf(surface, "hello", "hello", async () => {})
-    ).resolves.toBe("/exports/hello.pdf");
+    await expect(exportPdf(surface, "hello", "hello")).resolves.toBe(
+      "/exports/hello.pdf"
+    );
 
     expect(keep).toBe("200px");
   });
@@ -472,82 +468,11 @@ describe("export pdf", () => {
 
     const surface = surfaceOf("<p>hello</p>");
 
-    await expect(
-      exportPdf(surface, "hello", "hello", async () => {})
-    ).resolves.toBe("/exports/hello.pdf");
+    await expect(exportPdf(surface, "hello", "hello")).resolves.toBe(
+      "/exports/hello.pdf"
+    );
 
     expect(width).toBe("463.37px");
-  });
-
-  it("should print what the last paint drew when the note changes while the paper width is read", async () => {
-    let printed: string | null | undefined;
-    const surface = surfaceOf("<pre>const</pre>");
-
-    mockIPC((command) => {
-      if (command === "plugin:dialog|save") {
-        return "/exports/hello.pdf";
-      }
-
-      if (command === "pdf_layout_width") {
-        surface.innerHTML = "<pre>let</pre>";
-
-        return 672;
-      }
-
-      printed = document.querySelector(
-        ".print-sheet .syntax-token"
-      )?.textContent;
-
-      return null;
-    });
-
-    await expect(
-      exportPdf(surface, "hello", "hello", async () => {
-        surface.innerHTML = `<pre><span class="syntax-token">${surface.textContent}</span></pre>`;
-      })
-    ).resolves.toBe("/exports/hello.pdf");
-
-    expect(printed).toBe("let");
-  });
-
-  it("should copy the surface once it is painted after the dialog closes", async () => {
-    const surface = surfaceOf("<pre>const</pre>");
-    const painting = Promise.withResolvers<undefined>();
-    const released = Promise.withResolvers<undefined>();
-    const order: string[] = [];
-    let printed: string | null | undefined;
-    mockIPC((command) => {
-      if (command === "plugin:dialog|save") {
-        order.push("dialog");
-
-        return "/exports/hello.pdf";
-      }
-
-      if (command === "pdf_layout_width") {
-        return 672;
-      }
-
-      printed = document.querySelector(
-        ".print-sheet .syntax-token"
-      )?.textContent;
-
-      return null;
-    });
-
-    const exported = exportPdf(surface, "hello", "hello", async () => {
-      order.push("painted");
-      painting.resolve(undefined);
-      await released.promise;
-      surface.innerHTML = '<pre><span class="syntax-token">const</span></pre>';
-    });
-
-    await painting.promise;
-    expect(order).toStrictEqual(["dialog", "painted"]);
-    expect(document.querySelector(".print-sheet")).toBeNull();
-    released.resolve(undefined);
-
-    await expect(exported).resolves.toBe("/exports/hello.pdf");
-    expect(printed).toBe("const");
   });
 
   it("should remove the sheet and carry the reason when the write fails", async () => {
@@ -569,9 +494,7 @@ describe("export pdf", () => {
     });
     const surface = surfaceOf("<p>hello</p>");
 
-    await expect(
-      exportPdf(surface, "hello", "hello", async () => {})
-    ).rejects.toMatchObject({
+    await expect(exportPdf(surface, "hello", "hello")).rejects.toMatchObject({
       message: "the pdf could not be written",
     });
     expect(document.querySelector(".print-sheet")).toBeNull();
@@ -635,7 +558,7 @@ describe("export pdf", () => {
       }
     );
 
-    await exportPdf(surface, "hello", "hello", async () => {});
+    await exportPdf(surface, "hello", "hello");
 
     expect(printed).toStrictEqual({
       failed: true,

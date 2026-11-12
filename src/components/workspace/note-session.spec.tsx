@@ -2066,7 +2066,7 @@ describe(NoteSession, () => {
     expect(commands).toStrictEqual([]);
   });
 
-  it("should color code in a pdf exported before its highlighting arrived", async () => {
+  it("should color code in an exported pdf", async () => {
     let printed: string | null | undefined;
     mockIPC(
       withDisk((command) => {
@@ -2086,47 +2086,11 @@ describe(NoteSession, () => {
       })
     );
     mountSession("# Code\n\n```ts\nconst a = 1;\n```");
-    const liveEditor = await editor();
-    expect(liveEditor.view.dom.querySelector(".syntax-token")).toBeNull();
-
-    await expect(sessionHandles().exportPdf()).resolves.toBe("/exports/a.pdf");
-
-    expect(printed).toBe("const");
-  });
-
-  it("should print code plain in a pdf when its highlighting failed", async () => {
-    const posted = vi
-      .spyOn(Worker.prototype, "postMessage")
-      .mockImplementation(function posted(this: Worker) {
-        this.dispatchEvent(new ErrorEvent("error", { message: "no grammar" }));
-      });
-
-    onTestFinished(() => {
-      posted.mockRestore();
-    });
-    let printed: string | null | undefined;
-    mockIPC(
-      withDisk((command) => {
-        if (command === "plugin:dialog|save") {
-          return "/exports/a.pdf";
-        }
-
-        if (command === "pdf_layout_width") {
-          return 672;
-        }
-
-        printed = document.querySelector(".print-sheet pre")?.textContent;
-
-        return null;
-      })
-    );
-    mountSession("# Code\n\n```ts\nlet b = 2;\n```");
     await editor();
 
     await expect(sessionHandles().exportPdf()).resolves.toBe("/exports/a.pdf");
 
-    expect(printed).toBe("let b = 2;");
-    expect(document.querySelector(".syntax-token")).toBeNull();
+    expect(printed).toBe("const ");
   });
 
   it("should render an image relative to the note and drop one the note cannot reach", async () => {
