@@ -1,8 +1,7 @@
 import { Editor } from "@tiptap/core";
 import { describe, expect, it } from "vitest";
 
-import { contentOf } from "@/components/editor/attrs";
-
+import { contentOf } from "./attrs";
 import {
   createEditorExtensions,
   fileMarkdown,

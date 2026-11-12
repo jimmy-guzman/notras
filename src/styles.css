@@ -1259,6 +1259,25 @@ body.dragging .ProseMirror .selected-text,
   background: var(--card);
 }
 
+/* A callout keeps the quote's rule and ink; its title row is a section label,
+   and the icon and word carry the type. The body sits in a wrapper under the
+   title, out of reach of Typeset's `blockquote > :first-child` reset, so its
+   first block takes the list's tighter step here instead of the gap that
+   separates top-level blocks. */
+.typeset-note [data-callout-title] {
+  display: flex;
+  gap: 0.375rem;
+  align-items: center;
+  font-size: var(--text-xs);
+  color: var(--muted-foreground);
+  letter-spacing: var(--tracking-wider);
+  text-transform: uppercase;
+  user-select: none;
+}
+.typeset-note [data-callout-title] + div > :first-child {
+  margin-block-start: 0.5em;
+}
+
 /* Export pdf appends a copy of the note surface to the body and prints the
    document. Print media shows that copy alone, flowing from the top of the
    page, and `print-color-adjust` keeps the surfaces WebKit drops from print by
@@ -1362,22 +1381,28 @@ body.dragging .ProseMirror .selected-text,
   content: "";
 }
 
-.note-find-match {
+/* A callout's label is drawn beside the document, so find marks the quote and
+   the label's word takes the highlight. */
+.note-find-match,
+.note-find-label > [data-callout-title] > span {
   color: var(--foreground);
   background-color: color-mix(in oklch, var(--primary) 24%, transparent);
 }
 
-.note-find-active {
+.note-find-active,
+.note-find-label-active > [data-callout-title] > span {
   outline: 1px solid var(--primary);
   outline-offset: 1px;
 }
 
 @media (forced-colors: active) {
-  .note-find-match {
+  .note-find-match,
+  .note-find-label > [data-callout-title] > span {
     color: HighlightText;
     background-color: Highlight;
   }
-  .note-find-active {
+  .note-find-active,
+  .note-find-label-active > [data-callout-title] > span {
     outline-color: CanvasText;
   }
 }

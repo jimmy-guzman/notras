@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import type { SyntaxToken } from "@/components/editor/syntax-highlighter";
-import { tokenize } from "@/components/editor/syntax-worker";
+import type { SyntaxToken } from "./syntax-highlighter";
+import { tokenize } from "./syntax-worker";
 
 let nextDocument = 0;
 

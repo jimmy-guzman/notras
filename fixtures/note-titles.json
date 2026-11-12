@@ -112,6 +112,90 @@
     "line": 0
   },
   {
+    "name": "callout",
+    "content": "> [!NOTE]\n> **quoted** text\n> second",
+    "path": "note.md",
+    "expected": "quoted text",
+    "line": 1
+  },
+  {
+    "name": "callout with a blank line under its marker",
+    "content": "> [!tip]\n>\n> body",
+    "path": "note.md",
+    "expected": "body",
+    "line": 2
+  },
+  {
+    "name": "callout with spaces after its marker",
+    "content": "> [!TIP]  \n> body",
+    "path": "note.md",
+    "expected": "body",
+    "line": 1
+  },
+  {
+    "name": "empty callout",
+    "content": "> [!WARNING]\n\nafter",
+    "path": "note.md",
+    "expected": "after",
+    "line": 2
+  },
+  {
+    "name": "text on a callout marker's line",
+    "content": "> [!NOTE] body",
+    "path": "note.md",
+    "expected": "[!NOTE] body",
+    "line": 0
+  },
+  {
+    "name": "callout marker over a rule",
+    "content": "> [!NOTE]\n> ---\n> body",
+    "path": "note.md",
+    "expected": "[!NOTE]",
+    "line": 0
+  },
+  {
+    "name": "callout marker over an underline",
+    "content": "> [!NOTE]\n> ===\n> body",
+    "path": "note.md",
+    "expected": "[!NOTE]",
+    "line": 0
+  },
+  {
+    "name": "callout marker with CRLF line endings",
+    "content": "> [!NOTE]\r\n> body\r\n",
+    "path": "note.md",
+    "expected": "body",
+    "line": 1
+  },
+  {
+    "name": "callout marker under a blank quote line",
+    "content": ">\n> [!NOTE]\n> body",
+    "path": "note.md",
+    "expected": "[!NOTE]",
+    "line": 1
+  },
+  {
+    "name": "callout marker after an empty quote",
+    "content": ">\n\n[!NOTE]\nbody",
+    "path": "note.md",
+    "expected": "[!NOTE]",
+    "line": 2
+  },
+  {
+    "name": "callout marker a reference definition links",
+    "content": "> [!NOTE]\n> body\n\n[!note]: https://example.com",
+    "path": "note.md",
+    "expected": "!NOTE",
+    "line": 0
+  },
+  {
+    "name": "escaped callout marker",
+    "content": "> \\[!NOTE\\]\n> body",
+    "path": "note.md",
+    "expected": "[!NOTE]",
+    "line": 0
+  },
+  {
     "name": "nested quote code",
     "content": "> ```\n> code\n> ```\n>\n> first **line**",
     "path": "note.md",

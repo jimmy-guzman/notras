@@ -1,10 +1,11 @@
 import { useSelector } from "@tanstack/react-store";
 import { useEffect } from "react";
 
-import type { NotePersistence } from "@/components/editor/note-persistence";
 import { registerPendingFlush } from "@/lib/pending-flush";
 
-export type { SaveStatus } from "@/components/editor/note-persistence";
+import type { NotePersistence } from "./note-persistence";
+
+export type { SaveStatus } from "./note-persistence";
 
 async function releaseThenUnregister(
   release: () => Promise<void>,

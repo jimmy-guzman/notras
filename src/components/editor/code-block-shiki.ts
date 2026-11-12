@@ -7,18 +7,16 @@ import { Plugin, PluginKey } from "@tiptap/pm/state";
 import type { EditorView } from "@tiptap/pm/view";
 import { Decoration, DecorationSet } from "@tiptap/pm/view";
 
-import { hasString } from "@/components/editor/attrs";
-import {
-  highlightCode,
-  syntaxLanguage,
-} from "@/components/editor/syntax-highlighter";
+import { toast } from "@/components/ui/toast";
+import { reasonOf } from "@/lib/ui/failure";
+
+import { hasString } from "./attrs";
+import { highlightCode, syntaxLanguage } from "./syntax-highlighter";
 import type {
   SyntaxJob,
   SyntaxSplice,
   SyntaxToken,
-} from "@/components/editor/syntax-highlighter";
-import { toast } from "@/components/ui/toast";
-import { reasonOf } from "@/lib/ui/failure";
+} from "./syntax-highlighter";
 
 const BACKTICK_RUN = /`+/gu;
 const TILDE_RUN = /~+/gu;

@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 
 import { attachmentLink } from "@/lib/utils/attachments";
 
+import { hasString } from "./attrs";
 import {
   converterOf,
   createEditorExtensions,
@@ -822,6 +823,8 @@ const WRITTEN_ELSEWHERE = [
   ["an escaped star", "2 \\* 3"],
   ["an unsized image tag", '<img src="attachments/x.png" alt="shot">'],
   ["an image tag with a height", '<img src="x.png" height="200">'],
+  ["a lowercase callout", "> [!note]\n> body"],
+  ["a callout with a blank line under its marker", "> [!NOTE]\n>\n> body"],
 ] as const;
 
 describe("markdown the user did not touch", () => {
@@ -1307,6 +1310,7 @@ describe("an edit in markdown written elsewhere", () => {
     ["a heading directly over text", "# h\npara\n", 2, "# hx\npara\n"],
     ["text directly under a heading", "# h\npara\n", 5, "# h\npxara\n"],
     ["the last block of a note", "a\n\nb\n", 5, "a\n\nbx\n"],
+    ["a lowercase callout", "> [!note]\n> body\n", 2, "> [!note]\n> xbody\n"],
   ])(
     "should keep %s as written around the typed text",
     (_name, markdown, position, expected) => {
@@ -1398,5 +1402,101 @@ describe("an edit in markdown written elsewhere", () => {
       "t_he snake\\_case name\n\n![notes \\].png](notes.png)\n"
     );
     editor.destroy();
+  });
+});
+
+/** Each quote's callout type, null for a plain quote. */
+function calloutsOf(markdown: string) {
+  const editor = load(markdown);
+
+  const callouts = findChildren(
+    editor.state.doc,
+    (node) => node.type.name === "blockquote"
+  ).map(({ node }) =>
+    hasString(node.attrs, "callout") ? node.attrs.callout : null
+  );
+
+  editor.destroy();
+
+  return callouts;
+}
+
+describe("callouts", () => {
+  it.each([
+    ["a note", "> [!NOTE]\n> body"],
+    ["a tip", "> [!TIP]\n> body"],
+    ["an important callout", "> [!IMPORTANT]\n> body"],
+    ["a warning", "> [!WARNING]\n> body"],
+    ["a caution", "> [!CAUTION]\n> body"],
+    ["a callout without a body", "> [!NOTE]"],
+    ["a callout of two paragraphs", "> [!NOTE]\n> one\n>\n> two"],
+    ["a callout with a soft break", "> [!NOTE]\n> one\n> two"],
+    ["a callout opening on a list", "> [!TIP]\n>\n> - one\n> - two"],
+    ["a callout opening on a list from 2", "> [!NOTE]\n>\n> 2. two"],
+    ["a callout opening on a divider", "> [!NOTE]\n>\n> ---\n>\n> body"],
+    ["a callout opening on an underline", "> [!NOTE]\n>\n> ==="],
+    ["a callout opening on a table delimiter", "> [!NOTE]\n>\n> :-:"],
+    ["a callout opening on a piped table delimiter", "> [!NOTE]\n>\n> |---|"],
+    ["a callout opening on a tab after a delimiter", "> [!NOTE]\n> :-:\t"],
+    ["a callout opening on a tab after an underline", "> [!NOTE]\n>\n> ===\t"],
+    ["a callout opening on a blank line", "> [!NOTE]\n>\n>\n>\n> body"],
+    ["a callout in a quote", "> outer\n>\n> > [!NOTE]\n> > inner"],
+    ["a callout in a list", "- item\n  > [!TIP]\n  > body"],
+  ])("should round-trip %s", (_name, markdown) => {
+    expect(roundtrip(markdown)).toBe(markdown);
+  });
+
+  it.each([
+    ["> [!note]\n> body", "note"],
+    ["> [!Warning]\n> body", "warning"],
+    ["> [!TIP]  \n> body", "tip"],
+    ["> [!NOTE]\n>\n> body", "note"],
+  ])("should read %j as a %s callout", (markdown, type) => {
+    expect(calloutsOf(markdown)).toStrictEqual([type]);
+  });
+
+  it.each([
+    ["text after the marker", "> [!NOTE] body"],
+    ["an unknown type", "> [!FAQ]\n> body"],
+    ["the marker past the first line", "> body\n> [!NOTE]"],
+    [
+      "a reference definition linking the marker",
+      "> [!NOTE]\n> body\n\n[!note]: https://example.com",
+    ],
+  ])("should keep a plain quote with %s", (_name, markdown) => {
+    expect(calloutsOf(markdown)).toStrictEqual([null]);
+  });
+
+  it("should take the marker off the body", () => {
+    const editor = load("> [!NOTE]\n> body");
+
+    expect(editor.state.doc.firstChild?.textContent).toBe("body");
+    editor.destroy();
+  });
+
+  it("should write an edited callout's marker in capitals", () => {
+    expect(roundtrip("> [!note]\n>\n> body")).toBe("> [!NOTE]\n> body");
+  });
+
+  it("should keep a marker typed as text in a plain quote out of the callout reading", () => {
+    const editor = load("> placeholder");
+
+    editor.commands.setContent({
+      content: [
+        {
+          content: [
+            { content: [{ text: "[!NOTE]", type: "text" }], type: "paragraph" },
+          ],
+          type: "blockquote",
+        },
+      ],
+      type: "doc",
+    });
+
+    const markdown = serializeMarkdown(editor);
+
+    editor.destroy();
+
+    expect(calloutsOf(markdown)).toStrictEqual([null]);
   });
 });

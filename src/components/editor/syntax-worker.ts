@@ -10,14 +10,15 @@ import { bundledLanguages } from "shiki/langs";
 import { EncodedTokenMetadata, INITIAL } from "shiki/textmate";
 import type { StateStack } from "shiki/textmate";
 
+import { reasonOf } from "@/lib/ui/failure";
+
 import type {
   SyntaxRequest,
   SyntaxResponse,
   SyntaxSplice,
   SyntaxToken,
-} from "@/components/editor/syntax-highlighter";
-import { syntaxTheme } from "@/components/editor/syntax-theme";
-import { reasonOf } from "@/lib/ui/failure";
+} from "./syntax-highlighter";
+import { syntaxTheme } from "./syntax-theme";
 
 const createHighlighter = createBundledHighlighter<string, string>({
   // The desktop CSP does not permit WebAssembly compilation.

@@ -1,13 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
-import {
-  highlightCode,
-  syntaxLanguage,
-} from "@/components/editor/syntax-highlighter";
-import type {
-  SyntaxJob,
-  SyntaxRequest,
-} from "@/components/editor/syntax-highlighter";
+import { highlightCode, syntaxLanguage } from "./syntax-highlighter";
+import type { SyntaxJob, SyntaxRequest } from "./syntax-highlighter";
 
 function job(fields: Partial<SyntaxJob> & Pick<SyntaxJob, "code">): SyntaxJob {
   return {

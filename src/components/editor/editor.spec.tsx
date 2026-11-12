@@ -16,18 +16,15 @@ import { createElement, StrictMode } from "react";
 import type { ComponentProps } from "react";
 import { describe, expect, it, onTestFinished, vi } from "vitest";
 
-import {
-  createEditorExtensions,
-  serializeMarkdown,
-} from "@/components/editor/extensions";
-import { mermaidSettled } from "@/components/editor/mermaid-diagram";
-import { SENTINEL } from "@/components/editor/sentinel";
 import { Toaster } from "@/components/ui/toast";
 import { imageVersion, reloadImages } from "@/lib/image-reloads";
 
 import type { EditorHandle } from "./editor";
 import { Editor } from "./editor";
+import { createEditorExtensions, serializeMarkdown } from "./extensions";
 import { MarkdownPaste } from "./markdown-paste";
+import { mermaidSettled } from "./mermaid-diagram";
+import { SENTINEL } from "./sentinel";
 
 /**
  * Mount the editor and hand back its scroller div, its handle and the TipTap
@@ -2906,6 +2903,20 @@ describe("mermaid diagrams", () => {
     await user.keyboard("/dia{Enter}");
 
     expect(handle.getContent().trimEnd()).toBe("```mermaid\n\n```");
+  });
+});
+
+describe("slash menu", () => {
+  it("should insert a note callout", async () => {
+    const { editor, handle } = await mount({ initialContent: "" });
+    const user = userEvent.setup();
+
+    act(() => {
+      editor.commands.focus("end");
+    });
+    await user.keyboard("/callout{Enter}body");
+
+    expect(handle.getContent().trimEnd()).toBe("> [!NOTE]\n> body");
   });
 
   it("should close the slash menu on escape and keep the typed text", async () => {

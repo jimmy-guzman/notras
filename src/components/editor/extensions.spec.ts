@@ -57,14 +57,7 @@ describe("task item DOM", () => {
   });
 });
 
-const typeInto = (text: string) => {
-  const editor = new Editor({
-    content: "",
-    contentType: "markdown",
-    element: document.createElement("div"),
-    extensions: createEditorExtensions({}),
-  });
-
+const typeAt = (editor: Editor, text: string) => {
   for (const char of text) {
     const { from, to } = editor.state.selection;
     const insert = () => editor.state.tr.insertText(char, from, to);
@@ -77,6 +70,17 @@ const typeInto = (text: string) => {
       editor.view.dispatch(insert());
     }
   }
+};
+
+const typeInto = (text: string) => {
+  const editor = new Editor({
+    content: "",
+    contentType: "markdown",
+    element: document.createElement("div"),
+    extensions: createEditorExtensions({}),
+  });
+
+  typeAt(editor, text);
 
   const markdown = serializeMarkdown(editor);
 
@@ -211,5 +215,148 @@ describe("strike input rule", () => {
 
   it("should leave a closer that follows a space as typed", () => {
     expect(typeInto("~5 minutes ~")).toBe("~5 minutes ~");
+  });
+});
+
+const pressBackspace = (editor: Editor) =>
+  editor.view.someProp("handleKeyDown", (handle) =>
+    handle(editor.view, new KeyboardEvent("keydown", { key: "Backspace" }))
+  );
+
+describe("callouts", () => {
+  it("should render a callout's type above its body", () => {
+    const quote = render("> [!WARNING]\n> body").querySelector("blockquote");
+
+    expect(quote?.dataset.callout).toBe("warning");
+    expect(quote?.querySelector("[data-callout-title]")).toHaveTextContent(
+      "warning"
+    );
+    expect(quote?.querySelector("p")).toHaveTextContent("body");
+  });
+
+  it("should render a plain quote without a title", () => {
+    const quote = render("> body").querySelector("blockquote");
+
+    expect(quote?.querySelector("[data-callout-title]")).toBeNull();
+  });
+
+  it("should read a copied callout back without its title row", () => {
+    const editor = new Editor({
+      content: "",
+      contentType: "markdown",
+      element: document.createElement("div"),
+      extensions: createEditorExtensions({}),
+    });
+
+    const copied = render("> [!TIP]\n> body").querySelector("blockquote");
+
+    editor.commands.setContent(copied?.outerHTML ?? "");
+
+    const markdown = serializeMarkdown(editor);
+
+    editor.destroy();
+
+    expect(markdown).toBe("> [!TIP]\n> body");
+  });
+
+  it("should turn a quote into a callout when its marker is typed", () => {
+    expect(typeInto("> [!tip] body")).toBe("> [!TIP]\n> body");
+  });
+
+  it("should change a callout's type when another marker is typed", () => {
+    expect(typeInto("> [!tip] [!caution] body")).toBe("> [!CAUTION]\n> body");
+  });
+
+  it("should leave a marker typed outside a quote as text", () => {
+    expect(typeInto("[!tip] body")).not.toMatch(/^>/u);
+  });
+
+  it("should turn a callout back into a quote, then lift it, on Backspace", () => {
+    const editor = new Editor({
+      content: "> [!NOTE]\n> body",
+      contentType: "markdown",
+      element: document.createElement("div"),
+      extensions: createEditorExtensions({}),
+    });
+
+    editor.commands.setTextSelection(2);
+    pressBackspace(editor);
+    const quote = serializeMarkdown(editor);
+
+    pressBackspace(editor);
+    const lifted = editor.state.doc.firstChild?.type.name;
+
+    editor.destroy();
+
+    expect([quote, lifted]).toStrictEqual(["> body", "paragraph"]);
+  });
+
+  it("should leave a marker typed in a quote's second paragraph as text", () => {
+    const editor = new Editor({
+      content: "> one\n>\n> two",
+      contentType: "markdown",
+      element: document.createElement("div"),
+      extensions: createEditorExtensions({}),
+    });
+
+    editor.commands.setTextSelection(7);
+    typeAt(editor, "[!tip] ");
+    const markdown = serializeMarkdown(editor);
+
+    editor.destroy();
+
+    expect(markdown).toBe("> one\n>\n> [!tip] two");
+  });
+
+  it("should keep a callout on Backspace at the start of its second paragraph", () => {
+    const editor = new Editor({
+      content: "> [!NOTE]\n> one\n>\n> two",
+      contentType: "markdown",
+      element: document.createElement("div"),
+      extensions: createEditorExtensions({}),
+    });
+
+    editor.commands.setTextSelection(7);
+    pressBackspace(editor);
+    const markdown = serializeMarkdown(editor);
+
+    editor.destroy();
+
+    expect(markdown.trimEnd()).toBe("> [!NOTE]\n> one\n\ntwo");
+  });
+
+  it("should keep a callout whose first line is a typed, indented underline", () => {
+    const editor = new Editor({
+      content: "> [!NOTE]",
+      contentType: "markdown",
+      element: document.createElement("div"),
+      extensions: createEditorExtensions({}),
+    });
+
+    editor.commands.setTextSelection(2);
+    typeAt(editor, "   ===");
+    const markdown = serializeMarkdown(editor);
+
+    editor.destroy();
+
+    expect(markdown).toBe("> [!NOTE]\n>\n>    ===");
+  });
+
+  it("should give back a marker just typed on Backspace", () => {
+    const editor = new Editor({
+      content: "> [!NOTE]\n> body",
+      contentType: "markdown",
+      element: document.createElement("div"),
+      extensions: createEditorExtensions({}),
+    });
+
+    editor.commands.setTextSelection(2);
+    typeAt(editor, "[!tip] ");
+    pressBackspace(editor);
+    const markdown = serializeMarkdown(editor);
+
+    editor.destroy();
+
+    expect(markdown).toBe("> [!NOTE]\n> [!tip] body");
   });
 });

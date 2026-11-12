@@ -1,10 +1,10 @@
 import type { Editor } from "@tiptap/core";
 import { useLayoutEffect, useRef, useState } from "react";
 
-import { createFindHandle } from "@/components/editor/find";
-import type { FindHandle } from "@/components/editor/find";
 import { ScrollArea } from "@/components/ui/scroll-area";
 
+import { createFindHandle } from "./find";
+import type { FindHandle } from "./find";
 import { SourceOutline } from "./source-outline";
 
 export interface SourceEditorHandle {

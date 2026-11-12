@@ -1,9 +1,9 @@
 import { act, cleanup, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { createNotePersistence } from "@/components/editor/note-persistence";
 import { FileError } from "@/core/errors";
 
+import { createNotePersistence } from "./note-persistence";
 import { useAutosave } from "./use-autosave";
 
 const AUTOSAVE_DELAY_MS = 800;

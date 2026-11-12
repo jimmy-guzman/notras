@@ -182,22 +182,62 @@ interface TitleAt {
   title: string;
 }
 
-function tokenTitle(tokens: Token[], firstLine: number): TitleAt | undefined {
+export const CALLOUTS = [
+  "note",
+  "tip",
+  "important",
+  "warning",
+  "caution",
+] as const;
+
+/** GitHub reads a quote as an alert when its first line holds only this. */
+export const CALLOUT_MARKER = new RegExp(
+  String.raw`^\[!(?<type>${CALLOUTS.join("|")})\][ \t]*(?:\n|$)`,
+  "iu"
+);
+
+/**
+ * Whether a quote opens on a callout marker. The source keeps an escaped
+ * bracket as text, and the first inline token catches a marker a reference
+ * definition turned into a link, as the editor reads it.
+ */
+function opensCallout(token: Token) {
+  const [first] = token.type === "blockquote" ? (token.tokens ?? []) : [];
+
+  return (
+    first?.type === "paragraph" &&
+    first.tokens?.[0]?.type === "text" &&
+    CALLOUT_MARKER.test(first.raw)
+  );
+}
+
+/** The title in `tokens`; `skipLines` leaves out the first block's opening lines, such as a callout's marker. */
+function tokenTitle(
+  tokens: Token[],
+  firstLine: number,
+  skipLines = 0
+): TitleAt | undefined {
   let line = firstLine;
   let found: TitleAt | undefined;
 
-  for (const token of tokens) {
+  for (const [index, token] of tokens.entries()) {
+    const skip = index === 0 ? skipLines : 0;
+
     if (isList(token)) {
       found = tokenTitle(token.items, line);
     } else if (token.type === "blockquote" || token.type === "list_item") {
-      found = tokenTitle(token.tokens ?? [], line);
+      found = tokenTitle(token.tokens ?? [], line, opensCallout(token) ? 1 : 0);
     } else if (
       token.type === "heading" ||
       token.type === "paragraph" ||
       token.type === "text"
     ) {
       const lines = inlineTitle(token.tokens ?? []).split("\n");
-      const first = [...lines.entries()].find(([, text]) => text.trim() !== "");
+
+      const first = [...lines.entries()].find(
+        ([at, text]) => at >= skip && text.trim() !== ""
+      );
+
       found =
         first === undefined
           ? undefined
