@@ -9,7 +9,7 @@ import type { Token, Tokens } from "marked";
 import { parseNote } from "@/core/frontmatter";
 import { titleSource } from "@/core/notes";
 
-import { CodeBlockShiki } from "./code-block-shiki";
+import { CodeBlockSyntax } from "./code-block-syntax";
 import { Find } from "./find";
 import { createNoteMarked } from "./marked-blocks";
 import { SelectionHighlight } from "./selection-highlight";
@@ -223,7 +223,7 @@ export function createSourceExtensions(historyPlugin: Plugin): Extensions {
     }),
     Find,
     Text,
-    CodeBlockShiki.configure({
+    CodeBlockSyntax.configure({
       defaultLanguage: "markdown",
       exitOnArrowDown: false,
       exitOnTripleEnter: false,
