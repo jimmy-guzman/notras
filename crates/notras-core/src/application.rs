@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     frontmatter, index, markdown,
-    note_file::{content_revision, timestamp_millis, Exchange, TempSibling},
+    note_file::{content_revision, in_line_feeds, timestamp_millis, Exchange, TempSibling},
     relationships,
     relative_path::{ensure_folder, join, Located, RelativePath},
     Library,
@@ -146,7 +146,7 @@ impl NoteFile {
     fn from_disk(text: String, updated_at: i64) -> Self {
         Self {
             revision: content_revision(&text),
-            content: text.replace("\r\n", "\n"),
+            content: in_line_feeds(&text),
             updated_at,
         }
     }
@@ -154,15 +154,20 @@ impl NoteFile {
 
 /// `content` in the line endings of the file it replaces, which the frontend
 /// never sees. The frontend holds a file in line feeds alone, so a file that
-/// mixes the two takes the ending most of its lines have, which changes the
-/// fewest of them.
+/// mixes LF, CRLF and lone CR takes the ending most of its lines have, which
+/// changes the fewest of them. LF wins a tie, and CRLF wins one against CR.
 fn in_line_endings_of(disk: &str, content: &str) -> String {
-    let lines = content.replace("\r\n", "\n");
-    if disk.matches("\r\n").count() * 2 > disk.matches('\n').count() {
-        lines.replace('\n', "\r\n")
+    let crlf = disk.matches("\r\n").count();
+    let lone_cr = disk.matches('\r').count() - crlf;
+    let lf = disk.matches('\n').count() - crlf;
+    let ending = if crlf >= lone_cr && crlf > lf {
+        "\r\n"
+    } else if lone_cr > lf {
+        "\r"
     } else {
-        lines
-    }
+        "\n"
+    };
+    in_line_feeds(content).replace('\n', ending)
 }
 
 /// A path as text, refused when it is not valid Unicode, since the webview and
@@ -1164,7 +1169,7 @@ pub fn read_code_if_moved(
     let text = code_text(&host, &metadata)??;
     let text = text.strip_prefix('\u{feff}').unwrap_or(&text);
     Ok(Some(CodeFile {
-        text: text.replace("\r\n", "\n"),
+        text: in_line_feeds(text),
         revision,
     }))
 }
@@ -1689,6 +1694,29 @@ mod tests {
     }
 
     #[test]
+    fn should_read_a_lone_cr_note_in_line_feeds_and_save_it_in_lone_crs() {
+        let directory = tempfile::tempdir().unwrap();
+        let core = Library::open(directory.path(), &directory.path().join(".index")).unwrap();
+        let path = directory.path().join("note.md");
+        fs::write(&path, "---\rtags: [x]\r---\r# Old\rbody\r").unwrap();
+
+        let note = core.read_note("note.md".into()).unwrap();
+        saved(
+            &core,
+            "note.md",
+            "---\ntags: [x]\n---\n# Old\nbody changed\n",
+            None,
+        )
+        .unwrap();
+
+        assert_eq!(note.content, "---\ntags: [x]\n---\n# Old\nbody\n");
+        assert_eq!(
+            fs::read_to_string(&path).unwrap(),
+            "---\rtags: [x]\r---\r# Old\rbody changed\r"
+        );
+    }
+
+    #[test]
     fn should_write_an_external_file_in_the_line_endings_it_has_on_disk() {
         let directory = tempfile::tempdir().unwrap();
         let path = directory.path().join("outside.md");
@@ -1710,6 +1738,42 @@ mod tests {
         saved(&core, "note.md", "a\nb\nc changed\n", None).unwrap();
 
         assert_eq!(fs::read_to_string(&path).unwrap(), "a\nb\nc changed\n");
+    }
+
+    #[test]
+    fn should_keep_crlf_when_a_note_has_as_many_lone_crs_and_no_line_feeds() {
+        let directory = tempfile::tempdir().unwrap();
+        let core = Library::open(directory.path(), &directory.path().join(".index")).unwrap();
+        let path = directory.path().join("note.md");
+        fs::write(&path, "a\r\nb\rc").unwrap();
+
+        saved(&core, "note.md", "a\nb\nc changed", None).unwrap();
+
+        assert_eq!(fs::read_to_string(&path).unwrap(), "a\r\nb\r\nc changed");
+    }
+
+    #[test]
+    fn should_keep_line_feeds_when_a_note_has_as_many_crlfs() {
+        let directory = tempfile::tempdir().unwrap();
+        let core = Library::open(directory.path(), &directory.path().join(".index")).unwrap();
+        let path = directory.path().join("note.md");
+        fs::write(&path, "a\r\nb\n").unwrap();
+
+        saved(&core, "note.md", "a\nb changed\n", None).unwrap();
+
+        assert_eq!(fs::read_to_string(&path).unwrap(), "a\nb changed\n");
+    }
+
+    #[test]
+    fn should_keep_line_feeds_when_a_note_has_as_many_lone_crs() {
+        let directory = tempfile::tempdir().unwrap();
+        let core = Library::open(directory.path(), &directory.path().join(".index")).unwrap();
+        let path = directory.path().join("note.md");
+        fs::write(&path, "a\rb\n").unwrap();
+
+        saved(&core, "note.md", "a\nb changed\n", None).unwrap();
+
+        assert_eq!(fs::read_to_string(&path).unwrap(), "a\nb changed\n");
     }
 
     #[test]
@@ -3320,6 +3384,17 @@ mod tests {
 
         assert_eq!(file.text, "{\n  \"a\": 1\n}\n");
         assert!(!file.revision.is_empty());
+    }
+
+    #[test]
+    fn should_read_a_lone_cr_code_file_in_line_feeds() {
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("notes.txt");
+        fs::write(&path, "a\rb\rc\r").unwrap();
+
+        let file = read_code_if_moved(&path, None).unwrap().unwrap();
+
+        assert_eq!(file.text, "a\nb\nc\n");
     }
 
     #[test]

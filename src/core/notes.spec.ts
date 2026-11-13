@@ -12,6 +12,7 @@ import {
 } from "./notes";
 
 const VALID_FILENAME = /^(?!\.)[^/\\:]+$/u;
+const CR_ENDING = /\r\n?/gu;
 
 describe(noteTitle, () => {
   it.each([
@@ -28,7 +29,9 @@ describe(noteTitle, () => {
 describe(resolveTitle, () => {
   it.each(titleCases)(
     "should resolve $name consistently with Rust",
-    ({ content, path, expected, line }) => {
+    ({ content: onDisk, path, expected, line }) => {
+      // The native side hands a note over in line feeds alone.
+      const content = onDisk.replaceAll(CR_ENDING, "\n");
       const parsed = parseNote(content);
       expect(resolveTitle(path, parsed.body, parsed.frontmatter.title)).toBe(
         expected

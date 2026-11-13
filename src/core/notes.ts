@@ -131,7 +131,8 @@ const titleMarkdown = new Marked({
   gfm: true,
 });
 
-function lineBreaks(text: string) {
+/** How many line breaks `text` holds, in line feeds alone as the native side hands a note over. */
+export function lineBreaks(text: string) {
   return text.split("\n").length - 1;
 }
 

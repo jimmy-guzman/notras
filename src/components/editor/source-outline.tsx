@@ -7,7 +7,7 @@ import { useDeferredValue, useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 
 import { parseNote } from "@/core/frontmatter";
-import { bodyTitle } from "@/core/notes";
+import { bodyTitle, lineBreaks } from "@/core/notes";
 
 import { DEEPEST_LEVEL } from "./heading-navigation";
 import { createNoteMarked } from "./marked-blocks";
@@ -23,14 +23,9 @@ interface SourceHeading {
 
 const INDENT = ["ps-0", "ps-3", "ps-6"];
 
-/** Every break marked reads as one, a lone CR from an older Mac file included. */
-const LINE_BREAK = /\r\n?|\n/gu;
+const LINE_FEED = /\n/gu;
 
 const marked = createNoteMarked();
-
-function lineBreaks(text: string) {
-  return text.match(LINE_BREAK)?.length ?? 0;
-}
 
 function isHeading(token: Token): token is Tokens.Heading {
   return token.type === "heading";
@@ -68,10 +63,7 @@ function headingLines(tokens: Token[], firstLine: number) {
 function lineOffsets(source: string) {
   return [
     0,
-    ...Array.from(
-      source.matchAll(LINE_BREAK),
-      (found) => found.index + found[0].length
-    ),
+    ...Array.from(source.matchAll(LINE_FEED), (found) => found.index + 1),
   ];
 }
 
