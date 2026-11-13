@@ -51,6 +51,8 @@ export default defineConfig({
     ...(core.ignorePatterns ?? []),
     "src/server/adapters/bindings.ts",
     "src/typeset.css",
+    ".agents",
+    ".claude/skills",
     "assets",
   ],
   // Dependency analyzers read plugin packages off the root config only, so the preset's entry is restated here.
