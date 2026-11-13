@@ -39,6 +39,8 @@ Reference in `package.json` with `catalog:`:
 
 `catalog:` is shorthand for `catalog:default`. The `catalog:` protocol is valid in `package.json` `dependencies`, `devDependencies`, `peerDependencies`, and `optionalDependencies`, plus in `overrides` inside `pnpm-workspace.yaml`. It also works on the CLI: `pnpm add react@catalog:` and `pnx shx@catalog:`.
 
+The default catalog can also be written as `catalogs.default`; defining both `catalog` and `catalogs.default` fails ("The 'default' catalog was defined multiple times").
+
 ## Named Catalogs
 
 Create multiple catalogs for different scenarios:
@@ -80,6 +82,23 @@ Reference named catalogs:
 }
 ```
 
+## Adding to a catalog from the CLI
+
+`pnpm add --save-catalog <dep>` writes the range to the default catalog and `catalog:` to `package.json`; `--save-catalog-name <name>` picks a named catalog. `catalogMode` controls whether `pnpm add` does this without the flag.
+
+Errors: `ERR_PNPM_CATALOG_ENTRY_NOT_FOUND_FOR_SPEC` (no entry for the dep), `ERR_PNPM_CATALOG_ENTRY_INVALID_RECURSIVE_DEFINITION` (an entry is itself a `catalog:` reference).
+
+## workspace:, file:, and link: entries
+
+A catalog entry may hold a `workspace:` range (v12.2.0), so the version a workspace dependency links by is defined once too. It expands to the range and links the project; on publish both protocols are replaced.
+
+```yaml title="pnpm-workspace.yaml"
+catalog:
+  '@example/utils': workspace:^
+  my-lib: link:./packages/my-lib     # v12.6.0; path measured from pnpm-workspace.yaml
+  my-tarball: file:./tarballs/foo.tgz
+```
+
 ## Keeping overrides in sync with a catalog
 
 Reference a catalog from `overrides` so the version lives in exactly one place:
@@ -98,7 +117,7 @@ overrides:
 # How `pnpm add` interacts with the default catalog (v10.12+)
 catalogMode: manual        # manual (default) | prefer | strict
 # strict: only catalog versions allowed; prefer: fall back if no match
-cleanupUnusedCatalogs: true  # remove unused catalog entries on install (v10.15+)
+catalogPrune: true         # remove unused catalog entries on install (v11.22+; was cleanupUnusedCatalogs)
 ```
 
 ## Benefits

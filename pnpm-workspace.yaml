@@ -10,4 +10,9 @@ color: always
 engineStrict: true
 patchedDependencies:
   "@tiptap/react": patches/@tiptap__react.patch
+permissions:
+  "@tanstack/react-hotkeys":
+    skills: true
+  ultracite:
+    skills: true
 saveExact: true

@@ -18,6 +18,7 @@ export default defineConfig({
     environment: "happy-dom",
     exclude: [
       ...configDefaults.exclude,
+      ".claude/**",
       ".worktrees/**",
       "src-tauri/**",
       "smoke/**",
