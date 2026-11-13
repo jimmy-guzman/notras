@@ -278,6 +278,12 @@ pub(crate) fn content_revision(content: &str) -> String {
     sha256_hex(content.as_bytes())
 }
 
+/// `text` in line feeds alone, reading a CRLF and a lone CR from an older Mac
+/// file each as one line break, the way marked reads them.
+pub(crate) fn in_line_feeds(text: &str) -> String {
+    text.replace("\r\n", "\n").replace('\r', "\n")
+}
+
 pub(crate) fn timestamp_millis(time: io::Result<SystemTime>) -> io::Result<i64> {
     let duration = time?.duration_since(UNIX_EPOCH).map_err(|_| {
         io::Error::new(

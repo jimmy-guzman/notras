@@ -49,6 +49,27 @@
     "line": 0
   },
   {
+    "name": "lone cr callout",
+    "content": "> [!NOTE]\r> body\r",
+    "path": "note.md",
+    "expected": "body",
+    "line": 1
+  },
+  {
+    "name": "lone cr blank lines",
+    "content": "\r\rtitle",
+    "path": "note.md",
+    "expected": "title",
+    "line": 2
+  },
+  {
+    "name": "lone cr frontmatter",
+    "content": "---\rtitle: imported\r---\rbody\r",
+    "path": "note.md",
+    "expected": "body",
+    "line": 0
+  },
+  {
     "name": "deeper heading",
     "content": "## section\n",
     "path": "note.md",

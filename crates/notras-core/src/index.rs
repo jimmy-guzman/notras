@@ -8,7 +8,7 @@ use serde::Serialize;
 use crate::{
     frontmatter,
     markdown::{bare_mentions, destinations, is_note_path, resolve_title, wikilinks},
-    note_file::timestamp_millis,
+    note_file::{in_line_feeds, timestamp_millis},
     relative_path::RelativePath,
 };
 
@@ -58,7 +58,7 @@ pub fn open(index_dir: &Path) -> Result<Connection, IndexError> {
 
 /// Bump when a row's derivation changes. The mtime skip would otherwise leave
 /// every unedited note on the old derivation until someone ran "reindex".
-pub(crate) const SCHEMA_VERSION: i64 = 17;
+pub(crate) const SCHEMA_VERSION: i64 = 18;
 
 /// The derived, disposable search index. Files are the source of truth; this
 /// database can be deleted at any time and rebuilt from the notes directory.
@@ -379,11 +379,11 @@ pub(crate) fn index_note(
         return Ok(false);
     }
 
-    let content = io::read_to_string(file)?;
+    let content = in_line_feeds(&io::read_to_string(file)?);
 
     let parsed = frontmatter::parse(&content);
     // The body is a suffix of the file, so what precedes it is the frontmatter,
-    // and its line count puts a link's line where `grep -n` puts it.
+    // and its line count puts a link's line where the editor puts it.
     let body_line_offset = content[..content.len() - parsed.body.len()]
         .matches('\n')
         .count();
@@ -850,6 +850,26 @@ mod tests {
         assert!(select(&conn, "SELECT path FROM note_link", &[])
             .unwrap()
             .is_empty());
+    }
+
+    #[test]
+    fn should_read_a_lone_cr_as_a_line_break_the_way_the_editor_does() {
+        let dir_directory = tempfile::tempdir().unwrap();
+        let dir = dir_directory.path().to_owned();
+        fs::write(dir.join("a.md"), "> [!NOTE]\r> body\r\r[[b]]\r").unwrap();
+
+        let conn = Connection::open_in_memory().unwrap();
+        ensure_schema(&conn).unwrap();
+        scan_all(&conn, &root(&dir), &dir).unwrap();
+
+        assert_eq!(
+            select(&conn, "SELECT title FROM note", &[]).unwrap(),
+            vec![vec![json!("body")]]
+        );
+        assert_eq!(
+            select(&conn, "SELECT line FROM note_link", &[]).unwrap(),
+            vec![vec![json!(4)]]
+        );
     }
 
     #[test]

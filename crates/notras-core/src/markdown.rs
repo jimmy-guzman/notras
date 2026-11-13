@@ -1423,8 +1423,8 @@ mod tests {
         let cases: serde_json::Value =
             serde_json::from_str(include_str!("../../../fixtures/note-titles.json")).unwrap();
         for case in cases.as_array().unwrap() {
-            let content = case["content"].as_str().unwrap();
-            let parsed = frontmatter::parse(content);
+            let content = crate::note_file::in_line_feeds(case["content"].as_str().unwrap());
+            let parsed = frontmatter::parse(&content);
             assert_eq!(
                 resolve_title(&parsed, case["path"].as_str().unwrap()),
                 case["expected"].as_str().unwrap(),

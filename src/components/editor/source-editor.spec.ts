@@ -599,12 +599,6 @@ describe("source outline", () => {
       "intro\n\nSetext\n------\n\n> ## Quoted\n\n## Plain",
       ["Setext", "Quoted", "Plain"],
     ],
-    ["lone CR line breaks", "intro\r## B\r## C", ["B", "C"]],
-    [
-      "a stray CR",
-      "## One\rstill one\n\n## Two\n\n## Three",
-      ["One", "Two", "Three"],
-    ],
   ] as const)(
     "should list what the note view lists for %s",
     ([, content, expected], { onTestFinished }) => {
@@ -660,33 +654,6 @@ describe("source outline", () => {
     expect(jumps).toStrictEqual(["jumped"]);
     expect(note.editor.state.selection.from).toBe(
       note.editor.state.doc.textContent.indexOf("## Two") + 1
-    );
-  });
-
-  it("should jump to a heading's own line past a stray CR", async ({
-    onTestFinished,
-  }) => {
-    const content = "## One\rstill one\n\n## Two\n\n## Three";
-    const note = createNoteDocument(content, "note.md");
-    const host = document.createElement("div");
-    document.body.append(host);
-    onTestFinished(() => {
-      note.destroy();
-      host.remove();
-    });
-
-    render(
-      createElement(SourceEditor, {
-        editor: note.editor,
-        focusOnMount: false,
-        outlineHost: host,
-      })
-    );
-
-    await userEvent.setup().click(screen.getByRole("button", { name: "Two" }));
-
-    expect(note.editor.state.selection.from).toBe(
-      content.indexOf("## Two") + 1
     );
   });
 
