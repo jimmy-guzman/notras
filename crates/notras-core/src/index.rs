@@ -58,7 +58,7 @@ pub fn open(index_dir: &Path) -> Result<Connection, IndexError> {
 
 /// Bump when a row's derivation changes. The mtime skip would otherwise leave
 /// every unedited note on the old derivation until someone ran "reindex".
-pub(crate) const SCHEMA_VERSION: i64 = 18;
+pub(crate) const SCHEMA_VERSION: i64 = 19;
 
 /// The derived, disposable search index. Files are the source of truth; this
 /// database can be deleted at any time and rebuilt from the notes directory.
@@ -121,12 +121,13 @@ pub fn ensure_schema(conn: &Connection) -> rusqlite::Result<()> {
          CREATE INDEX IF NOT EXISTS note_link_path ON note_link (path);
          -- `text` is what a reader sees less the title line, and is searched;
          -- `content` is the raw body that previews and mention scans parse as
-         -- markdown.
+         -- markdown. `name` is the path less its extension.
          CREATE VIRTUAL TABLE IF NOT EXISTS note_fts USING fts5(
            path UNINDEXED,
            title,
            text,
            content UNINDEXED,
+           name,
            tokenize='unicode61'
          );",
     )?;
@@ -210,7 +211,7 @@ pub fn phrase_candidates(conn: &Connection, phrase: &str) -> Result<Vec<String>,
     // unicode61 and Rust differ on Unicode case folding and word boundaries.
     // Keep Unicode bodies even for ASCII phrases to avoid losing matches.
     if phrase.is_ascii() && phrase.chars().any(|ch| ch.is_ascii_alphanumeric()) {
-        let query = format!("\"{}\"", phrase.replace('"', "\"\""));
+        let query = format!("{{title text}} : \"{}\"", phrase.replace('"', "\"\""));
         let mut stmt = conn.prepare(
             "SELECT path FROM note_fts WHERE note_fts MATCH ?1
              UNION SELECT path FROM note_prose_fallback
@@ -239,7 +240,7 @@ pub fn mention_candidates(
         return Ok(Vec::new());
     }
 
-    let phrase = format!("\"{}\"", title.replace('"', "\"\""));
+    let phrase = format!("{{title text}} : \"{}\"", title.replace('"', "\"\""));
     let mut stmt = conn.prepare(
         "SELECT path FROM note_fts WHERE note_fts MATCH ?1 AND path != ?2
          UNION SELECT path FROM note_prose_fallback WHERE path != ?2
@@ -389,6 +390,14 @@ pub(crate) fn index_note(
         .count();
     let created_at = timestamp_millis(file_meta.created()).unwrap_or(updated_at);
     let title = resolve_title(&parsed, rel_path);
+    let (folder, file_name) = relative.split();
+    // The stem leaves out the extension, which would otherwise match every note.
+    let stem = crate::markdown::title_of(file_name);
+    let search_name = if folder.is_empty() {
+        stem
+    } else {
+        format!("{folder}/{stem}")
+    };
 
     // Metadata and search entries must describe the same saved document.
     let tx = conn.unchecked_transaction()?;
@@ -405,7 +414,7 @@ pub(crate) fn index_note(
         rusqlite::params![
             rel_path,
             title,
-            relative.split().0,
+            folder,
             parsed.frontmatter.pinned,
             created_at,
             updated_at,
@@ -471,13 +480,14 @@ pub(crate) fn index_note(
         [rel_path],
     )?;
     tx.execute(
-        "INSERT INTO note_fts (rowid, path, title, text, content)
-         SELECT id, path, ?2, ?3, ?4 FROM note WHERE path = ?1",
+        "INSERT INTO note_fts (rowid, path, title, text, content, name)
+         SELECT id, path, ?2, ?3, ?4, ?5 FROM note WHERE path = ?1",
         rusqlite::params![
             rel_path,
             title,
             crate::markdown::search_text(parsed.body),
-            parsed.body
+            parsed.body,
+            search_name
         ],
     )?;
 

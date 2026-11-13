@@ -6,9 +6,9 @@ use rusqlite::{Connection, OpenFlags, ToSql};
 use serde::{Deserialize, Serialize};
 
 use crate::application::CommandError;
+use crate::index;
 use crate::relationships::{self, Graph, Hub, HubPill, Mention, NoteLink, RingMember};
 use crate::Library;
-use crate::{frontmatter, index};
 
 /// A read-only transaction containing one complete indexed library version.
 /// Its connection is independent of the writer and is released when dropped.
@@ -121,13 +121,20 @@ pub struct GraphResult {
 }
 
 fn fts_match(query: &str) -> Option<String> {
-    static NON_WORD: LazyLock<Regex> =
-        LazyLock::new(|| Regex::new(r"[^\p{L}\p{N}_]+").expect("valid FTS normalization pattern"));
-    let terms: Vec<_> = query
-        .split(frontmatter::is_space)
-        .map(|term| NON_WORD.replace_all(term, ""))
-        .filter(|term| !term.is_empty())
-        .map(|term| format!("{term}*"))
+    static NON_WORD: LazyLock<Regex> = LazyLock::new(|| {
+        Regex::new(r"[^\p{L}\p{N}\p{M}_]+").expect("valid FTS normalization pattern")
+    });
+    static WORD: LazyLock<Regex> =
+        LazyLock::new(|| Regex::new(r"[\p{L}\p{N}_]").expect("valid word pattern"));
+    // unicode61 splits `budget-q3` into two tokens, so the query must too.
+    // Combining marks stay in the term: unicode61 folds Latin accents into
+    // their letter but splits on other marks, and only FTS5 tokenizing the
+    // quoted term the way it tokenized the note agrees with both.
+    let terms: Vec<_> = NON_WORD
+        .split(query)
+        .filter(|term| WORD.is_match(term))
+        // Quoted, so a term like `NOT` reads as a word and not an operator.
+        .map(|term| format!("\"{term}\"*"))
         .collect();
     (!terms.is_empty()).then(|| terms.join(" AND "))
 }
@@ -149,7 +156,7 @@ fn select_notes(
     // bm25 is negative on a hit and 0 without one, so weighting only the
     // title column makes a title-hit tier.
     let order = if matched.is_some() {
-        "lower(note.title) = lower(:text) DESC, bm25(note_fts, 0, 1, 0) < 0 DESC, note.pinned DESC,
+        "lower(note.title) = lower(:text) DESC, bm25(note_fts, 0, 1, 0, 0, 0) < 0 DESC, note.pinned DESC,
          bm25(note_fts), note.updated_at DESC, note.path"
     } else {
         "note.pinned DESC, note.updated_at DESC"
@@ -701,13 +708,96 @@ mod tests {
     #[test]
     fn should_normalize_fts_terms_as_unicode_letters_numbers_and_underscores() {
         for (query, expected) in [
-            ("  budget! q3? ", Some("budget* AND q3*")),
-            ("é 中 Ⅳ ١ x_y", Some("é* AND 中* AND Ⅳ* AND ١* AND x_y*")),
-            ("a\u{85}b\u{feff}c", Some("ab* AND c*")),
-            ("a\u{301} \u{345}", Some("a*")),
+            ("  budget! q3? ", Some("\"budget\"* AND \"q3\"*")),
+            (
+                "é 中 Ⅳ ١ x_y",
+                Some("\"é\"* AND \"中\"* AND \"Ⅳ\"* AND \"١\"* AND \"x_y\"*"),
+            ),
+            ("a\u{85}b\u{feff}c", Some("\"a\"* AND \"b\"* AND \"c\"*")),
+            ("a\u{301} \u{345}", Some("\"a\u{301}\"*")),
+            ("nai\u{308}ve", Some("\"nai\u{308}ve\"*")),
             ("-- ! :", None),
         ] {
             assert_eq!(fts_match(query).as_deref(), expected);
+        }
+    }
+
+    #[test]
+    fn should_find_notes_by_folder_and_filename_words() {
+        let (_directory, core) = library();
+        save(&core, "work/budget-q3.MD", "# Spending\nnumbers", 1);
+        save(&core, "other.markdown", "# Other\nunrelated", 2);
+        let view = core.read_view().unwrap();
+        let palette = |query: &str| {
+            view.search_notes(NoteSearch {
+                filters: vec![],
+                incomplete: false,
+                query: query.into(),
+            })
+            .unwrap()
+        };
+        let browser = |query: &str| {
+            view.list_notes(&NoteFilters {
+                query: Some(query.into()),
+                ..Default::default()
+            })
+            .unwrap()
+        };
+
+        for query in ["budget", "q3", "work budget", "budget-q3", "work/budget"] {
+            for found in [palette(query), browser(query)] {
+                let paths: Vec<_> = found.iter().map(|note| note.path.as_str()).collect();
+                assert_eq!(paths, ["work/budget-q3.MD"], "{query}");
+            }
+        }
+        for query in ["md", "markdown"] {
+            assert!(palette(query).is_empty(), "{query}");
+            assert!(browser(query).is_empty(), "{query}");
+        }
+    }
+
+    #[test]
+    fn should_match_hyphenated_and_apostrophe_words_in_the_body() {
+        let (_directory, core) = library();
+        save(&core, "note.md", "# Note\nSend an e-mail, don't call.", 1);
+        let view = core.read_view().unwrap();
+
+        for query in ["e-mail", "don't"] {
+            let found = view
+                .list_notes(&NoteFilters {
+                    query: Some(query.into()),
+                    ..Default::default()
+                })
+                .unwrap();
+            assert_eq!(found.len(), 1, "{query}");
+        }
+    }
+
+    #[test]
+    fn should_match_combining_marks_and_operator_words_as_the_note_spells_them() {
+        let (_directory, core) = library();
+        save(
+            &core,
+            "note.md",
+            "# Note\nAn école, not a naïve हिंदी plan.",
+            1,
+        );
+        let view = core.read_view().unwrap();
+
+        for (query, expected) in [
+            ("e\u{301}cole", 1),
+            ("nai\u{308}ve", 1),
+            ("हिंदी", 1),
+            ("NOT", 1),
+            ("plan-OR", 0),
+        ] {
+            let found = view
+                .list_notes(&NoteFilters {
+                    query: Some(query.into()),
+                    ..Default::default()
+                })
+                .unwrap_or_else(|error| panic!("{query}: {error:?}"));
+            assert_eq!(found.len(), expected, "{query}");
         }
     }
 
