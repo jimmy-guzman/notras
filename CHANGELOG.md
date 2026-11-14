@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.12.8](https://github.com/jimmy-guzman/notras/compare/v0.12.7...v0.12.8) (2026-11-14)
+
+
+### Bug Fixes
+
+* **editor:** 🐛 keep escaped headings, lists & dividers as text ([#547](https://github.com/jimmy-guzman/notras/issues/547)) ([bcc5195](https://github.com/jimmy-guzman/notras/commit/bcc519588adf2023c225edf467c59dbd2a728da2))
+* **editor:** 🐛 keep inline html when bolded or made a code block ([#555](https://github.com/jimmy-guzman/notras/issues/555)) ([f0329af](https://github.com/jimmy-guzman/notras/commit/f0329af54b79458d98bbc1214ca896a3ae51d099))
+* **notes:** 🐛 read old mac notes line by line ([#542](https://github.com/jimmy-guzman/notras/issues/542)) ([394fd13](https://github.com/jimmy-guzman/notras/commit/394fd131714a9828b1066d621b09e475eaa5baf5))
+* **notes:** 🐛 search notes by folder & file name ([#545](https://github.com/jimmy-guzman/notras/issues/545)) ([7d80e70](https://github.com/jimmy-guzman/notras/commit/7d80e704c1fec26d01a37d174ca6482c0e15843f))
+* **ui:** 🐛 ignore the enter that confirms an ime candidate ([#554](https://github.com/jimmy-guzman/notras/issues/554)) ([d0ff87d](https://github.com/jimmy-guzman/notras/commit/d0ff87d2bd63ad7439fdffefb2b8bc5acfbb7214))
+
+
+### Refactoring
+
+* 🔄 enforce ./ for siblings, @/ for parents ([#539](https://github.com/jimmy-guzman/notras/issues/539)) ([11443f6](https://github.com/jimmy-guzman/notras/commit/11443f6fc8e1b17cef06fd5a1c7675df3f24bf46))
+* **editor:** 🔄 order pastes & syntax answers with p-limit ([#556](https://github.com/jimmy-guzman/notras/issues/556)) ([6cb92a8](https://github.com/jimmy-guzman/notras/commit/6cb92a8405842585f3a089487eb03c61b1a861d9))
+
 ## [0.12.7](https://github.com/jimmy-guzman/notras/compare/v0.12.6...v0.12.7) (2026-11-12)
 
 
