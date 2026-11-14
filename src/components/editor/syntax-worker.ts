@@ -1,3 +1,4 @@
+import pLimit from "p-limit";
 import {
   applyColorReplacements,
   createBundledHighlighter,
@@ -231,15 +232,10 @@ async function respond({ code, document, id, language }: SyntaxRequest) {
   self.postMessage(response);
 }
 
-async function respondAfter(previous: Promise<void>, request: SyntaxRequest) {
-  await previous;
-  await respond(request);
-}
-
 // One request at a time: a splice describes the change since the answer
 // before it, so answers for a document must leave in the order they arrived.
-let queue = Promise.resolve();
+const respondInOrder = pLimit(1);
 
 self.addEventListener("message", (event: MessageEvent<SyntaxRequest>) => {
-  queue = respondAfter(queue, event.data);
+  void respondInOrder(respond, event.data);
 });

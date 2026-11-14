@@ -6,6 +6,7 @@ import type { Fragment, Schema } from "@tiptap/pm/model";
 import type { EditorState, SelectionBookmark } from "@tiptap/pm/state";
 import { Plugin, PluginKey, Selection } from "@tiptap/pm/state";
 import type { EditorView } from "@tiptap/pm/view";
+import pLimit from "p-limit";
 import { nullable, object, parse, parseJson, pipe, string } from "valibot";
 
 import { toast } from "@/components/ui/toast";
@@ -508,19 +509,15 @@ async function compositionEnd(editor: Editor) {
 }
 
 /**
- * Read the source now, while the clipboard still holds this paste. The
- * result returns that source, or throws the read's failure, on the paste's
- * turn.
+ * Settle work started now, while the clipboard still holds this paste. The
+ * result returns the value, or throws the work's failure, on the paste's
+ * turn, so a failure before then is never unhandled.
  */
-async function sourceNow(
-  readClipboardSource: ReadClipboardSource,
-  text: string,
-  metadata: string
-) {
+async function settledNow<T>(work: () => Promise<T>) {
   try {
-    const source = editorSource(metadata) ?? (await readClipboardSource(text));
+    const value = await work();
 
-    return () => source;
+    return () => value;
   } catch (error) {
     return () => {
       throw error;
@@ -529,19 +526,18 @@ async function sourceNow(
 }
 
 /**
- * Wait for the pastes ahead, then paste again at the bookmark, so every
- * handler, the table's included, runs in turn.
+ * Paste again at the bookmark, so every handler, the table's included,
+ * runs in turn.
  */
 async function pasteInTurn(
   editor: Editor,
   replay: (source: () => ClipboardSource | null) => void,
   source: Promise<() => ClipboardSource | null>,
   paste: PendingPaste,
-  pending: Set<PendingPaste>,
-  previous: Promise<void>
+  pending: Set<PendingPaste>
 ) {
   try {
-    const [read] = await Promise.all([source, previous]);
+    const read = await source;
 
     await compositionEnd(editor);
 
@@ -558,18 +554,12 @@ async function pasteInTurn(
 
 async function pasteImage(
   editor: Editor,
-  saveImage: SaveImage,
-  image: File | null,
+  saved: Promise<() => string>,
   paste: PendingPaste,
-  pending: Set<PendingPaste>,
-  previous: Promise<void>
+  pending: Set<PendingPaste>
 ) {
   try {
-    if (image === null) {
-      throw new Error("The clipboard contains no image file");
-    }
-
-    const [src] = await Promise.all([saveImage(image), previous]);
+    const src = (await saved)();
 
     await compositionEnd(editor);
 
@@ -593,7 +583,6 @@ async function pasteImage(
     });
   } finally {
     pending.delete(paste);
-    await previous;
   }
 }
 
@@ -603,14 +592,13 @@ async function pasteImage(
  */
 async function pastePlainText(
   editor: Editor,
-  readClipboardText: ReadClipboardText,
+  read: Promise<() => string | null>,
   replay: (text: string) => void,
   paste: PendingPaste,
-  pending: Set<PendingPaste>,
-  previous: Promise<void>
+  pending: Set<PendingPaste>
 ) {
   try {
-    const [text] = await Promise.all([readClipboardText(), previous]);
+    const text = (await read)();
 
     if (editor.isDestroyed) {
       return;
@@ -632,7 +620,6 @@ async function pastePlainText(
     });
   } finally {
     pending.delete(paste);
-    await previous;
   }
 }
 
@@ -653,7 +640,7 @@ export const MarkdownPaste = Extension.create<MarkdownPasteOptions>({
   },
   addProseMirrorPlugins() {
     const pending = new Set<PendingPaste>();
-    let previous = Promise.resolve();
+    const inTurn = pLimit(1);
     // Set only while a queued paste dispatches again, since it already holds
     // its turn.
     let replay: Replay | null = null;
@@ -698,6 +685,7 @@ export const MarkdownPaste = Extension.create<MarkdownPasteOptions>({
                 return false;
               }
 
+              const { readClipboardSource, saveImage } = this.options;
               const text = clipboardData.getData("text/plain");
 
               // Word and Numbers copy a picture beside the text; a browser
@@ -710,7 +698,7 @@ export const MarkdownPaste = Extension.create<MarkdownPasteOptions>({
                     )
                   : undefined;
 
-              if (this.options.saveImage !== null && image !== undefined) {
+              if (saveImage !== null && image !== undefined) {
                 event.preventDefault();
 
                 // An image inserted into code splits the block and turns the
@@ -725,16 +713,22 @@ export const MarkdownPaste = Extension.create<MarkdownPasteOptions>({
                   return true;
                 }
 
+                const file = image.getAsFile();
                 const paste = { selection: pasteBookmark(view.state, pending) };
 
                 pending.add(paste);
-                previous = pasteImage(
+                void inTurn(
+                  pasteImage,
                   this.editor,
-                  this.options.saveImage,
-                  image.getAsFile(),
+                  settledNow(async () => {
+                    if (file === null) {
+                      throw new Error("The clipboard contains no image file");
+                    }
+
+                    return await saveImage(file);
+                  }),
                   paste,
-                  pending,
-                  previous
+                  pending
                 );
 
                 return true;
@@ -745,7 +739,7 @@ export const MarkdownPaste = Extension.create<MarkdownPasteOptions>({
                   clipboardData,
                   view.state,
                   pending,
-                  this.options.readClipboardSource
+                  readClipboardSource
                 )
               ) {
                 return false;
@@ -759,7 +753,8 @@ export const MarkdownPaste = Extension.create<MarkdownPasteOptions>({
               const paste = { selection: pasteBookmark(view.state, pending) };
 
               pending.add(paste);
-              previous = pasteInTurn(
+              void inTurn(
+                pasteInTurn,
                 this.editor,
                 (source) => {
                   const again = new ClipboardEvent("paste", {
@@ -776,12 +771,15 @@ export const MarkdownPaste = Extension.create<MarkdownPasteOptions>({
                     replay = null;
                   }
                 },
-                this.options.readClipboardSource === null || text === ""
-                  ? Promise.resolve(() => editorSource(metadata))
-                  : sourceNow(this.options.readClipboardSource, text, metadata),
+                settledNow(
+                  async () =>
+                    editorSource(metadata) ??
+                    (readClipboardSource === null || text === ""
+                      ? null
+                      : await readClipboardSource(text))
+                ),
                 paste,
-                pending,
-                previous
+                pending
               );
 
               return true;
@@ -796,9 +794,10 @@ export const MarkdownPaste = Extension.create<MarkdownPasteOptions>({
               const paste = { selection: pasteBookmark(state, pending) };
 
               pending.add(paste);
-              previous = pastePlainText(
+              void inTurn(
+                pastePlainText,
                 this.editor,
-                this.options.readClipboardText,
+                settledNow(this.options.readClipboardText),
                 (text) => {
                   const again = new ClipboardEvent("paste", {
                     bubbles: true,
@@ -814,8 +813,7 @@ export const MarkdownPaste = Extension.create<MarkdownPasteOptions>({
                   }
                 },
                 paste,
-                pending,
-                previous
+                pending
               );
 
               return true;
