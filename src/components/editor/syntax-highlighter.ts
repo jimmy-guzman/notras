@@ -82,6 +82,22 @@ function diffTokens(code: string) {
   });
 }
 
+/**
+ * The Markdown lexer opens frontmatter on any leading `---`. A leading newline
+ * keeps it out of text the app reads as Markdown.
+ */
+function markdownTokens(markdown: string, lang: Lang, shift: number) {
+  return coloredTokens(`\n${markdown}`, lang, shift - 1);
+}
+
+/** A leading `---` over a line the YAML lexer opens with a key: frontmatter being typed. */
+function opensWithKey(code: string) {
+  const second = /^---\r?\n(?<line>.*)/u.exec(code)?.groups?.line;
+  const [first] = second === undefined ? [] : coloredTokens(second, "yaml", 0);
+
+  return first?.offset === 0 && first.color === "var(--syntax-member)";
+}
+
 /** Resolve an explicit fence label without changing what is saved to the file. */
 export function syntaxLanguage(
   language: string | null | undefined
@@ -98,8 +114,10 @@ export function syntaxLanguage(
 
 /**
  * Tokenize code with the packaged lexers, so no network service receives it.
- * A note's frontmatter ends where `parseNote` says it does: the Markdown lexer
- * closes a block on `---` alone and would read the body after `...` as YAML.
+ * A note's frontmatter is what `parseNote` says it is: the Markdown lexer
+ * closes a block on `---` alone and would read the body after `...` as YAML,
+ * and it opens one on a rule the app reads as Markdown. A block still being
+ * typed, with a key under its opening line, keeps the lexer's YAML colors.
  */
 export function highlightCode(code: string, language: Lang): SyntaxToken[] {
   if (DIFF.has(language)) {
@@ -113,13 +131,15 @@ export function highlightCode(code: string, language: Lang): SyntaxToken[] {
   const { body, raw } = parseNote(code);
 
   if (raw === undefined) {
-    return coloredTokens(code, language, 0);
+    return opensWithKey(code)
+      ? coloredTokens(code, language, 0)
+      : markdownTokens(code, language, 0);
   }
 
   const head = code.slice(0, code.length - body.length);
 
   return [
     ...coloredTokens(head, "yaml", 0),
-    ...coloredTokens(body, language, head.length),
+    ...markdownTokens(body, language, head.length),
   ];
 }
