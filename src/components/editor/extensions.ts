@@ -46,7 +46,7 @@ import {
 } from "@/lib/utils/attachments";
 
 import { AtomCaret } from "./atom-caret";
-import { contentOf, hasNumber, hasString } from "./attrs";
+import { contentOf, converterOf, hasNumber, hasString } from "./attrs";
 import { BoundedTable } from "./bounded-tokenizers";
 import { NoteBlockquote } from "./callout";
 import { CaretAfterBreak } from "./caret-after-break";
@@ -742,6 +742,106 @@ function renderInDoc(
   );
 }
 
+const DELIMITER = /[*_~]/gu;
+
+/** The block's nodes of the given types in order, without looking inside them. */
+function nodesOfTypes(
+  json: JSONContent,
+  types: ReadonlySet<string>
+): JSONContent[] {
+  return (json.content ?? []).flatMap((child) =>
+    types.has(child.type ?? "") ? [child] : nodesOfTypes(child, types)
+  );
+}
+
+function delimiterCount(json: JSONContent): number {
+  return (json.content ?? []).reduce(
+    (count, child) => count + delimiterCount(child),
+    json.text?.match(DELIMITER)?.length ?? 0
+  );
+}
+
+function markKey(json: JSONContent | undefined) {
+  return (json?.marks ?? [])
+    .map((mark) => mark.type)
+    .toSorted()
+    .join(",");
+}
+
+function withoutMarksOn(
+  json: JSONContent,
+  unmarked: ReadonlySet<JSONContent>
+): JSONContent {
+  if (unmarked.has(json)) {
+    const { marks: _marks, ...rest } = json;
+
+    return rest;
+  }
+
+  return json.content === undefined
+    ? json
+    : {
+        ...json,
+        content: json.content.map((child) => withoutMarksOn(child, unmarked)),
+      };
+}
+
+/**
+ * The block with marks kept only on the inline nodes whose marks read back.
+ * A mark on an image or inline HTML is written as delimiters around the node,
+ * which marked reads only where its flanking rules allow, so the block is
+ * parsed back instead of predicting them. A text that gains a delimiter means
+ * one stayed literal, and every node in the block loses its marks. The editor
+ * keeps showing the marks until the note is reopened.
+ */
+function withReadableMarks(
+  manager: MarkdownConverter,
+  json: JSONContent,
+  previous: JSONContent | undefined,
+  types: ReadonlySet<string>
+): JSONContent {
+  const nodes = nodesOfTypes(json, types);
+
+  if (nodes.every((node) => markKey(node) === "")) {
+    return json;
+  }
+
+  const readBack = manager.parse(renderInDoc(manager, json, previous));
+  const backNodes = nodesOfTypes(readBack, types);
+
+  const strayDelimiters =
+    backNodes.length !== nodes.length ||
+    delimiterCount(readBack) !== delimiterCount(json);
+
+  const unreadable = nodes.filter(
+    (node, index) =>
+      markKey(node) !== "" &&
+      (strayDelimiters || markKey(node) !== markKey(backNodes[index]))
+  );
+
+  return unreadable.length === 0
+    ? json
+    : withReadableMarks(
+        manager,
+        withoutMarksOn(json, new Set(unreadable)),
+        previous,
+        types
+      );
+}
+
+/** The inline nodes other than text and hard breaks, which marks wrap whole. */
+function markableNodeTypes(node: Node) {
+  const { schema } = node.type;
+
+  return new Set(
+    Object.values(schema.nodes).flatMap((type) =>
+      type.isInline && !type.isText && type !== schema.linebreakReplacement
+        ? [type.name]
+        : []
+    )
+  );
+}
+
 function renderBlock(
   manager: MarkdownConverter,
   node: Node,
@@ -758,8 +858,15 @@ function renderBlock(
     return hit;
   }
 
-  const json = contentOf(node);
   const before = previous === undefined ? undefined : contentOf(previous);
+
+  const json = withReadableMarks(
+    manager,
+    contentOf(node),
+    before,
+    markableNodeTypes(node)
+  );
+
   const escaped = renderInDoc(manager, json, before);
   const standIns = freeStandIns(before === undefined ? [json] : [before, json]);
 
@@ -1418,16 +1525,6 @@ export function copiedMarkdown(manager: MarkdownConverter, doc: Node) {
         : written(renderBlock(manager, node, siblings[index - 1], definitions))
     )
     .join("\n\n");
-}
-
-export function converterOf(editor: Editor) {
-  const manager = editor.markdown;
-
-  if (manager === undefined) {
-    throw new Error("The editor has no Markdown converter");
-  }
-
-  return manager;
 }
 
 /** Serialize the editor to markdown for the file on disk. */

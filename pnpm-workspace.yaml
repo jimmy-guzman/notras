@@ -9,6 +9,7 @@ autoInstallPeers: false
 color: always
 engineStrict: true
 patchedDependencies:
+  "@tiptap/markdown": patches/@tiptap__markdown.patch
   "@tiptap/react": patches/@tiptap__react.patch
 permissions:
   "@tanstack/react-hotkeys":

@@ -3,9 +3,8 @@ import { describe, expect, it } from "vitest";
 
 import { attachmentLink } from "@/lib/utils/attachments";
 
-import { hasString } from "./attrs";
+import { converterOf, hasString } from "./attrs";
 import {
-  converterOf,
   createEditorExtensions,
   rememberSources,
   serializeMarkdown,
@@ -315,6 +314,221 @@ describe("markdown round-trip", () => {
     }).not.toThrow();
   });
 
+  it("should extend bold from inline html over the text beside it", ({
+    onTestFinished,
+  }) => {
+    const editor = load("**<kbd>a</kbd>** b");
+
+    onTestFinished(() => {
+      editor.destroy();
+    });
+
+    editor.commands.selectAll();
+    editor.commands.toggleBold();
+
+    expect(serializeMarkdown(editor)).toBe("**<kbd>a</kbd> b**");
+  });
+
+  it.for([
+    ["between letters", "a![](i.png)b", 2],
+    ["after a letter", "a![](i.png) b", 2],
+    ["before a letter", "a ![](i.png)b", 3],
+    ["after italic text", "*a*![](i.png)", 2],
+  ] as const)(
+    "should write no stray asterisks for a bold image %s",
+    ([, markdown, image], { onTestFinished }) => {
+      const editor = load(markdown);
+
+      onTestFinished(() => {
+        editor.destroy();
+      });
+
+      editor.commands.setNodeSelection(image);
+      editor.commands.toggleBold();
+
+      expect(serializeMarkdown(editor)).toBe(markdown);
+    }
+  );
+
+  it("should write no stray asterisks for bold one-character inline html", ({
+    onTestFinished,
+  }) => {
+    const editor = new Editor({
+      content: {
+        content: [
+          {
+            content: [
+              { text: "a ", type: "text" },
+              {
+                content: [{ text: "<", type: "text" }],
+                marks: [{ type: "bold" }],
+                type: "htmlInline",
+              },
+              { text: "b", type: "text" },
+            ],
+            type: "paragraph",
+          },
+        ],
+        type: "doc",
+      },
+      element: document.createElement("div"),
+      extensions: createEditorExtensions({}),
+    });
+
+    onTestFinished(() => {
+      editor.destroy();
+    });
+
+    expect(serializeMarkdown(editor)).toBe("a <b");
+  });
+
+  it.for([
+    "*a*~~**![](i.png)**~~",
+    "**a**~~*![](i.png)*~~",
+    "**![](i.png)***`b`*",
+    "~~![](i.png)~~**b**",
+    "~~![](i.png)~~*b*",
+  ])(
+    "should keep every mark on %s across a save",
+    (markdown, { onTestFinished }) => {
+      const editor = load(markdown);
+
+      onTestFinished(() => {
+        editor.destroy();
+      });
+
+      const reopened = load(serializeMarkdown(editor));
+
+      onTestFinished(() => {
+        reopened.destroy();
+      });
+
+      expect(reopened.getJSON()).toStrictEqual(editor.getJSON());
+    }
+  );
+
+  it("should write no stray delimiters for a bold struck image between text and a struck image", ({
+    onTestFinished,
+  }) => {
+    const editor = new Editor({
+      content: {
+        content: [
+          {
+            content: [
+              { text: "a", type: "text" },
+              {
+                attrs: { alt: "", src: "i.png" },
+                marks: [{ type: "bold" }, { type: "strike" }],
+                type: "image",
+              },
+              {
+                attrs: { alt: "", src: "i.png" },
+                marks: [{ type: "strike" }],
+                type: "image",
+              },
+            ],
+            type: "paragraph",
+          },
+        ],
+        type: "doc",
+      },
+      element: document.createElement("div"),
+      extensions: createEditorExtensions({}),
+    });
+
+    onTestFinished(() => {
+      editor.destroy();
+    });
+
+    const reopened = load(serializeMarkdown(editor));
+
+    onTestFinished(() => {
+      reopened.destroy();
+    });
+
+    expect(reopened.state.doc.textContent).toBe("a");
+  });
+
+  it("should write no stray delimiters for a bold image before a struck one", ({
+    onTestFinished,
+  }) => {
+    const editor = new Editor({
+      content: {
+        content: [
+          {
+            content: [
+              {
+                attrs: { alt: "", src: "i.png" },
+                marks: [{ type: "bold" }],
+                type: "image",
+              },
+              {
+                attrs: { alt: "", src: "i.png" },
+                marks: [{ type: "strike" }],
+                type: "image",
+              },
+            ],
+            type: "paragraph",
+          },
+        ],
+        type: "doc",
+      },
+      element: document.createElement("div"),
+      extensions: createEditorExtensions({}),
+    });
+
+    onTestFinished(() => {
+      editor.destroy();
+    });
+
+    const reopened = load(serializeMarkdown(editor));
+
+    onTestFinished(() => {
+      reopened.destroy();
+    });
+
+    expect(reopened.state.doc.textContent).toBe("");
+  });
+
+  it("should keep bold and italic around an image that ends the bold", ({
+    onTestFinished,
+  }) => {
+    const editor = new Editor({
+      content: {
+        content: [
+          {
+            content: [
+              { marks: [{ type: "bold" }], text: "a ", type: "text" },
+              {
+                attrs: { alt: "", src: "i.png" },
+                marks: [{ type: "bold" }, { type: "italic" }],
+                type: "image",
+              },
+              { text: " ", type: "text" },
+              { marks: [{ type: "italic" }], text: "b", type: "text" },
+            ],
+            type: "paragraph",
+          },
+        ],
+        type: "doc",
+      },
+      element: document.createElement("div"),
+      extensions: createEditorExtensions({}),
+    });
+
+    onTestFinished(() => {
+      editor.destroy();
+    });
+
+    const reopened = load(serializeMarkdown(editor));
+
+    onTestFinished(() => {
+      reopened.destroy();
+    });
+
+    expect(reopened.getJSON()).toStrictEqual(editor.getJSON());
+  });
+
   it("should write a code span over a numbered line without a backslash", ({
     onTestFinished,
   }) => {
@@ -405,6 +619,13 @@ describe("markdown round-trip", () => {
       "&lt;div&gt; \\*c\\*\n2. b",
     ],
     ["an angle bracket beside icon glyphs", " \u{F0000} 1 < 2"],
+    ["bold inline html", "**<kbd>a</kbd>** b"],
+    ["inline html inside bold", "**a <kbd>b</kbd> c**"],
+    ["inline html inside a link", "[<kbd>x</kbd> y](https://e.com)"],
+    ["bold inline html in a heading", "# **<kbd>a</kbd>** b"],
+    ["an image inside a link", "[![b](b.svg)](https://e.com)"],
+    ["a bold image before a link", "**![](i.png)**[b](https://e.com)"],
+    ["a bold image before a code span", "**![](i.png)**`b`"],
   ])("should write %s in prose as typed", (_name, markdown) => {
     expect(roundtrip(markdown)).toBe(markdown);
   });

@@ -31,7 +31,7 @@ import {
 } from "@/lib/utils/attachments";
 import { commands } from "@/server/adapters/bindings";
 
-import { hasString } from "./attrs";
+import { converterOf, hasString } from "./attrs";
 import {
   revealSyntax,
   syntaxSettled,
@@ -40,7 +40,6 @@ import {
 import type { WatchEmbed } from "./embed";
 import {
   caretKey,
-  converterOf,
   copiedMarkdown,
   createEditorExtensions,
   fileMarkdown,

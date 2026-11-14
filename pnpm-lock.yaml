@@ -163,6 +163,7 @@ settings:
   excludeLinksFromLockfile: false
 
 patchedDependencies:
+  '@tiptap/markdown': 4c8eb3fac8b402929092965e24d83666e2efefdaa2270839dd36415ebdb33e79
   '@tiptap/react': d665cd43a7ee3e226cdf14dbcf1497d4bb9910f083d64df6080541b5148daee9
 
 importers:
@@ -261,7 +262,7 @@ importers:
         version: 3.33.0(@tiptap/core@3.33.0(@tiptap/pm@3.33.0))(@tiptap/pm@3.33.0)
       '@tiptap/markdown':
         specifier: 3.33.0
-        version: 3.33.0(@tiptap/core@3.33.0(@tiptap/pm@3.33.0))(@tiptap/pm@3.33.0)
+        version: 3.33.0(patch_hash=4c8eb3fac8b402929092965e24d83666e2efefdaa2270839dd36415ebdb33e79)(@tiptap/core@3.33.0(@tiptap/pm@3.33.0))(@tiptap/pm@3.33.0)
       '@tiptap/pm':
         specifier: 3.33.0
         version: 3.33.0
@@ -6375,7 +6376,7 @@ snapshots:
       '@tiptap/core': 3.33.0(@tiptap/pm@3.33.0)
       '@tiptap/pm': 3.33.0
 
-  '@tiptap/markdown@3.33.0(@tiptap/core@3.33.0(@tiptap/pm@3.33.0))(@tiptap/pm@3.33.0)':
+  '@tiptap/markdown@3.33.0(patch_hash=4c8eb3fac8b402929092965e24d83666e2efefdaa2270839dd36415ebdb33e79)(@tiptap/core@3.33.0(@tiptap/pm@3.33.0))(@tiptap/pm@3.33.0)':
     dependencies:
       '@tiptap/core': 3.33.0(@tiptap/pm@3.33.0)
       '@tiptap/pm': 3.33.0

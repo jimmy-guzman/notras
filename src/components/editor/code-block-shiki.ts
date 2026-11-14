@@ -1,7 +1,17 @@
-import { findChildren } from "@tiptap/core";
-import type { NodeWithPos } from "@tiptap/core";
-import { CodeBlock } from "@tiptap/extension-code-block";
-import type { Node } from "@tiptap/pm/model";
+import {
+  findChildren,
+  findChildrenInRange,
+  InputRule,
+  isNodeActive,
+} from "@tiptap/core";
+import type { Editor, NodeWithPos } from "@tiptap/core";
+import {
+  backtickInputRegex,
+  CodeBlock,
+  tildeInputRegex,
+} from "@tiptap/extension-code-block";
+import { setBlockType } from "@tiptap/pm/commands";
+import type { Node, NodeType } from "@tiptap/pm/model";
 import type { EditorState, Transaction } from "@tiptap/pm/state";
 import { Plugin, PluginKey } from "@tiptap/pm/state";
 import type { EditorView } from "@tiptap/pm/view";
@@ -10,7 +20,7 @@ import { Decoration, DecorationSet } from "@tiptap/pm/view";
 import { toast } from "@/components/ui/toast";
 import { reasonOf } from "@/lib/ui/failure";
 
-import { hasString } from "./attrs";
+import { contentOf, converterOf, hasString } from "./attrs";
 import { highlightCode, syntaxLanguage } from "./syntax-highlighter";
 import type {
   SyntaxJob,
@@ -662,8 +672,103 @@ function syntaxPlugin() {
   });
 }
 
-/** Highlight code without marks and serialize it inside a noncolliding fence. */
+/**
+ * ProseMirror deletes the inline nodes a code block cannot hold when it
+ * converts a block, so each one in the blocks the conversion changes is
+ * written as its markdown first. A block the conversion skips, such as a list
+ * item's paragraph selected beside a plain one, keeps its nodes, by the test
+ * `setBlockType` applies. A hard break is the schema's line break replacement,
+ * which already turns into a newline.
+ */
+function spellInlineNodes(editor: Editor, tr: Transaction, type: NodeType) {
+  const manager = converterOf(editor);
+  const { schema } = tr.doc.type;
+
+  const converted = tr.selection.ranges.flatMap(({ $from, $to }) =>
+    findChildrenInRange(
+      tr.doc,
+      { from: $from.pos, to: $to.pos },
+      (node) => node.isTextblock
+    ).filter(({ pos }) => {
+      const $pos = tr.doc.resolve(pos);
+
+      return $pos.parent.canReplaceWith($pos.index(), $pos.index() + 1, type);
+    })
+  );
+
+  const spelled = converted.flatMap((block) =>
+    findChildren(
+      block.node,
+      (node) =>
+        node.isInline &&
+        !node.isText &&
+        node.type !== schema.linebreakReplacement
+    ).map(({ node, pos }) => ({ node, pos: block.pos + 1 + pos }))
+  );
+
+  // A cell selection's ranges need not run in document order, and each edit
+  // must leave the positions of the ones still to come intact.
+  for (const { node, pos } of spelled.toSorted((a, b) => b.pos - a.pos)) {
+    const markdown = manager.serialize(contentOf(node.mark([])));
+
+    // `insertText` collapses a selection that ends where its text ends, which
+    // would leave the blocks before that point out of the conversion.
+    tr.replaceWith(
+      pos,
+      pos + node.nodeSize,
+      markdown === "" ? [] : schema.text(markdown)
+    );
+  }
+}
+
+/**
+ * Highlight code without marks, keep inline nodes as their markdown when a
+ * block becomes code, and serialize it inside a noncolliding fence.
+ */
 export const CodeBlockShiki = CodeBlock.extend({
+  addCommands() {
+    return {
+      setCodeBlock:
+        (attributes) =>
+        ({ commands, dispatch, state, tr }) => {
+          // `setNode` lifts a block that cannot hold code, such as a list
+          // item's paragraph, before converting it, and the spelling has to
+          // see the lifted block.
+          if (!setBlockType(this.type, attributes)(state)) {
+            commands.clearNodes();
+          }
+
+          if (dispatch) {
+            spellInlineNodes(this.editor, tr, this.type);
+          }
+
+          return commands.setNode(this.name, attributes);
+        },
+      toggleCodeBlock:
+        (attributes) =>
+        ({ commands, state }) =>
+          isNodeActive(state, this.name, attributes)
+            ? commands.toggleNode(this.name, "paragraph", attributes)
+            : commands.setCodeBlock(attributes),
+    };
+  },
+  addInputRules() {
+    return [backtickInputRegex, tildeInputRegex].map(
+      (find) =>
+        new InputRule({
+          find,
+          handler: ({ can, commands, match, range }) => {
+            const attributes =
+              match[1] === undefined ? undefined : { language: match[1] };
+
+            if (can().setCodeBlock(attributes)) {
+              commands.deleteRange(range);
+              commands.setCodeBlock(attributes);
+            }
+          },
+        })
+    );
+  },
   addProseMirrorPlugins() {
     // CodeBlock's only plugin pastes editor metadata as a block, and
     // MarkdownPaste owns that metadata.
