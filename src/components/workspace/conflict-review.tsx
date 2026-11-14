@@ -143,12 +143,12 @@ function Place({
   const resultId = useId();
   const resultRef = useRef<HTMLTextAreaElement>(null);
 
-  const useTheirs = () => {
+  const chooseTheirs = () => {
     onChange(resultKey, "theirs");
     resultRef.current?.focus();
   };
 
-  const useOurs = () => {
+  const chooseOurs = () => {
     onChange(resultKey, "ours");
     resultRef.current?.focus();
   };
@@ -163,14 +163,14 @@ function Place({
         heading={heading}
         label="on disk"
         lines={hunk.theirs}
-        onUse={useTheirs}
+        onUse={chooseTheirs}
         useLabel="use this, the version on disk"
       />
       <Side
         heading={heading}
         label="mine"
         lines={hunk.ours}
-        onUse={useOurs}
+        onUse={chooseOurs}
         useLabel="use this, mine"
       />
       <Label htmlFor={resultId} variant="muted">

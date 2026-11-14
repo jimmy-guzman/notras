@@ -1,10 +1,16 @@
 import { detectPlatform } from "@tanstack/react-hotkeys";
 import { mockIPC, mockWindows } from "@tauri-apps/api/mocks";
-import { act, render, screen, waitFor } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { Editor } from "@tiptap/core";
 import { createElement } from "react";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { createEditorExtensions } from "@/components/editor/extensions";
 import { createFindHandle, Find } from "@/components/editor/find";
@@ -85,6 +91,49 @@ describe("find controls", () => {
     });
     await user.keyboard("{Meta>}{Alt>}g{/Alt}{/Meta}");
     expect(screen.getByText("1 / 2")).toBeInTheDocument();
+  });
+
+  it("should stay on the current match on the Enter that confirms an IME candidate after compositionend on WebKit", async ({
+    onTestFinished,
+  }) => {
+    vi.spyOn(navigator, "vendor", "get").mockReturnValue(
+      "Apple Computer, Inc."
+    );
+    const user = userEvent.setup();
+    const surface = document.createElement("div");
+    document.body.append(surface);
+
+    const editor = new Editor({
+      content: "Atlas Atlas",
+      contentType: "markdown",
+      element: surface,
+      extensions: [...createEditorExtensions({}), Find],
+    });
+
+    onTestFinished(() => {
+      vi.restoreAllMocks();
+      editor.destroy();
+      surface.remove();
+    });
+
+    const controller = createFindController();
+    controller.bind(createFindHandle(editor));
+    controller.setQuery("atlas");
+    render(createElement(FindBar, { controller }));
+    act(() => {
+      controller.open();
+    });
+    const input = screen.getByRole("textbox", { name: "find text" });
+
+    fireEvent.compositionStart(input);
+    fireEvent.compositionEnd(input);
+    fireEvent.keyDown(input, { key: "Enter" });
+
+    expect(screen.getByText("1 / 2")).toBeInTheDocument();
+
+    await user.keyboard("{Enter}");
+
+    expect(screen.getByText("2 / 2")).toBeInTheDocument();
   });
 
   it("should leave focus in the editor when a search opens the bar after an earlier find", ({

@@ -2,6 +2,7 @@ import { CheckIcon, UnlinkIcon, XIcon } from "lucide-react";
 import { useEffect, useId, useRef, useState } from "react";
 
 import { isWikilinkTitle } from "@/core/notes";
+import { useImeKeys } from "@/lib/ui/ime-keys";
 
 import { clampToViewport } from "./clamp-to-viewport";
 
@@ -36,6 +37,7 @@ export function LinkEditor({
   const [text, setText] = useState(state.text);
   const containerRef = useRef<HTMLDivElement>(null);
   const firstFieldRef = useRef<HTMLInputElement>(null);
+  const { onCompositionEnd, withoutImeKeys } = useImeKeys();
   const reasonId = useId();
 
   const refused =
@@ -84,7 +86,8 @@ export function LinkEditor({
     // oxlint-disable-next-line jsx-a11y/no-static-element-interactions -- popover-level key handling; focus always sits on a real control inside
     <div
       className="link-editor"
-      onKeyDown={(event) => {
+      onCompositionEnd={onCompositionEnd}
+      onKeyDown={withoutImeKeys((event) => {
         if (event.key === "Enter" && event.target instanceof HTMLInputElement) {
           event.preventDefault();
           submit();
@@ -94,7 +97,7 @@ export function LinkEditor({
           event.preventDefault();
           onCancel();
         }
-      }}
+      })}
       ref={containerRef}
     >
       <div className="link-editor-row">
