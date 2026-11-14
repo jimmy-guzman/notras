@@ -115,7 +115,7 @@ const NoteStrike = Strike.extend({
  * and `_` marker already.
  */
 const BLOCK_MARKER =
-  /^(?<indent> {0,3})(?=#{1,6}(?:[ \t]|$)|[-+](?:[ \t]|$)|-[ \t-]*$|=+[ \t]*$|(?=[^\n]*\|)\|?[ \t]*:?-+:?[ \t]*(?:\|[ \t]*:?-+:?[ \t]*)*\|?[ \t]*$)/gmu;
+  /^(?<indent> {0,3})(?=#{1,6}(?:[ \t]|$)|[-+](?:[ \t]|$)|-[ \t-]*$|=+[ \t]*$|(?=[^\n]*\|)(?:\|[ \t]*)?:?-+:?[ \t]*(?:\|[ \t]*:?-+:?[ \t]*)*\|?[ \t]*$)/gmu;
 
 const ORDERED_MARKER = /^(?<number> {0,3}\d{1,9})(?=[.)](?:[ \t]|$))/gmu;
 
@@ -135,10 +135,11 @@ function freeCharacter(node: JSONContent) {
 }
 
 /**
- * Raw HTML is written byte for byte, so a line inside it is not one the
- * paragraph can escape. Each inline HTML node holds one character while the
- * escapes go in, and stays an HTML node so marks close around it as they
- * would around the original.
+ * Raw HTML and code are written byte for byte, so a line inside either is not
+ * one the paragraph can escape. Each inline HTML node holds one character while
+ * the escapes go in, and stays an HTML node so marks close around it as they
+ * would around the original. A code span reads a line ending as a space, so
+ * its text is written with spaces.
  */
 function escapeBlockMarkers(
   node: JSONContent,
@@ -150,11 +151,15 @@ function escapeBlockMarkers(
 
   const escaped = render({
     ...node,
-    content: content.map((child) =>
-      child.type === "htmlInline"
-        ? { content: [{ text: held, type: "text" }], type: "htmlInline" }
-        : child
-    ),
+    content: content.map((child) => {
+      if (child.type === "htmlInline") {
+        return { content: [{ text: held, type: "text" }], type: "htmlInline" };
+      }
+
+      return child.marks?.some((mark) => mark.type === "code") === true
+        ? { ...child, text: child.text?.replaceAll("\n", " ") }
+        : child;
+    }),
   })
     .replaceAll(BLOCK_MARKER, "$<indent>\\")
     .replaceAll(ORDERED_MARKER, "$<number>\\");

@@ -315,6 +315,28 @@ describe("markdown round-trip", () => {
     }).not.toThrow();
   });
 
+  it("should write a code span over a numbered line without a backslash", ({
+    onTestFinished,
+  }) => {
+    const editor = load("a\n2\\. b\nc");
+
+    editor.commands.selectAll();
+    editor.commands.toggleCode();
+
+    const saved = serializeMarkdown(editor);
+
+    editor.destroy();
+
+    const reopened = load(saved);
+
+    onTestFinished(() => {
+      reopened.destroy();
+    });
+
+    expect(saved).toBe("`a 2. b c`");
+    expect(serializeMarkdown(reopened)).toBe(saved);
+  });
+
   it("should keep an escaped pipe above a delimiter row in one paragraph", () => {
     expect(roundtrip("a \\| b\n--- | ---")).toBe("a | b\n\\--- | ---");
   });
@@ -352,6 +374,7 @@ describe("markdown round-trip", () => {
       "AT&T \\*c\\*\n2. b",
     ],
     ["a line above a delimiter row of other width", "body\n|-|-|"],
+    ["a delimiter row indented past three spaces", "para\n    --- | ---"],
     ["a pipe line above a narrower delimiter row", "a | b\n|-|"],
     ["a three-cell line above a two-cell delimiter row", "a|b|c\n|-|-|"],
     ["a delimiter row in a callout", "> [!NOTE]\n> |-|-|"],
