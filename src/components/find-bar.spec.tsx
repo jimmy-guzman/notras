@@ -10,7 +10,7 @@ import {
 import userEvent from "@testing-library/user-event";
 import { Editor } from "@tiptap/core";
 import { createElement } from "react";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 
 import { createEditorExtensions } from "@/components/editor/extensions";
 import { createFindHandle, Find } from "@/components/editor/find";
@@ -93,12 +93,9 @@ describe("find controls", () => {
     expect(screen.getByText("1 / 2")).toBeInTheDocument();
   });
 
-  it("should stay on the current match on the Enter that confirms an IME candidate after compositionend on WebKit", async ({
+  it("should stay on the current match on the Enter WebKit sends after compositionend to confirm a candidate", async ({
     onTestFinished,
   }) => {
-    vi.spyOn(navigator, "vendor", "get").mockReturnValue(
-      "Apple Computer, Inc."
-    );
     const user = userEvent.setup();
     const surface = document.createElement("div");
     document.body.append(surface);
@@ -111,7 +108,6 @@ describe("find controls", () => {
     });
 
     onTestFinished(() => {
-      vi.restoreAllMocks();
       editor.destroy();
       surface.remove();
     });
@@ -127,7 +123,7 @@ describe("find controls", () => {
 
     fireEvent.compositionStart(input);
     fireEvent.compositionEnd(input);
-    fireEvent.keyDown(input, { key: "Enter" });
+    fireEvent.keyDown(input, { key: "Enter", keyCode: 229 });
 
     expect(screen.getByText("1 / 2")).toBeInTheDocument();
 

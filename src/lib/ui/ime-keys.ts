@@ -1,54 +1,15 @@
-import { useRef } from "react";
 import type { KeyboardEvent as ReactKeyboardEvent } from "react";
 
-type KeyEvent = KeyboardEvent | ReactKeyboardEvent;
-
-// prosemirror-view's window for the same WebKit order.
-const CONFIRM_WINDOW_MS = 500;
-
-function isWebKit() {
-  return /Apple Computer/u.test(navigator.vendor);
-}
-
-function isComposing(event: KeyEvent) {
-  return "nativeEvent" in event
-    ? event.nativeEvent.isComposing
-    : event.isComposing;
-}
+// The keyCode a browser gives a keydown its input method processed.
+const IME_KEY_CODE = 229;
 
 /**
- * Keeps an input method's keys from a field's key handler: keys typed while
- * composing, and the Enter that confirms a candidate. Pass
- * `onCompositionEnd` to the field or an ancestor, and wrap its key handler
- * in `withoutImeKeys`.
+ * Whether an input method owns the key: one typed while composing, or the
+ * Enter that confirms a candidate. A field's key handler returns early on it.
  */
-export function useImeKeys() {
-  const compositionEndedAt = useRef(Number.NEGATIVE_INFINITY);
+export function isImeKey(event: KeyboardEvent | ReactKeyboardEvent): boolean {
+  const native = "nativeEvent" in event ? event.nativeEvent : event;
 
-  const onCompositionEnd = (event: { timeStamp: number }) => {
-    // WebKit, WebKitGTK included, sends the confirming keydown after
-    // compositionend, in no fixed task. Chromium sends it before, marked
-    // isComposing, so a window there would swallow the next real key.
-    if (isWebKit()) {
-      compositionEndedAt.current = event.timeStamp;
-    }
-  };
-
-  const withoutImeKeys =
-    <E extends KeyEvent>(handle: (event: E) => void) =>
-    (event: E) => {
-      if (isComposing(event)) {
-        return;
-      }
-
-      if (event.timeStamp - compositionEndedAt.current < CONFIRM_WINDOW_MS) {
-        compositionEndedAt.current = Number.NEGATIVE_INFINITY;
-
-        return;
-      }
-
-      handle(event);
-    };
-
-  return { onCompositionEnd, withoutImeKeys };
+  // oxlint-disable-next-line typescript/no-deprecated -- WebKit clears isComposing before the confirming keydown, and only keyCode still marks it, as prosemirror-view relies on
+  return native.isComposing || native.keyCode === IME_KEY_CODE;
 }

@@ -9,7 +9,7 @@ import {
   waitFor,
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it, onTestFinished, vi } from "vitest";
+import { describe, expect, it, onTestFinished } from "vitest";
 
 import type { Frontmatter } from "@/core/frontmatter";
 import {
@@ -117,13 +117,7 @@ describe("note panel tags", () => {
     });
   });
 
-  it("should add no tag on the Enter that confirms an IME candidate after compositionend on WebKit", async () => {
-    vi.spyOn(navigator, "vendor", "get").mockReturnValue(
-      "Apple Computer, Inc."
-    );
-    onTestFinished(() => {
-      vi.restoreAllMocks();
-    });
+  it("should add no tag on the Enter WebKit sends after compositionend to confirm a candidate", async () => {
     const written = openNoteTab();
     mockIPC((command) => {
       if (command === "list_tags") {
@@ -138,7 +132,7 @@ describe("note panel tags", () => {
     await user.type(input, "foo");
     fireEvent.compositionStart(input);
     fireEvent.compositionEnd(input);
-    fireEvent.keyDown(input, { key: "Enter" });
+    fireEvent.keyDown(input, { key: "Enter", keyCode: 229 });
 
     expect(input).toHaveValue("foo");
     expect(written).toStrictEqual([]);

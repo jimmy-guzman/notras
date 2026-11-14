@@ -12,7 +12,7 @@ import {
 } from "@/components/ui/input-group";
 import { isFindBarShown } from "@/lib/ui/find";
 import type { createFindController } from "@/lib/ui/find";
-import { useImeKeys } from "@/lib/ui/ime-keys";
+import { isImeKey } from "@/lib/ui/ime-keys";
 
 function isFindNavigation(event: KeyboardEvent, inInput: boolean) {
   if (event.altKey) {
@@ -34,7 +34,6 @@ export function FindBar({ controller }: FindBarProps) {
   const state = useSelector(controller.store);
   const input = useRef<HTMLInputElement>(null);
   const focused = useRef(0);
-  const { onCompositionEnd, withoutImeKeys } = useImeKeys();
 
   const change = (event: ChangeEvent<HTMLInputElement>) => {
     controller.setQuery(event.target.value);
@@ -70,7 +69,11 @@ export function FindBar({ controller }: FindBarProps) {
     }
   }, [state.available, state.focusRequest, state.open]);
   useEffect(() => {
-    const keydown = withoutImeKeys((event: KeyboardEvent) => {
+    const keydown = (event: KeyboardEvent) => {
+      if (isImeKey(event)) {
+        return;
+      }
+
       const inInput = event.target === input.current;
 
       const inSurface =
@@ -97,7 +100,7 @@ export function FindBar({ controller }: FindBarProps) {
       } else {
         controller.navigate(event.shiftKey ? -1 : 1);
       }
-    });
+    };
 
     if (state.available) {
       document.addEventListener("keydown", keydown, true);
@@ -106,7 +109,7 @@ export function FindBar({ controller }: FindBarProps) {
     return () => {
       document.removeEventListener("keydown", keydown, true);
     };
-  }, [controller, state.available, state.open, withoutImeKeys]);
+  }, [controller, state.available, state.open]);
 
   if (!(isFindBarShown(state) && state.available)) {
     return null;
@@ -121,7 +124,6 @@ export function FindBar({ controller }: FindBarProps) {
         <InputGroupInput
           aria-label="find text"
           onChange={change}
-          onCompositionEnd={onCompositionEnd}
           placeholder="find in note..."
           ref={attach}
           value={state.query}

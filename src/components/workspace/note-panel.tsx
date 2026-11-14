@@ -28,7 +28,7 @@ import { changeNoteMetadata, openNote, useTabSnapshot } from "@/lib/tabs/store";
 import type { Tab } from "@/lib/tabs/tab";
 import { BAR_GLYPH } from "@/lib/ui/bar";
 import { reasonOf } from "@/lib/ui/failure";
-import { useImeKeys } from "@/lib/ui/ime-keys";
+import { isImeKey } from "@/lib/ui/ime-keys";
 import {
   closeNotePanel,
   setOutlineHost,
@@ -120,7 +120,6 @@ function Mentions({ path }: { path: string }) {
 function Tags({ id, path }: { id: string; path: string }) {
   const snapshot = useTabSnapshot(id);
   const [draft, setDraft] = useState("");
-  const { onCompositionEnd, withoutImeKeys } = useImeKeys();
   const vocabulary = useQuery(noteQueries.tags());
 
   if (snapshot === undefined) {
@@ -183,12 +182,15 @@ function Tags({ id, path }: { id: string; path: string }) {
         onChange={(event) => {
           setDraft(event.target.value);
         }}
-        onCompositionEnd={onCompositionEnd}
-        onKeyDown={withoutImeKeys((event) => {
+        onKeyDown={(event) => {
+          if (isImeKey(event)) {
+            return;
+          }
+
           if (event.key === "Enter" && typed !== "" && !carried.has(typed)) {
             void toggle(typed);
           }
-        })}
+        }}
         placeholder="add a tag..."
         value={draft}
       />
