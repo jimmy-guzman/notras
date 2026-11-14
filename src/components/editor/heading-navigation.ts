@@ -6,8 +6,8 @@ import type { EditorView } from "@tiptap/pm/view";
 
 import { bodyTitle } from "@/core/notes";
 
-import { hasNumber } from "./attrs";
-import { converterOf, fileMarkdown } from "./extensions";
+import { converterOf, hasNumber } from "./attrs";
+import { fileMarkdown } from "./extensions";
 import { headingText } from "./heading-anchors";
 
 export interface OutlineHeading {

@@ -1,4 +1,4 @@
-import type { JSONContent } from "@tiptap/core";
+import type { Editor, JSONContent } from "@tiptap/core";
 import type { Attrs, Node } from "@tiptap/pm/model";
 
 /** Whether an attribute holds a string; the schema types attributes as `any`. */
@@ -35,4 +35,15 @@ export function contentOf(node: Node): JSONContent {
   }
 
   return json;
+}
+
+/** The editor's markdown converter, which the `Markdown` extension adds. */
+export function converterOf(editor: Editor) {
+  const manager = editor.markdown;
+
+  if (manager === undefined) {
+    throw new Error("The editor has no Markdown converter");
+  }
+
+  return manager;
 }

@@ -1,9 +1,10 @@
-import { Editor } from "@tiptap/core";
+import { Editor, findChildren } from "@tiptap/core";
 import { Document } from "@tiptap/extension-document";
 import { Paragraph } from "@tiptap/extension-paragraph";
 import { Text } from "@tiptap/extension-text";
 import { UndoRedo } from "@tiptap/extensions";
 import { Markdown } from "@tiptap/markdown";
+import { CellSelection } from "@tiptap/pm/tables";
 import { describe, expect, it, vi } from "vitest";
 import type { MockInstance } from "vitest";
 
@@ -13,6 +14,7 @@ import {
   revealSyntax,
   syntaxSettled,
 } from "./code-block-shiki";
+import { createEditorExtensions } from "./extensions";
 import { highlightCode } from "./syntax-highlighter";
 import type { SyntaxRequest } from "./syntax-highlighter";
 
@@ -44,6 +46,20 @@ function createEditor(language: string, text: string) {
     element: document.createElement("div"),
     extensions: [Document, Paragraph, Text, CodeBlockShiki, UndoRedo, Markdown],
   });
+}
+
+/** A note in the app's full schema, with the caret at its start. */
+function loadNote(markdown: string) {
+  const editor = new Editor({
+    content: markdown,
+    contentType: "markdown",
+    element: document.createElement("div"),
+    extensions: createEditorExtensions({}),
+  });
+
+  editor.commands.setTextSelection(1);
+
+  return editor;
 }
 
 /**
@@ -1044,5 +1060,147 @@ describe(measureViewport, () => {
 
     expect(probed).not.toHaveLength(0);
     expect(probed.every((x) => x > 0 && x < 600)).toBeTruthy();
+  });
+});
+
+describe("turning a paragraph into a code block", () => {
+  it.for(["<kbd>a</kbd> b", "![](i.png) b", "[[a]] b", "![[a]] b"])(
+    "should keep %s as the code block's text",
+    (markdown, { onTestFinished }) => {
+      const editor = loadNote(markdown);
+
+      onTestFinished(() => {
+        editor.destroy();
+      });
+
+      editor.commands.toggleCodeBlock();
+
+      expect(editor.state.doc.firstChild?.type.name).toBe("codeBlock");
+      expect(editor.state.doc.firstChild?.textContent).toBe(markdown);
+    }
+  );
+
+  it("should keep inline html in a code block given a language", ({
+    onTestFinished,
+  }) => {
+    const editor = loadNote("<kbd>a</kbd> b");
+
+    onTestFinished(() => {
+      editor.destroy();
+    });
+
+    editor.commands.toggleCodeBlock({ language: "mermaid" });
+
+    expect(editor.state.doc.firstChild?.textContent).toBe("<kbd>a</kbd> b");
+  });
+
+  it("should keep inline html when a fence is typed before it", ({
+    onTestFinished,
+  }) => {
+    const editor = loadNote("<kbd>a</kbd> b");
+
+    onTestFinished(() => {
+      editor.destroy();
+    });
+
+    for (const char of "``` ") {
+      const { from, to } = editor.state.selection;
+      const insert = () => editor.state.tr.insertText(char, from, to);
+
+      const handled = editor.view.someProp("handleTextInput", (input) =>
+        input(editor.view, from, to, char, insert)
+      );
+
+      if (handled !== true) {
+        editor.view.dispatch(insert());
+      }
+    }
+
+    expect(editor.state.doc.firstChild?.type.name).toBe("codeBlock");
+    expect(editor.state.doc.firstChild?.textContent).toBe("<kbd>a</kbd> b");
+  });
+
+  it("should leave inline html alone in a list item that stays a paragraph", ({
+    onTestFinished,
+  }) => {
+    const editor = loadNote("a <kbd>x</kbd>\n\n- b <kbd>y</kbd>");
+
+    onTestFinished(() => {
+      editor.destroy();
+    });
+
+    editor.commands.selectAll();
+    editor.commands.toggleCodeBlock();
+
+    expect(editor.state.doc.firstChild?.textContent).toBe("a <kbd>x</kbd>");
+    expect(
+      findChildren(editor.state.doc, (node) => node.type.name === "htmlInline")
+    ).toHaveLength(1);
+  });
+
+  it("should keep inline html when a lone list item becomes a code block", ({
+    onTestFinished,
+  }) => {
+    const editor = loadNote("- b <kbd>y</kbd>");
+
+    onTestFinished(() => {
+      editor.destroy();
+    });
+
+    editor.commands.setTextSelection(3);
+    editor.commands.toggleCodeBlock();
+
+    expect(editor.state.doc.firstChild?.type.name).toBe("codeBlock");
+    expect(editor.state.doc.firstChild?.textContent).toBe("b <kbd>y</kbd>");
+  });
+
+  it("should keep inline html in every cell of a selected column", ({
+    onTestFinished,
+  }) => {
+    const editor = loadNote(
+      "| a | b |\n| --- | --- |\n| <kbd>x</kbd> | c |\n| <kbd>z</kbd> | d |"
+    );
+
+    onTestFinished(() => {
+      editor.destroy();
+    });
+
+    const [first, , last] = findChildren(
+      editor.state.doc,
+      (node) => node.type.name === "tableCell"
+    );
+
+    if (first === undefined || last === undefined) {
+      throw new Error("The table has no body cells");
+    }
+
+    editor.view.dispatch(
+      editor.state.tr.setSelection(
+        CellSelection.create(editor.state.doc, first.pos, last.pos)
+      )
+    );
+    editor.commands.toggleCodeBlock();
+
+    expect(
+      findChildren(
+        editor.state.doc,
+        (node) => node.type.name === "codeBlock"
+      ).map(({ node }) => node.textContent)
+    ).toStrictEqual(["<kbd>x</kbd>", "<kbd>z</kbd>"]);
+  });
+
+  it("should bring the inline html back in one undo", ({ onTestFinished }) => {
+    const editor = loadNote("<kbd>a</kbd> b");
+
+    onTestFinished(() => {
+      editor.destroy();
+    });
+
+    editor.commands.toggleCodeBlock();
+    editor.commands.undo();
+
+    expect(editor.state.doc.firstChild?.firstChild?.type.name).toBe(
+      "htmlInline"
+    );
   });
 });

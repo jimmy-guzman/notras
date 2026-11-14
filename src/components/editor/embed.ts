@@ -275,8 +275,11 @@ export const Embed = Node.create({
     ];
   },
 
+  // The markdown parser marks a leaf but hands a node with content its marks
+  // to that content, so the empty content keeps a surrounding mark off the
+  // embed, as the plugin above does for every edit.
   parseMarkdown: (token, helpers) =>
-    helpers.createNode("embed", { title: titleOf(token) }),
+    helpers.createNode("embed", { title: titleOf(token) }, []),
 
   renderHTML({ node }) {
     const title = titleOf(node.attrs);
