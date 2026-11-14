@@ -93,4 +93,15 @@ describe("syntax highlighter", () => {
 
     expect(colored.map(({ content }) => content)).not.toContain(" kept line");
   });
+
+  it("should color a data constructor like a type", () => {
+    const code = "f = Just 1";
+
+    expect(
+      highlightCode(code, "haskell").map(({ color, length, offset }) => ({
+        color,
+        content: code.slice(offset, offset + length),
+      }))
+    ).toContainEqual({ color: "var(--syntax-type)", content: "Just " });
+  });
 });
