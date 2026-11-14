@@ -4863,7 +4863,11 @@ describe(NoteSession, () => {
       expect(readRecentNotes("/notes")).toStrictEqual([]);
 
       act(() => {
-        surface.commands.insertContent("# Hello");
+        surface.commands.insertContent({
+          attrs: { level: 1 },
+          content: [{ text: "Hello", type: "text" }],
+          type: "heading",
+        });
       });
       await act(async () => {
         await flushPendingWrites();
