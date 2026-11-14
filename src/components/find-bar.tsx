@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/input-group";
 import { isFindBarShown } from "@/lib/ui/find";
 import type { createFindController } from "@/lib/ui/find";
+import { isImeKey } from "@/lib/ui/ime-keys";
 
 function isFindNavigation(event: KeyboardEvent, inInput: boolean) {
   if (event.altKey) {
@@ -69,7 +70,7 @@ export function FindBar({ controller }: FindBarProps) {
   }, [state.available, state.focusRequest, state.open]);
   useEffect(() => {
     const keydown = (event: KeyboardEvent) => {
-      if (event.isComposing) {
+      if (isImeKey(event)) {
         return;
       }
 

@@ -83,6 +83,9 @@ export default defineConfig({
   ],
   rules: {
     "func-style": ["error", "declaration", { allowArrowFunctions: true }],
+    // AGENTS.md lets a TODO mark a known gap, and the rule cannot tell one from finished work.
+    // TODO: turn back on once oxlint ships unicorn/expiring-todo-comments, which checks a TODO's stated condition, or once src has no TODOs.
+    "no-warning-comments": "off",
     "react/function-component-definition": [
       "error",
       {

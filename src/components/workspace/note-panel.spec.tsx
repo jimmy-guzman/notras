@@ -1,7 +1,13 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { createStore } from "@tanstack/react-store";
 import { clearMocks, mockIPC } from "@tauri-apps/api/mocks";
-import { act, render, screen, waitFor } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, onTestFinished } from "vitest";
 
@@ -104,6 +110,33 @@ describe("note panel tags", () => {
 
     await user.type(screen.getByRole("textbox", { name: "add a tag" }), "foo");
     await screen.findByRole("button", { name: "foobar" });
+    await user.keyboard("{Enter}");
+
+    await waitFor(() => {
+      expect(written).toStrictEqual([["foo"]]);
+    });
+  });
+
+  it("should add no tag on the Enter WebKit sends after compositionend to confirm a candidate", async () => {
+    const written = openNoteTab();
+    mockIPC((command) => {
+      if (command === "list_tags") {
+        return [];
+      }
+
+      throw new Error(`unexpected command: ${command}`);
+    });
+    const { user } = mountPanel();
+    const input = screen.getByRole("textbox", { name: "add a tag" });
+
+    await user.type(input, "foo");
+    fireEvent.compositionStart(input);
+    fireEvent.compositionEnd(input);
+    fireEvent.keyDown(input, { key: "Enter", keyCode: 229 });
+
+    expect(input).toHaveValue("foo");
+    expect(written).toStrictEqual([]);
+
     await user.keyboard("{Enter}");
 
     await waitFor(() => {

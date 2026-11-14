@@ -28,6 +28,7 @@ import { changeNoteMetadata, openNote, useTabSnapshot } from "@/lib/tabs/store";
 import type { Tab } from "@/lib/tabs/tab";
 import { BAR_GLYPH } from "@/lib/ui/bar";
 import { reasonOf } from "@/lib/ui/failure";
+import { isImeKey } from "@/lib/ui/ime-keys";
 import {
   closeNotePanel,
   setOutlineHost,
@@ -182,6 +183,10 @@ function Tags({ id, path }: { id: string; path: string }) {
           setDraft(event.target.value);
         }}
         onKeyDown={(event) => {
+          if (isImeKey(event)) {
+            return;
+          }
+
           if (event.key === "Enter" && typed !== "" && !carried.has(typed)) {
             void toggle(typed);
           }

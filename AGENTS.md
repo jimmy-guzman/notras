@@ -72,7 +72,7 @@ Actionable future work belongs in GitHub issues. Check for an existing issue fir
 
 - **A typed failure's message is the reason the user sees.** `ARCHITECTURE.md` covers how `nativeCommand()` preserves it for a toast, where the call site supplies what failed. Write those messages to the copy rules in `DESIGN.md`: a sentence, no error number, and never the action.
 
-- **Await promises inside `async` functions and catch failures with `try/catch`, never with `.catch`.** One construct catches a synchronous throw and a rejection alike, and a callback that cannot be `async` calls one that is. A `.then` stays only where it sequences work, as the autosave write queue does. Report a caught failure with `toast.add({ description: reasonOf(error), title: what, type: "error" })`, naming the action in the app's words and carrying the error's message as the reason. A synchronous host hook that cannot be `async`, ProseMirror's click handler for one, keeps `.catch` with the same toast inside.
+- **Await promises inside `async` functions and catch failures with `try/catch`, never with `.catch`.** One construct catches a synchronous throw and a rejection alike, and a callback that cannot be `async` calls one that is. Report a caught failure with `toast.add({ description: reasonOf(error), title: what, type: "error" })`, naming the action in the app's words and carrying the error's message as the reason. A synchronous host hook that cannot be `async`, ProseMirror's click handler for one, keeps `.catch` with the same toast inside.
 
 - **Resolve warnings and errors your changes introduce before finishing. Fix the root cause.** Silencing a warning converts a problem you can solve now into one that surfaces later without the warning attached.
 

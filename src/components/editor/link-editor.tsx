@@ -2,6 +2,7 @@ import { CheckIcon, UnlinkIcon, XIcon } from "lucide-react";
 import { useEffect, useId, useRef, useState } from "react";
 
 import { isWikilinkTitle } from "@/core/notes";
+import { isImeKey } from "@/lib/ui/ime-keys";
 
 import { clampToViewport } from "./clamp-to-viewport";
 
@@ -85,6 +86,10 @@ export function LinkEditor({
     <div
       className="link-editor"
       onKeyDown={(event) => {
+        if (isImeKey(event)) {
+          return;
+        }
+
         if (event.key === "Enter" && event.target instanceof HTMLInputElement) {
           event.preventDefault();
           submit();

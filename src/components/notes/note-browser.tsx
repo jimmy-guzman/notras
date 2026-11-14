@@ -189,7 +189,8 @@ function editedDate(date: Date) {
 
   return date.toDateString() === yesterday.toDateString()
     ? "yesterday"
-    : shortDate.format(date);
+    : // oxlint-disable-next-line react-doctor/no-locale-format-in-render -- the app renders only in the webview, so no hydration
+      shortDate.format(date);
 }
 
 function FolderCollection({

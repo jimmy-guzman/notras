@@ -1,5 +1,6 @@
 import { Debouncer } from "@tanstack/react-pacer";
 import { createStore } from "@tanstack/react-store";
+import pLimit from "p-limit";
 
 import { FileError } from "@/core/errors";
 import { composeNote, parseNote, updateFrontmatter } from "@/core/frontmatter";
@@ -186,16 +187,8 @@ export function createNotePersistence(
   let stashedAt = resumed === undefined ? undefined : initial.path;
   /** Copies a relocation left at old paths, kept until each clear succeeds. */
   const staleStashes = new Set<string>();
-  let tail: Promise<unknown> = Promise.resolve();
-
   /** Run after every queued write and path change, whichever way they settled. */
-  const enqueue = async <T>(run: () => Promise<T>) => {
-    // oxlint-disable-next-line promise/prefer-await-to-then -- the queue chains on the previous link whichever way it settled
-    const next = tail.then(run, run);
-    tail = next;
-
-    return await next;
-  };
+  const enqueue = pLimit(1);
 
   const inConflict = () => state.state.status === "conflict";
 
