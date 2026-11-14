@@ -72,6 +72,80 @@ describe("markdown with frontmatter", () => {
     expect(lines[7]).toStrictEqual([]);
   });
 
+  it("should read an opening rule followed by a blank line as Markdown", () => {
+    const lines = coloredLines(
+      "---\n\n# heading\nkey: value\n\n---\n\n# after"
+    );
+
+    expect(lines[2]).toStrictEqual([
+      { color: "var(--syntax-keyword)", content: "# heading" },
+    ]);
+    expect(lines[3]).toStrictEqual([]);
+  });
+
+  it("should read an unclosed opening rule followed by a heading as Markdown", () => {
+    const lines = coloredLines("---\n# Title\n\nbody");
+
+    expect(lines[1]).toStrictEqual([
+      { color: "var(--syntax-keyword)", content: "# Title" },
+    ]);
+    expect(lines[3]).toStrictEqual([]);
+  });
+
+  it("should read an unclosed opening rule followed by a line with a colon but no key as Markdown", () => {
+    const lines = coloredLines("---\n**Note:** read this\n\n# Heading");
+
+    expect(lines[3]).toStrictEqual([
+      { color: "var(--syntax-keyword)", content: "# Heading" },
+    ]);
+  });
+
+  it.each([
+    "**Note**: read this",
+    "> Quote: from someone",
+    "* item: detail",
+    '"Hi", she said: hello',
+    "  key: value",
+  ])(
+    "should read an unclosed opening rule followed by the Markdown line %s as Markdown",
+    (line) => {
+      const lines = coloredLines(`---\n${line}\n\n# Heading`);
+
+      expect(lines[3]).toStrictEqual([
+        { color: "var(--syntax-keyword)", content: "# Heading" },
+      ]);
+    }
+  );
+
+  it("should color frontmatter being typed whose key opens a list", () => {
+    const lines = coloredLines("---\ntags:\n  - a");
+
+    expect(lines[1]).toContainEqual({
+      color: "var(--syntax-member)",
+      content: "tags",
+    });
+  });
+
+  it.each(['"title"', "'title'", '"a:b"', '"title" ', "'it''s'"])(
+    "should color frontmatter being typed whose key is the quoted %s",
+    (key) => {
+      const lines = coloredLines(`---\n${key}: x`);
+
+      expect(lines[1]).toContainEqual({
+        color: "var(--syntax-member)",
+        content: key,
+      });
+    }
+  );
+
+  it("should read a rule that opens the body after frontmatter as Markdown", () => {
+    const lines = coloredLines(
+      "---\npinned: true\n---\n---\nkey: value\n---\n# after"
+    );
+
+    expect(lines[4]).toStrictEqual([]);
+  });
+
   it("should highlight a language inside a Markdown fence", () => {
     const lines = coloredLines("```ts\nconst answer = 42;\n```");
 
