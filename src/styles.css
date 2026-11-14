@@ -123,6 +123,7 @@
 :root,
 .print-sheet .code-block-wrapper {
   --syntax-added: var(--success);
+  --syntax-changed: var(--warning);
   --syntax-removed: var(--destructive);
 }
 

@@ -73,8 +73,24 @@ describe("syntax highlighter", () => {
     });
   });
 
-  it("should color added, removed, and hunk lines in a diff", () => {
-    const code = "@@ -1,2 +1,2 @@\n kept line\n-old line\n+new line";
+  it("should color each diff line whole, marker included, by what it records", () => {
+    const code = [
+      "diff --git a/f b/f",
+      "index 12ab..34cd 100644",
+      "--- a/f",
+      "+++ b/f",
+      "@@ -1,3 +1,3 @@",
+      " kept line",
+      "-old line",
+      "--- old sql comment",
+      "+new line",
+      "*** a/f",
+      "--- b/f",
+      "***************",
+      "*** 1 ****",
+      "! changed line",
+      "--- 1 ----",
+    ].join("\n");
 
     const colored = highlightCode(code, "diff").map(
       ({ color, length, offset }) => ({
@@ -83,15 +99,22 @@ describe("syntax highlighter", () => {
       })
     );
 
-    for (const [content, color] of [
-      ["@@ -1,2 +1,2 @@", "var(--syntax-member)"],
-      ["old line", "var(--syntax-removed)"],
-      ["new line", "var(--syntax-added)"],
-    ]) {
-      expect(colored).toContainEqual({ color, content });
-    }
-
-    expect(colored.map(({ content }) => content)).not.toContain(" kept line");
+    expect(colored).toStrictEqual([
+      { color: "var(--syntax-comment)", content: "diff --git a/f b/f" },
+      { color: "var(--syntax-comment)", content: "index 12ab..34cd 100644" },
+      { color: "var(--syntax-comment)", content: "--- a/f" },
+      { color: "var(--syntax-comment)", content: "+++ b/f" },
+      { color: "var(--syntax-member)", content: "@@ -1,3 +1,3 @@" },
+      { color: "var(--syntax-removed)", content: "-old line" },
+      { color: "var(--syntax-removed)", content: "--- old sql comment" },
+      { color: "var(--syntax-added)", content: "+new line" },
+      { color: "var(--syntax-comment)", content: "*** a/f" },
+      { color: "var(--syntax-comment)", content: "--- b/f" },
+      { color: "var(--syntax-comment)", content: "***************" },
+      { color: "var(--syntax-comment)", content: "*** 1 ****" },
+      { color: "var(--syntax-changed)", content: "! changed line" },
+      { color: "var(--syntax-comment)", content: "--- 1 ----" },
+    ]);
   });
 
   it("should color a data constructor like a type", () => {
