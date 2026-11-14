@@ -15,6 +15,7 @@ export const syntaxTheme = {
       boolean: "number",
       comment: "comment",
       constant: "number",
+      constructor: "type",
       "diff.minus": "removed",
       "diff.plus": "added",
       emphasis: "keyword",
