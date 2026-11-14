@@ -315,6 +315,10 @@ describe("markdown round-trip", () => {
     }).not.toThrow();
   });
 
+  it("should keep an escaped pipe above a delimiter row in one paragraph", () => {
+    expect(roundtrip("a \\| b\n--- | ---")).toBe("a | b\n\\--- | ---");
+  });
+
   it("should keep a table aligned when a cell opens with a block marker", () => {
     expect(roundtrip("| a |\n| - |\n| \\# x |")).toBe(
       "| a   |\n| --- |\n| # x |"
@@ -347,6 +351,10 @@ describe("markdown round-trip", () => {
       "a numbered line beside an ampersand and a backslash",
       "AT&T \\*c\\*\n2. b",
     ],
+    ["a line above a delimiter row of other width", "body\n|-|-|"],
+    ["a pipe line above a narrower delimiter row", "a | b\n|-|"],
+    ["a three-cell line above a two-cell delimiter row", "a|b|c\n|-|-|"],
+    ["a delimiter row in a callout", "> [!NOTE]\n> |-|-|"],
     [
       "a numbered line beside an entity and a backslash",
       "&lt;div&gt; \\*c\\*\n2. b",

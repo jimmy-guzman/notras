@@ -78,7 +78,9 @@ function renderSentinelTable(
 export const BoundedTable = Table.extend({
   markdownTokenizer: {
     ...table,
-    start: (src: string) => (tableAt(src) === undefined ? -1 : 0),
+    // marked asks `start` one character into a paragraph, where no table
+    // begins, and its paragraph rule already stops at a table's first line.
+    start: () => -1,
     tokenize: (src, tokens, lexer) => {
       const found = tableAt(src);
 
