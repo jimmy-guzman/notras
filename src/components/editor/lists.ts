@@ -177,11 +177,21 @@ export const NoteListItem = ListItem.extend({
         ? [{ raw: "", text: "", tokens: [], type: "paragraph" }, ...paragraphs]
         : paragraphs;
 
-    return this.parent?.({ ...token, tokens: blocks }, helpers) ?? [];
+    if (!this.parent) {
+      throw new Error("ListItem has no markdown parser to extend");
+    }
+
+    return this.parent({ ...token, tokens: blocks }, helpers);
   },
   renderMarkdown(node, helpers, context) {
+    const { parent } = this;
+
+    if (!parent) {
+      throw new Error("ListItem has no markdown renderer to extend");
+    }
+
     const rendered = withWrappedLines(
-      (item) => this.parent?.(item, helpers, context) ?? "",
+      (item) => parent(item, helpers, context),
       node,
       helpers,
       context.parentType === "orderedList"

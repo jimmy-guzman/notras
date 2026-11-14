@@ -263,8 +263,12 @@ export const NoteBlockquote = Blockquote.extend({
   },
 
   renderMarkdown(node, helpers, context) {
+    if (!this.parent) {
+      throw new Error("Blockquote has no markdown renderer to extend");
+    }
+
     const callout = calloutOf(node.attrs);
-    const quote = this.parent?.(node, helpers, context) ?? "";
+    const quote = this.parent(node, helpers, context);
 
     if (callout === null) {
       return quote;

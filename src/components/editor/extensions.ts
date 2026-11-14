@@ -110,10 +110,91 @@ const NoteStrike = Strike.extend({
 });
 
 /**
+ * A paragraph line that would read back as a heading, a bullet, a thematic
+ * break, a setext underline or a table delimiter row. Upstream escapes a `*`
+ * and `_` marker already.
+ */
+const BLOCK_MARKER =
+  /^(?<indent> {0,3})(?=#{1,6}(?:[ \t]|$)|[-+](?:[ \t]|$)|-[ \t-]*$|=+[ \t]*$|(?=[^\n]*\|)(?:\|[ \t]*)?:?-+:?[ \t]*(?:\|[ \t]*:?-+:?[ \t]*)*\|?[ \t]*$)/gmu;
+
+const ORDERED_MARKER = /^(?<number> {0,3}\d{1,9})(?=[.)](?:[ \t]|$))/gmu;
+
+/** A private-use character the paragraph never holds. */
+function freeCharacter(node: JSONContent) {
+  const held = new Set(JSON.stringify(node));
+
+  for (let code = 0xf_00_00; code <= 0x10_ff_fd; code += 1) {
+    const char = String.fromCodePoint(code);
+
+    if (!held.has(char)) {
+      return char;
+    }
+  }
+
+  throw new Error("The paragraph holds every private-use character");
+}
+
+/**
+ * Raw HTML and an image's label keep their line endings as written. Other
+ * inline nodes stay in place, since upstream escapes text by what follows it.
+ */
+function keepsOwnLines(child: JSONContent) {
+  return child.type === "htmlInline" || child.type === "image";
+}
+
+/**
+ * A line inside a node that keeps its own lines is not one the paragraph can
+ * escape. Each such node holds one character in an HTML node while the escapes
+ * go in, carrying its marks so they close around it as they would around the
+ * original, and is then written on its own. A code span reads a line ending as
+ * a space, so its text is written with spaces.
+ */
+function escapeBlockMarkers(
+  node: JSONContent,
+  render: (paragraph: JSONContent) => string
+) {
+  const content = node.content ?? [];
+
+  const atoms = content.filter(keepsOwnLines);
+
+  const held = freeCharacter(node);
+
+  const escaped = render({
+    ...node,
+    content: content.map((child) => {
+      if (keepsOwnLines(child)) {
+        return {
+          content: [{ text: held, type: "text" }],
+          marks: child.marks,
+          type: "htmlInline",
+        };
+      }
+
+      return child.marks?.some((mark) => mark.type === "code") === true
+        ? { ...child, text: child.text?.replaceAll("\n", " ") }
+        : child;
+    }),
+  })
+    .replaceAll(BLOCK_MARKER, "$<indent>\\")
+    .replaceAll(ORDERED_MARKER, "$<number>\\");
+
+  return escaped
+    .split(held)
+    .map((piece, index) => {
+      const atom = atoms[index];
+
+      return atom === undefined
+        ? piece
+        : piece + render({ ...node, content: [{ ...atom, marks: [] }] });
+    })
+    .join("");
+}
+
+/**
  * Keep the paragraph around an image alone in one, and hand every other
- * paragraph to upstream.
+ * paragraph to upstream. Write a line that opens on a block marker escaped.
  *
- * TODO: drop this once `@tiptap/extension-paragraph` stops unwrapping. Through
+ * TODO: drop `parseMarkdown` once `@tiptap/extension-paragraph` stops unwrapping. Through
  * 3.33.0 its `parseMarkdown` returns the bare image for a paragraph holding
  * only one, which suits the block image TipTap ships.
  */
@@ -129,7 +210,26 @@ const NoteParagraph = Paragraph.extend({
       );
     }
 
-    return this.parent?.(token, helpers) ?? [];
+    if (!this.parent) {
+      throw new Error("Paragraph has no markdown parser to extend");
+    }
+
+    return this.parent(token, helpers);
+  },
+
+  renderMarkdown(node, helpers, context) {
+    if (!this.parent) {
+      throw new Error("Paragraph has no markdown renderer to extend");
+    }
+
+    const { parent } = this;
+
+    // A cell holds no block, and an escape there widens its column.
+    return context.parentType === "table"
+      ? parent(node, helpers, context)
+      : escapeBlockMarkers(node, (paragraph) =>
+          parent(paragraph, helpers, context)
+        );
   },
 });
 
@@ -438,33 +538,6 @@ function mapLine(line: string, transform: (text: string) => string) {
   return out;
 }
 
-function mapProse(markdown: string, transform: (text: string) => string) {
-  let fence: null | string = null;
-
-  return markdown
-    .split("\n")
-    .map((line) => {
-      if (fence !== null) {
-        if (closesFence(line, fence)) {
-          fence = null;
-        }
-
-        return line;
-      }
-
-      const marker = fenceRun(line);
-
-      if (marker !== null) {
-        fence = marker;
-
-        return line;
-      }
-
-      return mapLine(line, transform);
-    })
-    .join("\n");
-}
-
 /** What upstream escapes in a text node, minus the backslash. */
 const TEXT_ESCAPE = new Set(["!", "`", "*", "_", "[", "]", "~"]);
 
@@ -495,6 +568,48 @@ function dropEscapes(text: string) {
   }
 
   return out;
+}
+
+/**
+ * The escape a paragraph puts on a block marker, behind the quote and list
+ * markers that open the line.
+ */
+const MARKER_ESCAPE =
+  /^(?<lead>(?:[ \t]*(?:>|(?:[-+*]|\d{1,9}[.)])(?:[ \t]+\[[ xX]\])?)(?=[ \t]|$))*[ \t]*)(?:\\(?=[-+#=|:])|(?<number>\d{1,9})\\(?=[.)]))/u;
+
+function dropMarkerEscape(line: string) {
+  return line.replace(MARKER_ESCAPE, "$<lead>$<number>");
+}
+
+function dropProseEscapes(line: string) {
+  return mapLine(dropMarkerEscape(line), dropEscapes);
+}
+
+function mapProse(markdown: string, transform: (line: string) => string) {
+  let fence: null | string = null;
+
+  return markdown
+    .split("\n")
+    .map((line) => {
+      if (fence !== null) {
+        if (closesFence(line, fence)) {
+          fence = null;
+        }
+
+        return line;
+      }
+
+      const marker = fenceRun(line);
+
+      if (marker !== null) {
+        fence = marker;
+
+        return line;
+      }
+
+      return transform(line);
+    })
+    .join("\n");
 }
 
 type MarkdownConverter = NonNullable<Editor["markdown"]>;
@@ -557,9 +672,11 @@ function withStandIns(json: JSONContent, standIns: StandIns) {
 
 /**
  * Preferred first: `typed` drops backslashes and entities, `bare` only
- * backslashes, `unencoded` only entities.
+ * backslashes, `plain` entities and the escapes on block markers, `unmarked`
+ * only those escapes, `unencoded` only entities. A block that needs another
+ * backslash still drops the marker escapes it does not need.
  */
-const FORMS = ["typed", "bare", "unencoded"] as const;
+const FORMS = ["typed", "bare", "plain", "unmarked", "unencoded"] as const;
 
 type Form = (typeof FORMS)[number];
 
@@ -654,9 +771,11 @@ function renderBlock(
   );
 
   const forms = {
-    bare: mapProse(escaped, dropEscapes),
-    typed: withoutStandIns(mapProse(unencoded, dropEscapes), standIns),
+    bare: mapProse(escaped, dropProseEscapes),
+    plain: withoutStandIns(mapProse(unencoded, dropMarkerEscape), standIns),
+    typed: withoutStandIns(mapProse(unencoded, dropProseEscapes), standIns),
     unencoded: withoutStandIns(unencoded, standIns),
+    unmarked: mapProse(escaped, dropMarkerEscape),
   };
 
   const block: RenderedBlock = {

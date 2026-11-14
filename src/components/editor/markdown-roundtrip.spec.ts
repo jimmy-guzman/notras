@@ -268,8 +268,105 @@ describe("markdown round-trip", () => {
   it.each([
     ["a bullet marker", "\\* not a bullet"],
     ["a thematic break", "\\_\\_\\_"],
+    ["a dash thematic break", "\\---"],
+    ["an equals setext underline", "para\n\\==="],
+    ["a dash setext underline", "para\n\\---"],
+    ["a thematic break in a callout", "> [!NOTE]\n>\n> \\---"],
+    ["a heading", "\\# not a heading"],
+    ["a dash bullet", "\\- not a bullet"],
+    ["a plus bullet", "\\+ not a bullet"],
+    ["a numbered item", "1\\. not a list"],
+    ["a bullet before a tab", "\\-\tnot a bullet"],
+    ["a heading before a tab", "\\#\tnot a heading"],
+    ["a numbered item before a tab", "1\\.\tnot a list"],
+    ["a setext underline before a tab", "para\n\\=== \t"],
+    ["a table delimiter row", "a | b\n\\--- | ---"],
+    ["a piped table delimiter row", "| a | b |\n\\| --- | --- |"],
   ])("should keep the backslash that stops %s", (_name, markdown) => {
     expect(roundtrip(markdown)).toBe(markdown);
+  });
+
+  it("should drop backslashes beside an escaped dash in inline html", () => {
+    expect(roundtrip("<kbd>a\\-b</kbd> snake\\_case")).toBe(
+      "<kbd>a\\-b</kbd> snake_case"
+    );
+  });
+
+  it("should reopen a valid document after bolding an image beside inline html", ({
+    onTestFinished,
+  }) => {
+    const editor = load("a![](i.png)<kbd>x</kbd>b");
+
+    editor.commands.selectAll();
+    editor.commands.toggleBold();
+
+    const saved = serializeMarkdown(editor);
+
+    editor.destroy();
+
+    const reopened = load(saved);
+
+    onTestFinished(() => {
+      reopened.destroy();
+    });
+
+    expect(() => {
+      reopened.state.doc.check();
+    }).not.toThrow();
+  });
+
+  it("should write a code span over a numbered line without a backslash", ({
+    onTestFinished,
+  }) => {
+    const editor = load("a\n2\\. b\nc");
+
+    editor.commands.selectAll();
+    editor.commands.toggleCode();
+
+    const saved = serializeMarkdown(editor);
+
+    editor.destroy();
+
+    const reopened = load(saved);
+
+    onTestFinished(() => {
+      reopened.destroy();
+    });
+
+    expect(saved).toBe("`a 2. b c`");
+    expect(serializeMarkdown(reopened)).toBe(saved);
+  });
+
+  it("should keep a numbered line in an image label free of a backslash", ({
+    onTestFinished,
+  }) => {
+    const editor = load("![a\n2. b](i.png)\n\\# caption");
+
+    editor.commands.setTextSelection(editor.state.doc.content.size - 1);
+    editor.commands.insertContent("z");
+
+    const saved = serializeMarkdown(editor);
+
+    editor.destroy();
+
+    const reopened = load(saved);
+
+    onTestFinished(() => {
+      reopened.destroy();
+    });
+
+    expect(saved).toBe("![a\n2. b](i.png)\n\\# captionz");
+    expect(serializeMarkdown(reopened)).toBe(saved);
+  });
+
+  it("should keep an escaped pipe above a delimiter row in one paragraph", () => {
+    expect(roundtrip("a \\| b\n--- | ---")).toBe("a | b\n\\--- | ---");
+  });
+
+  it("should keep a table aligned when a cell opens with a block marker", () => {
+    expect(roundtrip("| a |\n| - |\n| \\# x |")).toBe(
+      "| a   |\n| --- |\n| # x |"
+    );
   });
 
   it.each([
@@ -279,6 +376,34 @@ describe("markdown round-trip", () => {
     ["an angle bracket beside a code span", "`a < b` and a < b"],
     ["an ampersand in a link label", "[Q&A](https://example.com)"],
     ["an angle bracket in a list item", "- a < b"],
+    ["an equals line", "==="],
+    ["a numbered line inside a paragraph", "a\n2. b"],
+    ["an aligned delimiter line that is not a table", "x\n:--- | ---"],
+    ["a dash after a task box", "- [ ] - not a bullet"],
+    ["a numbered line beside a backslash", "a\n2. b \\*c\\*"],
+    ["a numbered line in inline html", "<kbd>a\n2. b</kbd> \\*c\\*"],
+    [
+      "a numbered line in inline html beside an escaped heading",
+      "<kbd>a\n2. b</kbd>\n\\# c",
+    ],
+    ["a typed backslash in inline html", "<kbd>a\n2\\. b</kbd>"],
+    [
+      "a typed backslash in inline html beside another",
+      "<kbd>a\n2\\. b</kbd> \\*c\\*",
+    ],
+    [
+      "a numbered line beside an ampersand and a backslash",
+      "AT&T \\*c\\*\n2. b",
+    ],
+    ["a line above a delimiter row of other width", "body\n|-|-|"],
+    ["a delimiter row indented past three spaces", "para\n    --- | ---"],
+    ["a pipe line above a narrower delimiter row", "a | b\n|-|"],
+    ["a three-cell line above a two-cell delimiter row", "a|b|c\n|-|-|"],
+    ["a delimiter row in a callout", "> [!NOTE]\n> |-|-|"],
+    [
+      "a numbered line beside an entity and a backslash",
+      "&lt;div&gt; \\*c\\*\n2. b",
+    ],
     ["an angle bracket beside icon glyphs", " \u{F0000} 1 < 2"],
   ])("should write %s in prose as typed", (_name, markdown) => {
     expect(roundtrip(markdown)).toBe(markdown);
