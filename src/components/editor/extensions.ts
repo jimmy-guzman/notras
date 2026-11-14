@@ -56,7 +56,7 @@ import { CodeBlockTab } from "./code-block-tab";
 import { DragSelection } from "./drag-selection";
 import { Embed, embedNodeView } from "./embed";
 import type { WatchEmbed } from "./embed";
-import { HtmlBlock, HtmlInline, textOf } from "./html-literal";
+import { HtmlBlock, HtmlInline } from "./html-literal";
 import { imageNodeView } from "./image-resize";
 import type { ImageSource } from "./image-resize";
 import { imageTag, imageTagAt } from "./image-tag";
@@ -135,25 +135,39 @@ function freeCharacter(node: JSONContent) {
 }
 
 /**
- * Raw HTML and code are written byte for byte, so a line inside either is not
- * one the paragraph can escape. Each inline HTML node holds one character while
- * the escapes go in, and stays an HTML node so marks close around it as they
- * would around the original. A code span reads a line ending as a space, so
- * its text is written with spaces.
+ * Raw HTML and an image's label keep their line endings as written. Other
+ * inline nodes stay in place, since upstream escapes text by what follows it.
+ */
+function keepsOwnLines(child: JSONContent) {
+  return child.type === "htmlInline" || child.type === "image";
+}
+
+/**
+ * A line inside a node that keeps its own lines is not one the paragraph can
+ * escape. Each such node holds one character in an HTML node while the escapes
+ * go in, carrying its marks so they close around it as they would around the
+ * original, and is then written on its own. A code span reads a line ending as
+ * a space, so its text is written with spaces.
  */
 function escapeBlockMarkers(
   node: JSONContent,
   render: (paragraph: JSONContent) => string
 ) {
   const content = node.content ?? [];
-  const html = content.filter((child) => child.type === "htmlInline");
+
+  const atoms = content.filter(keepsOwnLines);
+
   const held = freeCharacter(node);
 
   const escaped = render({
     ...node,
     content: content.map((child) => {
-      if (child.type === "htmlInline") {
-        return { content: [{ text: held, type: "text" }], type: "htmlInline" };
+      if (keepsOwnLines(child)) {
+        return {
+          content: [{ text: held, type: "text" }],
+          marks: child.marks,
+          type: "htmlInline",
+        };
       }
 
       return child.marks?.some((mark) => mark.type === "code") === true
@@ -167,9 +181,11 @@ function escapeBlockMarkers(
   return escaped
     .split(held)
     .map((piece, index) => {
-      const literal = html[index];
+      const atom = atoms[index];
 
-      return literal === undefined ? piece : piece + textOf(literal);
+      return atom === undefined
+        ? piece
+        : piece + render({ ...node, content: [{ ...atom, marks: [] }] });
     })
     .join("");
 }

@@ -337,6 +337,28 @@ describe("markdown round-trip", () => {
     expect(serializeMarkdown(reopened)).toBe(saved);
   });
 
+  it("should keep a numbered line in an image label free of a backslash", ({
+    onTestFinished,
+  }) => {
+    const editor = load("![a\n2. b](i.png)\n\\# caption");
+
+    editor.commands.setTextSelection(editor.state.doc.content.size - 1);
+    editor.commands.insertContent("z");
+
+    const saved = serializeMarkdown(editor);
+
+    editor.destroy();
+
+    const reopened = load(saved);
+
+    onTestFinished(() => {
+      reopened.destroy();
+    });
+
+    expect(saved).toBe("![a\n2. b](i.png)\n\\# captionz");
+    expect(serializeMarkdown(reopened)).toBe(saved);
+  });
+
   it("should keep an escaped pipe above a delimiter row in one paragraph", () => {
     expect(roundtrip("a \\| b\n--- | ---")).toBe("a | b\n\\--- | ---");
   });

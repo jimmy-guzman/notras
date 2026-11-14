@@ -4,7 +4,7 @@ import { Lexer } from "marked";
 
 import { imageTagAttrs } from "./image-tag";
 
-export function textOf(node: JSONContent) {
+function textOf(node: JSONContent) {
   return (node.content ?? []).map((child) => child.text ?? "").join("");
 }
 
