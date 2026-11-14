@@ -1154,6 +1154,26 @@ describe("turning a paragraph into a code block", () => {
     expect(editor.state.doc.firstChild?.textContent).toBe("b <kbd>y</kbd>");
   });
 
+  it("should turn every selected paragraph into a code block when the selection ends after an image", ({
+    onTestFinished,
+  }) => {
+    const editor = loadNote("![](a.png)\n\n![](b.png)");
+
+    onTestFinished(() => {
+      editor.destroy();
+    });
+
+    editor.commands.setTextSelection({ from: 1, to: 5 });
+    editor.commands.toggleCodeBlock();
+
+    expect(
+      findChildren(
+        editor.state.doc,
+        (node) => node.type.name === "codeBlock"
+      ).map(({ node }) => node.textContent)
+    ).toStrictEqual(["![](a.png)", "![](b.png)"]);
+  });
+
   it("should keep inline html in every cell of a selected column", ({
     onTestFinished,
   }) => {

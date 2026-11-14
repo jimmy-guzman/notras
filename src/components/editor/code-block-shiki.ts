@@ -709,10 +709,14 @@ function spellInlineNodes(editor: Editor, tr: Transaction, type: NodeType) {
   // A cell selection's ranges need not run in document order, and each edit
   // must leave the positions of the ones still to come intact.
   for (const { node, pos } of spelled.toSorted((a, b) => b.pos - a.pos)) {
-    tr.insertText(
-      manager.serialize(contentOf(node.mark([]))),
+    const markdown = manager.serialize(contentOf(node.mark([])));
+
+    // `insertText` collapses a selection that ends where its text ends, which
+    // would leave the blocks before that point out of the conversion.
+    tr.replaceWith(
       pos,
-      pos + node.nodeSize
+      pos + node.nodeSize,
+      markdown === "" ? [] : schema.text(markdown)
     );
   }
 }
