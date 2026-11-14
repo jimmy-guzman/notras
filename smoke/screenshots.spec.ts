@@ -49,7 +49,7 @@ async function press(
 /** Clicks the browser row whose title leads its text, since a snippet can name another note; ⌘ opens it in a new tab. */
 async function openRow(browser: Browser, title: string, inNewTab: boolean) {
   await browser
-    .$('[aria-label^="notes in"] button')
+    .$('[aria-label^="notes in"] li:first-child button')
     .waitForDisplayed({ timeout: 30_000 });
 
   await browser.execute(
@@ -180,7 +180,7 @@ describe("README screenshots", () => {
 
     try {
       await browser
-        .$('[aria-label="recent notes"] button')
+        .$('[aria-label="recent notes"] li:first-child button')
         .waitForDisplayed({ timeout: 30_000 });
       const pid = await processId(binary);
       await activate(pid);
@@ -195,7 +195,9 @@ describe("README screenshots", () => {
       await browser
         .$('[aria-label="diagram"]')
         .waitForDisplayed({ timeout: 30_000 });
-      await browser.$(".syntax-token").waitForDisplayed({ timeout: 30_000 });
+      await browser
+        .$(".syntax-token", { strict: false })
+        .waitForDisplayed({ timeout: 30_000 });
       // Takes the caret off the heading, since a blink lands in the frame.
       await browser.execute(() => {
         if (document.activeElement instanceof HTMLElement) {
@@ -206,7 +208,7 @@ describe("README screenshots", () => {
 
       await press(browser, "\\", "Backslash", { meta: true });
       await browser
-        .$('[aria-label^="notes in"] button')
+        .$('[aria-label^="notes in"] li:first-child button')
         .waitForDisplayed({ timeout: 10_000 });
       await capture(browser, window, "browser");
       await press(browser, "\\", "Backslash", { meta: true });
@@ -220,7 +222,7 @@ describe("README screenshots", () => {
 
       await press(browser, "L", "KeyL", { meta: true, shift: true });
       await browser
-        .$('[aria-label="note panel: mentions"] li button')
+        .$('[aria-label="note panel: mentions"] li:first-child button')
         .waitForDisplayed({ timeout: 10_000 });
       await browser.execute(() => {
         if (document.activeElement instanceof HTMLElement) {
@@ -242,7 +244,7 @@ describe("README screenshots", () => {
       await press(browser, "w", "KeyW", { meta: true });
       await press(browser, "w", "KeyW", { meta: true });
       await browser
-        .$('[aria-label="recent notes"] button')
+        .$('[aria-label="recent notes"] li:first-child button')
         .waitForDisplayed({ timeout: 10_000 });
       await capture(browser, window, "home");
 

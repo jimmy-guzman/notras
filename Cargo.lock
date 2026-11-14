@@ -892,7 +892,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d045de693cb712d0b22c6a64be5b953f67b3ce00ab5ad3dd5d8b441886ab8e1a"
 dependencies = [
  "quote",
- "syn 2.0.119",
+ "syn 3.0.4",
 ]
 
 [[package]]
@@ -3148,16 +3148,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "objc2-javascript-core"
-version = "0.3.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2a1e6550c4caed348956ce3370c9ffeca70bb1dbed4fa96112e7c6170e074586"
-dependencies = [
- "objc2",
- "objc2-core-foundation",
-]
-
-[[package]]
 name = "objc2-osa-kit"
 version = "0.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3248,8 +3238,6 @@ dependencies = [
  "objc2-app-kit",
  "objc2-core-foundation",
  "objc2-foundation",
- "objc2-javascript-core",
- "objc2-security",
 ]
 
 [[package]]
@@ -5049,9 +5037,9 @@ dependencies = [
 
 [[package]]
 name = "tauri-plugin-wdio"
-version = "1.5.1"
+version = "2.0.0-next.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b9bd7c010be21e8f7011f7249fdb0a5921cd6c2beafeb15482b92c58b70757e0"
+checksum = "ce0649ed900b3f30b5b23e57f33a4000a0797bbd5252908bbcc54c7b224e08bb"
 dependencies = [
  "log",
  "serde",
@@ -5065,9 +5053,9 @@ dependencies = [
 
 [[package]]
 name = "tauri-plugin-wdio-webdriver"
-version = "1.5.1"
+version = "2.0.0-next.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5a775b0b59f6f12b38d1f28667311a89cd07f532f540e27d65c6eadfba1156d8"
+checksum = "89b11564b084534f788fc2c4915d631ce4813cc23be710af742db0bd122f8a40"
 dependencies = [
  "async-trait",
  "axum",
