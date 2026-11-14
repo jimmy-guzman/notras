@@ -786,6 +786,42 @@ describe("markdown paste", () => {
       );
     });
 
+    it("should toast a failed image save only after the paste ahead of it lands", async () => {
+      const first = Promise.withResolvers<ClipboardSource | null>();
+
+      render(createElement(Toaster));
+      editor = new Editor({
+        content: "",
+        extensions: createEditorExtensions({
+          readClipboardSource: async () => await first.promise,
+          saveImage: async () => {
+            throw new Error("The disk is full");
+          },
+        }),
+      });
+      const clipboardData = new DataTransfer();
+
+      clipboardData.items.add(
+        new File([new Uint8Array([137, 80, 78, 71])], "shot.png", {
+          type: "image/png",
+        })
+      );
+      pasteText(editor, "first");
+      editor.view.dom.dispatchEvent(
+        new ClipboardEvent("paste", { clipboardData })
+      );
+      await sleep(0);
+
+      expect(screen.queryByText("The disk is full")).toBeNull();
+
+      first.resolve(null);
+
+      await expect(
+        screen.findByText("The disk is full")
+      ).resolves.toBeDefined();
+      expect(editor.state.doc.textContent).toBe("first");
+    });
+
     it("should leave the selection alone when an empty paste waits on a pending paste", async () => {
       const first = Promise.withResolvers<ClipboardSource | null>();
 
@@ -1511,6 +1547,33 @@ describe("markdown paste", () => {
         screen.findByText("The clipboard holds no text")
       ).resolves.toBeDefined();
       expect(editor.state.doc.textContent).toBe("note");
+    });
+
+    it("should toast a failed plain paste only after the paste ahead of it lands", async () => {
+      const first = Promise.withResolvers<ClipboardSource | null>();
+
+      render(createElement(Toaster));
+      editor = new Editor({
+        content: "",
+        extensions: createEditorExtensions({
+          readClipboardSource: async () => await first.promise,
+          readClipboardText: async () => {
+            throw new Error("The clipboard is unavailable.");
+          },
+        }),
+      });
+      pasteText(editor, "first");
+      editor.commands.keyboardShortcut("Mod-Alt-Shift-v");
+      await sleep(0);
+
+      expect(screen.queryByText("The clipboard is unavailable.")).toBeNull();
+
+      first.resolve(null);
+
+      await expect(
+        screen.findByText("The clipboard is unavailable.")
+      ).resolves.toBeDefined();
+      expect(editor.state.doc.textContent).toBe("first");
     });
 
     it("should keep a plain paste ahead of a later paste", async () => {
