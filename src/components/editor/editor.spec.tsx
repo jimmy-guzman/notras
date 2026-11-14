@@ -4153,12 +4153,6 @@ describe("caret on mount", () => {
     ).join("\n");
 
     const initialContent = `\`\`\`ts\n${code}\n\`\`\``;
-    // A first mount leaves the block's tokens cached for the second.
-    const first = await mount({ initialContent });
-    await waitFor(() => {
-      expect(coloredText(first.editor, "syntax-keyword")).toContain("const");
-    });
-    cleanup();
     vi.useFakeTimers({
       toFake: ["requestAnimationFrame", "cancelAnimationFrame"],
     });
@@ -4196,7 +4190,7 @@ describe("caret on mount", () => {
 
     expect(coloredText(editor, "syntax-number")).toContain(String(lines - 1));
     expect(
-      coloredText(editor, "syntax-keyword").length / "const".length
+      coloredText(editor, "syntax-keyword").length / "const ".length
     ).toBeLessThan(lines);
   });
 

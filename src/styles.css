@@ -147,6 +147,7 @@
   --ring: #e99ac2;
   --faint: #ada7af;
   --selection: #363c48;
+  --syntax-added: var(--success);
   --syntax-comment: #ada7af;
   --syntax-function: #8aa8d6;
   --syntax-keyword: #e99ac2;
@@ -156,6 +157,7 @@
   --syntax-number: #d6bc89;
   --syntax-operator: #e6dfd6;
   --syntax-punctuation: #ada7af;
+  --syntax-removed: var(--destructive);
   --syntax-string: #9abb9f;
   --syntax-tag: #b5a0d4;
   --syntax-type: #83bac7;

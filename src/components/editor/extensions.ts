@@ -51,7 +51,7 @@ import { BoundedTable } from "./bounded-tokenizers";
 import { NoteBlockquote } from "./callout";
 import { CaretAfterBreak } from "./caret-after-break";
 import { codeBlockNodeView, editingCodeBlock } from "./code-block-node-view";
-import { CodeBlockShiki } from "./code-block-shiki";
+import { CodeBlockSyntax } from "./code-block-syntax";
 import { CodeBlockTab } from "./code-block-tab";
 import { DragSelection } from "./drag-selection";
 import { Embed, embedNodeView } from "./embed";
@@ -1560,7 +1560,7 @@ export function createEditorExtensions(
     NoteMarkdown.configure({
       marked: createNoteMarked(),
     }),
-    CodeBlockShiki.extend({
+    CodeBlockSyntax.extend({
       addNodeView() {
         return (props) => codeBlockNodeView(props, options.openDiagram ?? null);
       },

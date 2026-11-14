@@ -98,7 +98,7 @@ describe("code session", () => {
     });
   });
 
-  it("should draw a file shiki has no grammar for as plain text", async () => {
+  it("should draw a file the highlighter has no lexer for as plain text", async () => {
     mount(async () => "just words\n", "/Users/me/notes.txt");
 
     expect(await shownText()).toBe("just words\n");

@@ -1,117 +1,46 @@
-import type { ThemeRegistration } from "shiki/types";
+import type { Theme } from "@pierre/highlights";
 
-/** TextMate scopes use the same ink roles as the surrounding note surface. */
-export const syntaxTheme: ThemeRegistration = {
-  colors: {
-    "editor.background": "var(--card)",
-    "editor.foreground": "var(--foreground)",
-  },
+/**
+ * Token categories use the same ink roles as the surrounding note surface.
+ * Each color is the suffix of a `--syntax-` variable in `styles.css`, and a
+ * category left out here inherits its parent's or stays in the text color.
+ */
+export const syntaxTheme = {
+  appearance: "dark",
+  cssVariables: { prefix: "--syntax-" },
   name: "notras",
-  tokenColors: [
-    { scope: "comment", settings: { foreground: "var(--syntax-comment)" } },
-    {
-      scope: ["keyword", "storage"],
-      settings: { foreground: "var(--syntax-keyword)" },
+  style: {
+    syntax: {
+      attribute: "member",
+      boolean: "number",
+      comment: "comment",
+      constant: "number",
+      "diff.minus": "removed",
+      "diff.plus": "added",
+      emphasis: "keyword",
+      function: "function",
+      keyword: "keyword",
+      "keyword.control": "keyword-control",
+      "keyword.import": "keyword-import",
+      label: "member",
+      link_uri: "function",
+      namespace: "member",
+      number: "number",
+      operator: "operator",
+      preproc: "keyword-control",
+      property: "member",
+      punctuation: "punctuation",
+      selector: "tag",
+      "selector.class": "member",
+      "selector.id": "member",
+      "selector.pseudo": "member",
+      string: "string",
+      "string.escape": "operator",
+      "string.regex": "operator",
+      tag: "tag",
+      "text.literal": "string",
+      title: "keyword",
+      type: "type",
     },
-    {
-      scope: ["keyword.control", "storage.modifier.async"],
-      settings: { foreground: "var(--syntax-keyword-control)" },
-    },
-    {
-      scope: [
-        "keyword.control.import",
-        "keyword.control.export",
-        "keyword.control.from",
-        "keyword.control.default",
-      ],
-      settings: { foreground: "var(--syntax-keyword-import)" },
-    },
-    {
-      scope: ["keyword.operator", "punctuation.accessor", "operator"],
-      settings: { foreground: "var(--syntax-operator)" },
-    },
-    { scope: "string", settings: { foreground: "var(--syntax-string)" } },
-    {
-      scope: ["constant.character.escape", "string.regexp"],
-      settings: { foreground: "var(--syntax-operator)" },
-    },
-    {
-      scope: ["constant", "support.constant", "variable.other.constant"],
-      settings: { foreground: "var(--syntax-number)" },
-    },
-    {
-      scope: ["entity.name.function", "support.function"],
-      settings: { foreground: "var(--syntax-function)" },
-    },
-    {
-      scope: [
-        "entity.name.type",
-        "entity.name.class",
-        "support.type",
-        "support.class",
-      ],
-      settings: { foreground: "var(--syntax-type)" },
-    },
-    {
-      scope: [
-        "variable.other.property",
-        "meta.object-literal.key",
-        "support.variable",
-        "entity.name.namespace",
-        "entity.name.label",
-        "entity.name.tag.yaml",
-        "support.type.property-name",
-      ],
-      settings: { foreground: "var(--syntax-member)" },
-    },
-    {
-      scope: "entity.name.tag",
-      settings: { foreground: "var(--syntax-tag)" },
-    },
-    {
-      scope: "entity.other.attribute-name",
-      settings: { foreground: "var(--syntax-member)" },
-    },
-    {
-      scope: ["variable", "meta.embedded", "meta.template.expression"],
-      settings: { foreground: "var(--foreground)" },
-    },
-    {
-      scope: "punctuation",
-      settings: { foreground: "var(--syntax-punctuation)" },
-    },
-    {
-      scope: ["markup.heading", "markup.bold", "markup.italic"],
-      settings: { foreground: "var(--syntax-keyword)" },
-    },
-    {
-      scope: ["markup.inline.raw", "markup.raw"],
-      settings: { foreground: "var(--syntax-string)" },
-    },
-    {
-      scope: "markup.underline.link",
-      settings: { foreground: "var(--syntax-function)" },
-    },
-    // The marker scopes outrank the punctuation rule, which would grey them.
-    {
-      scope: ["markup.inserted", "punctuation.definition.inserted"],
-      settings: { foreground: "var(--success)" },
-    },
-    {
-      scope: ["markup.deleted", "punctuation.definition.deleted"],
-      settings: { foreground: "var(--destructive)" },
-    },
-    {
-      scope: ["markup.changed", "punctuation.definition.changed"],
-      settings: { foreground: "var(--warning)" },
-    },
-    {
-      scope: ["meta.diff.header", "meta.diff.index"],
-      settings: { foreground: "var(--syntax-comment)" },
-    },
-    {
-      scope: ["meta.diff.range", "punctuation.definition.range"],
-      settings: { foreground: "var(--syntax-function)" },
-    },
-  ],
-};
+  },
+} satisfies Theme;
