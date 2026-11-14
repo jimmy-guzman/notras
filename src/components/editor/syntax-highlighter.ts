@@ -14,6 +14,19 @@ export interface SyntaxToken {
 
 const PLAIN = new Set(["plain", "plaintext", "text", "txt"]);
 const MARKDOWN = new Set(["markdown", "md", "mdc"]);
+const DIFF = new Set(["diff", "patch"]);
+
+/**
+ * The ink each diff line takes as a whole, by its prefix. The lexer greys the
+ * `+` and `-` markers and colors the file lines as change, which no theme
+ * category can tell apart from the lines they name.
+ */
+const DIFF_INKS = [
+  [/^@@/u, "var(--syntax-member)"],
+  [/^-/u, "var(--syntax-removed)"],
+  [/^\+/u, "var(--syntax-added)"],
+  [/^!/u, "var(--syntax-changed)"],
+] as const;
 
 /** Fence labels that name a lexer the highlighter knows under another name. */
 const ALIASES = new Map([
@@ -33,6 +46,40 @@ function coloredTokens(code: string, lang: Lang, shift: number) {
         ? []
         : [{ color, length: content.length, offset: offset + shift }]
     );
+}
+
+/**
+ * Whether a diff line names files or ranges rather than changing a line. A
+ * removed `-- comment` reads `--- comment`, so `---` and `+++` name files only
+ * beside the line they pair with. A removed `-- ` line directly above an added
+ * `++ ` line still reads as a file pair, which only hunk line counts settle.
+ */
+function isDiffHeader(line: string, previous: string, next: string) {
+  return (
+    /^(?:diff |index |\*\*\*)/u.test(line) ||
+    /^--- \d+(?:,\d+)? ----$/u.test(line) ||
+    (line.startsWith("--- ") &&
+      (next.startsWith("+++ ") || previous.startsWith("*** "))) ||
+    (line.startsWith("+++ ") && previous.startsWith("--- "))
+  );
+}
+
+function diffTokens(code: string) {
+  const lines = [...code.matchAll(/^.+$/gmu)];
+
+  return lines.flatMap(({ 0: line, index }, at) => {
+    const ink = isDiffHeader(
+      line,
+      lines[at - 1]?.[0] ?? "",
+      lines[at + 1]?.[0] ?? ""
+    )
+      ? "var(--syntax-comment)"
+      : DIFF_INKS.find(([prefix]) => prefix.test(line))?.[1];
+
+    return ink === undefined
+      ? []
+      : [{ color: ink, length: line.length, offset: index }];
+  });
 }
 
 /** Resolve an explicit fence label without changing what is saved to the file. */
@@ -55,6 +102,10 @@ export function syntaxLanguage(
  * closes a block on `---` alone and would read the body after `...` as YAML.
  */
 export function highlightCode(code: string, language: Lang): SyntaxToken[] {
+  if (DIFF.has(language)) {
+    return diffTokens(code);
+  }
+
   if (!MARKDOWN.has(language)) {
     return coloredTokens(code, language, 0);
   }
