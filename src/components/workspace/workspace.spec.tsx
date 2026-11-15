@@ -533,7 +533,12 @@ describe("workspace", () => {
         return {
           mentionsError: null,
           picture: {
-            graph: { dangling: [], hubs: [], incoming: [], outgoing: [] },
+            graph: {
+              dangling: [],
+              hubs: [],
+              incoming: [],
+              outgoing: [],
+            },
             kind: "note",
             note: {
               createdAt: 0,
@@ -636,7 +641,12 @@ describe("workspace", () => {
         return {
           mentionsError: null,
           picture: {
-            graph: { dangling: [], hubs: [], incoming: [], outgoing: [] },
+            graph: {
+              dangling: [],
+              hubs: [],
+              incoming: [],
+              outgoing: [],
+            },
             kind: "note",
             note: {
               createdAt: 0,
@@ -793,7 +803,7 @@ describe("workspace", () => {
     expect(
       await screen.findByRole("complementary", { name: "note panel: links" })
     ).toBeInTheDocument();
-    expect(await screen.findByText("no notes link here")).toBeInTheDocument();
+    expect(await screen.findByText("no links or mentions")).toBeInTheDocument();
 
     await user.keyboard("{Control>}{Shift>}h{/Shift}{/Control}");
     expect(
@@ -845,7 +855,12 @@ describe("workspace", () => {
         return {
           mentionsError: null,
           picture: {
-            graph: { dangling: [], hubs: [], incoming: [], outgoing: [] },
+            graph: {
+              dangling: [],
+              hubs: [],
+              incoming: [],
+              outgoing: [],
+            },
             kind: "note",
             note: {
               createdAt: 0,
@@ -967,7 +982,12 @@ describe("workspace", () => {
         return {
           mentionsError: null,
           picture: {
-            graph: { dangling: [], hubs: [], incoming: [], outgoing: [] },
+            graph: {
+              dangling: [],
+              hubs: [],
+              incoming: [],
+              outgoing: [],
+            },
             kind: "note",
             note: {
               createdAt: 0,

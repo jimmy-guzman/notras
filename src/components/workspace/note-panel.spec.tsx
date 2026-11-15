@@ -273,30 +273,134 @@ describe("note panel links", () => {
     expect(screen.queryByText("the disk is busy")).not.toBeInTheDocument();
   });
 
-  it("should list the notes this one links to under from this note", async () => {
+  it.each([
+    {
+      incoming: [BEE],
+      label: "references this note",
+      outgoing: [],
+    },
+    {
+      incoming: [],
+      label: "referenced by this note",
+      outgoing: [BEE],
+    },
+    {
+      incoming: [BEE],
+      label: "references both ways",
+      outgoing: [BEE],
+    },
+  ])(
+    "should describe the direction as $label",
+    async ({ incoming, label, outgoing }) => {
+      openNoteTab();
+      showNotePanelTab("links");
+      mockIPC((command) => {
+        if (command === "read_graph") {
+          return graphOfA({ incoming, outgoing });
+        }
+
+        throw new Error(`unexpected command: ${command}`);
+      });
+      const { user } = mountPanel();
+
+      const list = await screen.findByRole("list", {
+        name: "links and mentions",
+      });
+
+      const rows = await within(list).findAllByRole("button");
+
+      expect(rows).toHaveLength(1);
+      expect(rows[0]).toHaveAccessibleName(`Bee see a ${label}`);
+      await user.hover(
+        screen.getByRole("button", { name: `Bee see a ${label}` })
+      );
+      expect(
+        await screen.findByText(label, {
+          selector: '[data-slot="tooltip-content"]',
+        })
+      ).toBeVisible();
+    }
+  );
+
+  it("should keep incoming order and context before outgoing-only notes", async () => {
     openNoteTab();
     showNotePanelTab("links");
     mockIPC((command) => {
       if (command === "read_graph") {
-        return graphOfA({ outgoing: [BEE] });
+        return graphOfA({
+          incoming: [
+            BEE,
+            {
+              ...BEE,
+              note: { ...BEE.note, folder: "work", path: "work/bee.md" },
+            },
+          ],
+          outgoing: [
+            { ...BEE, note: { ...BEE.note, path: "ant.md", title: "Ant" } },
+            {
+              ...BEE,
+              lines: [{ at: 4, context: "see Bee from here", line: 2 }],
+            },
+          ],
+        });
       }
 
       throw new Error(`unexpected command: ${command}`);
     });
     mountPanel();
 
-    const from = await screen.findByRole("region", { name: "from this note" });
-    const to = screen.getByRole("region", { name: "to this note" });
+    const list = await screen.findByRole("list", {
+      name: "links and mentions",
+    });
 
-    expect(
-      await within(from).findByRole("button", { name: /Bee/u })
-    ).toBeInTheDocument();
-    expect(
-      await within(to).findByText("no notes link here")
-    ).toBeInTheDocument();
+    const rows = await within(list).findAllByRole("button");
+
+    expect(rows).toHaveLength(3);
+    expect(rows[0]).toHaveAccessibleName("Bee see a references both ways");
+    expect(rows[1]).toHaveAccessibleName("Bee work see a references this note");
+    expect(rows[2]).toHaveAccessibleName("Ant see a referenced by this note");
+    expect(screen.queryByText("see Bee from here")).not.toBeInTheDocument();
   });
 
-  it("should show both headings while the links are still loading", () => {
+  it("should explain a focused row and open its note beside the current note", async () => {
+    openNoteTab();
+    showNotePanelTab("links");
+    mockIPC((command) => {
+      if (command === "read_graph") {
+        return graphOfA({ incoming: [BEE] });
+      }
+
+      throw new Error(`unexpected command: ${command}`);
+    });
+    const { user } = mountPanel();
+
+    const row = await screen.findByRole("button", {
+      name: "Bee see a references this note",
+    });
+
+    onTestFinished(() => {
+      for (const tab of getTabState().tabs.filter(
+        (candidate) => candidate.id !== "a"
+      )) {
+        closeTab(tab.id);
+      }
+    });
+    await user.tab();
+    expect(row).toHaveFocus();
+    expect(
+      await screen.findByText("references this note", {
+        selector: '[data-slot="tooltip-content"]',
+      })
+    ).toBeVisible();
+    await user.keyboard("{Enter}");
+
+    expect(getTabState().tabs.map((tab) => tab.path)).toStrictEqual([
+      "a.md",
+      "bee.md",
+    ]);
+  });
+
+  it("should wait for links without showing an empty result", () => {
     openNoteTab();
     showNotePanelTab("links");
     const graph = Promise.withResolvers<ReturnType<typeof graphOfA>>();
@@ -309,16 +413,13 @@ describe("note panel links", () => {
     });
     mountPanel();
 
-    expect(
-      screen.getByRole("region", { name: "to this note" })
-    ).toBeInTheDocument();
-    expect(
-      screen.getByRole("region", { name: "from this note" })
-    ).toBeInTheDocument();
     expect(screen.getByText("loading links...")).toBeInTheDocument();
+    expect(screen.queryByText("no links or mentions")).not.toBeInTheDocument();
+    expect(screen.queryByText("to this note")).not.toBeInTheDocument();
+    expect(screen.queryByText("from this note")).not.toBeInTheDocument();
   });
 
-  it("should keep the links to this note when the search for unlinked mentions fails", async () => {
+  it("should keep the references this note when the search for unlinked mentions fails", async () => {
     openNoteTab();
     showNotePanelTab("links");
     let reads = 0;
@@ -338,7 +439,7 @@ describe("note panel links", () => {
       throw new Error(`unexpected command: ${command}`);
     });
     const { user } = mountPanel();
-    const to = await screen.findByRole("region", { name: "to this note" });
+    const to = screen.getByRole("complementary");
 
     expect(
       await within(to).findByRole("button", { name: /Bee/u })
@@ -406,7 +507,7 @@ describe("note panel footer", () => {
     });
     mountPanel();
 
-    expect(await screen.findByText("no notes link here")).toBeInTheDocument();
+    expect(await screen.findByText("no links or mentions")).toBeInTheDocument();
     expect(screen.getByRole("group", { name: "view" })).toBeInTheDocument();
   });
 
