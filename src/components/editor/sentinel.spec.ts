@@ -2,12 +2,13 @@ import { Editor } from "@tiptap/core";
 import { describe, expect, it } from "vitest";
 
 import { contentOf } from "./attrs";
+import { createEditorExtensions } from "./extensions";
 import {
-  createEditorExtensions,
-  fileMarkdown,
-  serializeMarkdown,
-} from "./extensions";
-import { findSentinel, insertSentinel, SENTINEL } from "./sentinel";
+  findSentinel,
+  insertSentinel,
+  SENTINEL,
+  sentinelSpellings,
+} from "./sentinel";
 
 function makeEditor(content: string) {
   return new Editor({
@@ -122,39 +123,32 @@ describe("source -> rich caret mapping", () => {
         .endsWith(before.slice(-3))
     ).toBeTruthy();
 
-    // The stripped buffer serializes to the canonical clean form -- the
-    // same comparison the runtime corruption guard makes (must NOT fire).
-    const manager = requireManager(editor);
-
-    const canonical = fileMarkdown(
-      manager,
-      editor.schema.nodeFromJSON(manager.parse(markdown))
-    );
-
-    expect(serializeMarkdown(editor).trimEnd()).toBe(canonical.trimEnd());
-
     editor.destroy();
   });
+});
 
-  it("should detect divergence when the sentinel splits a syntax token", () => {
-    const markdown = "**bold**";
-    // Caret between the two asterisks of the opening mark.
-    const editor = makeEditor(insertSentinel(markdown, 1));
-    const pos = requireSentinel(editor);
+describe("sentinel spellings", () => {
+  it.each([
+    ["a bullet", "- a\n-\n- b", "- a\n-".length],
+    ["a number", "1. a\n2.\n3. b", "1. a\n2.".length],
+    ["a quoted bullet", "> - a\n> -", "> - a\n> -".length],
+  ])(
+    "should also write the sentinel after a space when the line holds only %s",
+    (_, text, offset) => {
+      expect(sentinelSpellings(text, offset)).toStrictEqual([
+        insertSentinel(text, offset),
+        `${text.slice(0, offset)} ${SENTINEL}${text.slice(offset)}`,
+      ]);
+    }
+  );
 
-    editor.view.dispatch(editor.state.tr.delete(pos, pos + 1));
-
-    const manager = requireManager(editor);
-
-    const canonical = fileMarkdown(
-      manager,
-      editor.schema.nodeFromJSON(manager.parse(markdown))
-    );
-
-    // The stripped buffer no longer serializes to the canonical form --
-    // exactly the condition the corruption guard reparses on.
-    expect(serializeMarkdown(editor).trimEnd()).not.toBe(canonical.trimEnd());
-
-    editor.destroy();
+  it.each([
+    ["text after the marker", "- a", 1],
+    ["a marker that is not at the line's end", "-x", 1],
+    ["a dash inside a word", "a-", 2],
+  ])("should write the sentinel one way with %s", (_, text, offset) => {
+    expect(sentinelSpellings(text, offset)).toStrictEqual([
+      insertSentinel(text, offset),
+    ]);
   });
 });

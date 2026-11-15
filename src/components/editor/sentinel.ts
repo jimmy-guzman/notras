@@ -1,5 +1,7 @@
 import type { Node } from "@tiptap/pm/model";
 
+import { splices } from "./source-change";
+
 /**
  * The caret rides through the markdown converters as a sentinel character:
  * serialize/parse the document with the sentinel at the caret, then look at
@@ -17,6 +19,13 @@ export function insertSentinel(text: string, offset: number) {
   const clamped = Math.max(0, Math.min(offset, text.length));
 
   return text.slice(0, clamped) + SENTINEL + text.slice(clamped);
+}
+
+/** The text with the sentinel at `offset`, in each spelling its line can take. */
+export function sentinelSpellings(text: string, offset: number) {
+  const clamped = Math.max(0, Math.min(offset, text.length));
+
+  return splices(text, clamped, clamped, SENTINEL);
 }
 
 /** Absolute position of the sentinel character in a parsed doc, or null. */

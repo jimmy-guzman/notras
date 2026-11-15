@@ -192,5 +192,19 @@ describe("native command", () => {
       expect(logged).toMatchObject([{ command: "plugin:log|log" }]);
       expect(JSON.stringify(logged)).toContain("internal invariant");
     });
+
+    it("should still report an unexpected defect when the log cannot be written", async () => {
+      mockIPC((command) => {
+        if (command === "plugin:log|log") {
+          throw new Error("log sink down");
+        }
+      });
+
+      await expect(
+        nativeCommand(() => {
+          throw new Error("internal invariant");
+        })
+      ).rejects.toThrow("An unexpected error");
+    });
   });
 });

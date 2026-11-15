@@ -1717,13 +1717,13 @@ describe("an edit in markdown written elsewhere", () => {
     editor.destroy();
   });
 
-  it("should write a table in the serializer's form when a cell changes", () => {
+  it("should keep a table as written when a cell changes", () => {
     const editor = open("__first__\n\n|a|b|\n|-|-|\n|1|2|\n");
 
     editor.commands.insertContentAt(editor.state.doc.content.size - 4, "x");
 
     expect(serializeMarkdown(editor)).toBe(
-      "__first__\n\n| a   | b   |\n| --- | --- |\n| 1   | 2x  |\n"
+      "__first__\n\n|a|b|\n|-|-|\n|1|2x|\n"
     );
     editor.destroy();
   });

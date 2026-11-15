@@ -1,17 +1,10 @@
-import { error as logError } from "@tauri-apps/plugin-log";
 import { parseJson, pipe, safeParse, string } from "valibot";
 import type { GenericSchema } from "valibot";
 
 import { toast } from "@/components/ui/toast";
 import { reasonOf } from "@/lib/ui/failure";
 
-async function logReadFailure(message: string) {
-  try {
-    await logError(message);
-  } catch {
-    // Best effort.
-  }
-}
+import { logBestEffort } from "./best-effort-log";
 
 /** The saved value, or `undefined` if missing, invalid or unreadable; an unreadable one logs `message`. */
 export function readStored<T>(
@@ -27,7 +20,7 @@ export function readStored<T>(
 
     return parsed.success ? parsed.output : undefined;
   } catch (error) {
-    void logReadFailure(`${message}: ${reasonOf(error) ?? String(error)}`);
+    void logBestEffort(`${message}: ${reasonOf(error) ?? String(error)}`);
 
     return undefined;
   }
