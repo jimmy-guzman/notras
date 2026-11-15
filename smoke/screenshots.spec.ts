@@ -222,7 +222,9 @@ describe("README screenshots", () => {
 
       await press(browser, "L", "KeyL", { meta: true, shift: true });
       await browser
-        .$('[aria-label="note panel: mentions"] li:first-child button')
+        .$(
+          '[aria-label="note panel: links"] [aria-label="links and mentions"] li:first-child button'
+        )
         .waitForDisplayed({ timeout: 10_000 });
       await browser.execute(() => {
         if (document.activeElement instanceof HTMLElement) {

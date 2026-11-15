@@ -63,7 +63,6 @@ pub fn builder<R: Runtime>() -> tauri_specta::Builder<R> {
             notes::classify_open_paths::<tauri::Wry>,
             notes::clear_conflict::<tauri::Wry>,
             notes::delete_note::<tauri::Wry>,
-            notes::find_mentions::<tauri::Wry>,
             notes::get_notes_dir::<tauri::Wry>,
             notes::index_status::<tauri::Wry>,
             notes::list_folders::<tauri::Wry>,
@@ -1204,12 +1203,6 @@ mod tests {
             invoke(&window, "list_folders", json!({})).unwrap(),
             json!(["inbox"])
         );
-        let mentions = invoke(&window, "find_mentions", json!({"path":"atlas.md"})).unwrap();
-        assert_eq!(mentions[0]["note"]["title"], "Source");
-        assert_eq!(
-            mentions[0]["lines"],
-            json!([{"at":0,"context":"Atlas in prose","line":5}])
-        );
         let result = invoke(&window, "search_notes", json!({"search":{"query":"", "incomplete":false,"filters":[{"kind":"to","value":"atlas.md"}]}})).unwrap();
         assert_eq!(result[0]["path"], "source.md");
         let graph = invoke(
@@ -1219,7 +1212,12 @@ mod tests {
         )
         .unwrap();
         assert_eq!(graph["picture"]["kind"], "note");
-        assert_eq!(graph["picture"]["graph"]["incoming"], mentions);
+        let incoming = &graph["picture"]["graph"]["incoming"];
+        assert_eq!(incoming[0]["note"]["title"], "Source");
+        assert_eq!(
+            incoming[0]["lines"],
+            json!([{"at":0,"context":"Atlas in prose","line":5}])
+        );
         assert_eq!(
             graph["picture"]["graph"]["outgoing"][0]["note"]["path"],
             "source.md"

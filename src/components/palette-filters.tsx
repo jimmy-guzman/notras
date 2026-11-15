@@ -16,7 +16,7 @@ import {
 const filters = [
   { Icon: FolderIcon, label: "folder", prefix: "folder:" },
   { Icon: HashIcon, label: "tag", prefix: "#" },
-  { Icon: ArrowLeftIcon, label: "mentions of a note", prefix: "to:" },
+  { Icon: ArrowLeftIcon, label: "links to a note", prefix: "to:" },
   { Icon: ArrowRightIcon, label: "links from a note", prefix: "from:" },
   { Icon: TextSearchIcon, label: "phrase in prose", prefix: "mention:" },
   { Icon: LinkIcon, label: "link destination", prefix: "link:" },

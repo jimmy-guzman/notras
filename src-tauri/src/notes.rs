@@ -13,9 +13,7 @@ use notras_core::{
     Library, LinkTarget, MutationReceipt, MutationWarning, NoteFile, OpenKind, PathMutationReceipt,
     PendingOpen, SaveName, SaveOutcome,
 };
-use notras_core::{
-    CountedTag, GraphResult, GraphTarget, Mention, NoteFilters, NoteMeta, NoteSearch,
-};
+use notras_core::{CountedTag, GraphResult, GraphTarget, NoteFilters, NoteMeta, NoteSearch};
 
 pub(crate) async fn run_blocking<T: Send + 'static>(
     operation: impl FnOnce() -> Result<T, CommandError> + Send + 'static,
@@ -168,19 +166,6 @@ pub async fn attach_image<R: Runtime>(
         let state = app.state::<AppState>();
         let library = state.library();
         library.attach_image(&base64_data)
-    })
-    .await
-}
-
-#[tauri::command]
-#[specta::specta]
-pub async fn find_mentions<R: Runtime>(
-    app: AppHandle<R>,
-    path: String,
-) -> Result<Vec<Mention>, CommandError> {
-    run_blocking(move || {
-        let state = app.state::<AppState>();
-        state.library.query(|view| view.find_mentions(&path))
     })
     .await
 }

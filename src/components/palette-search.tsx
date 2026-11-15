@@ -251,7 +251,7 @@ function useSearchResults(
   const showingResults = !(search.incomplete || showPicker);
   const waitingForDebounce = !idle && debounced !== query;
   const pending = showingResults && (waitingForDebounce || result.isPending);
-  const failed = (idle || debounced === query) && result.isError;
+  const failed = (idle || debounced === query) && result.isLoadingError;
 
   const currentNotes =
     search.incomplete || showPicker ? NO_NOTES : (result.data ?? NO_NOTES);
@@ -316,12 +316,10 @@ function useFilterChoices(candidate: ReturnType<typeof searchSuggestion>) {
     ["folder", "to", "from", "tag"].includes(candidate.kind);
 
   const choicesPending =
-    needsChoices &&
-    choicesQueries.some((query) => query.data === undefined && query.isPending);
+    needsChoices && choicesQueries.some((query) => query.isPending);
 
   const choicesError = needsChoices
-    ? choicesQueries.find((query) => query.data === undefined && query.isError)
-        ?.error
+    ? choicesQueries.find((query) => query.isLoadingError)?.error
     : undefined;
 
   // Choices wait for all their data, so no count draws before its notes.

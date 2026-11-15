@@ -91,7 +91,7 @@ describe("layout", () => {
         };
       }
 
-      if (command === "take_pending_open" || command === "find_mentions") {
+      if (command === "take_pending_open") {
         return [];
       }
 
@@ -389,7 +389,7 @@ describe("layout", () => {
         return fileAt(file);
       }
 
-      if (command === "take_pending_open" || command === "find_mentions") {
+      if (command === "take_pending_open") {
         return [];
       }
 
@@ -738,7 +738,7 @@ describe("layout", () => {
         };
       }
 
-      if (command === "take_pending_open" || command === "find_mentions") {
+      if (command === "take_pending_open") {
         return [];
       }
 
@@ -851,7 +851,7 @@ describe("layout", () => {
         };
       }
 
-      if (command === "take_pending_open" || command === "find_mentions") {
+      if (command === "take_pending_open") {
         return [];
       }
 
@@ -1033,7 +1033,6 @@ describe("layout", () => {
 
           if (
             command === "take_pending_open" ||
-            command === "find_mentions" ||
             command === "pending_open_files"
           ) {
             return [];
@@ -1160,7 +1159,7 @@ describe("layout", () => {
         };
       }
 
-      if (command === "take_pending_open" || command === "find_mentions") {
+      if (command === "take_pending_open") {
         return [];
       }
 
@@ -1251,7 +1250,7 @@ describe("layout", () => {
         };
       }
 
-      if (command === "take_pending_open" || command === "find_mentions") {
+      if (command === "take_pending_open") {
         return [];
       }
 
@@ -1353,7 +1352,7 @@ describe("layout", () => {
         };
       }
 
-      if (command === "take_pending_open" || command === "find_mentions") {
+      if (command === "take_pending_open") {
         return [];
       }
 
@@ -1489,7 +1488,7 @@ describe("layout", () => {
         };
       }
 
-      if (command === "take_pending_open" || command === "find_mentions") {
+      if (command === "take_pending_open") {
         return [];
       }
 
@@ -1591,7 +1590,6 @@ describe("layout", () => {
 
         if (
           command === "take_pending_open" ||
-          command === "find_mentions" ||
           command === "pending_open_files"
         ) {
           return [];
@@ -1702,7 +1700,6 @@ describe("layout", () => {
 
         if (
           command === "take_pending_open" ||
-          command === "find_mentions" ||
           command === "pending_open_files"
         ) {
           return [];
@@ -1832,7 +1829,6 @@ describe("layout", () => {
 
           if (
             command === "take_pending_open" ||
-            command === "find_mentions" ||
             command === "pending_open_files"
           ) {
             return [];
@@ -1964,7 +1960,6 @@ describe("layout", () => {
 
           if (
             command === "take_pending_open" ||
-            command === "find_mentions" ||
             command === "pending_open_files"
           ) {
             return [];
@@ -2106,7 +2101,6 @@ describe("layout", () => {
 
           if (
             command === "take_pending_open" ||
-            command === "find_mentions" ||
             command === "pending_open_files"
           ) {
             return [];
@@ -2227,7 +2221,6 @@ describe("layout", () => {
 
         if (
           command === "take_pending_open" ||
-          command === "find_mentions" ||
           command === "pending_open_files"
         ) {
           return [];

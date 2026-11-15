@@ -285,7 +285,8 @@ function Collections({
       ? []
       : searchFolders(known.data, library.data);
 
-  const failure = library.error ?? known.error;
+  const failure =
+    [library, known].find((read) => read.isLoadingError)?.error ?? null;
 
   const tags = [
     ...new Set(library.data?.flatMap((note) => note.tags)),
@@ -564,7 +565,7 @@ function Browser({ notesDir }: { notesDir: string }) {
             {result.data === undefined ? null : notes.length}
           </output>
         </SidebarGroupLabel>
-        {result.isError ? (
+        {result.isLoadingError ? (
           <div role="alert" className="p-3 text-xs">
             <p>could not load notes</p>
             <p>{reasonOf(result.error)}</p>
@@ -647,9 +648,7 @@ function Browser({ notesDir }: { notesDir: string }) {
               ))}
             </SidebarMenu>
           </div>
-          {result.data !== undefined &&
-          !result.isError &&
-          notes.length === 0 ? (
+          {result.data !== undefined && notes.length === 0 ? (
             <Empty aria-live="polite">
               <EmptyHeader>
                 <EmptyMedia>

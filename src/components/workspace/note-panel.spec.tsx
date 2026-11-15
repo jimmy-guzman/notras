@@ -7,6 +7,7 @@ import {
   render,
   screen,
   waitFor,
+  within,
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, onTestFinished } from "vitest";
@@ -190,13 +191,35 @@ const BEE = {
   },
 };
 
-describe("note panel mentions", () => {
-  it("should keep the mentions on screen when a refresh fails", async () => {
+interface GraphOfA {
+  incoming?: (typeof BEE)[];
+  mentionsError?: { kind: string; message: string } | null;
+  outgoing?: (typeof BEE)[];
+}
+
+/** The native graph of a.md, linked from and to the notes given. */
+function graphOfA({
+  incoming = [],
+  mentionsError = null,
+  outgoing = [],
+}: GraphOfA) {
+  return {
+    mentionsError,
+    picture: {
+      graph: { dangling: [], hubs: [], incoming, outgoing },
+      kind: "note",
+      note: { ...BEE.note, path: "a.md", title: "A" },
+    },
+  };
+}
+
+describe("note panel links", () => {
+  it("should keep the links on screen when a refresh fails", async () => {
     openNoteTab();
-    showNotePanelTab("mentions");
+    showNotePanelTab("links");
     let reads = 0;
     mockIPC((command) => {
-      if (command === "find_mentions") {
+      if (command === "read_graph") {
         reads += 1;
 
         if (reads > 1) {
@@ -205,7 +228,7 @@ describe("note panel mentions", () => {
           });
         }
 
-        return [BEE];
+        return graphOfA({ incoming: [BEE] });
       }
 
       throw new Error(`unexpected command: ${command}`);
@@ -222,12 +245,12 @@ describe("note panel mentions", () => {
     expect(screen.queryByText("the disk is busy")).not.toBeInTheDocument();
   });
 
-  it("should say why mentions failed and load them again on retry", async () => {
+  it("should say why the links failed and load them again on retry", async () => {
     openNoteTab();
-    showNotePanelTab("mentions");
+    showNotePanelTab("links");
     let reads = 0;
     mockIPC((command) => {
-      if (command === "find_mentions") {
+      if (command === "read_graph") {
         reads += 1;
 
         if (reads === 1) {
@@ -236,7 +259,7 @@ describe("note panel mentions", () => {
           });
         }
 
-        return [BEE];
+        return graphOfA({ incoming: [BEE] });
       }
 
       throw new Error(`unexpected command: ${command}`);
@@ -248,6 +271,191 @@ describe("note panel mentions", () => {
 
     expect(await screen.findByText("Bee")).toBeInTheDocument();
     expect(screen.queryByText("the disk is busy")).not.toBeInTheDocument();
+  });
+
+  it.each([
+    {
+      incoming: [BEE],
+      label: "references this note",
+      outgoing: [],
+    },
+    {
+      incoming: [],
+      label: "referenced by this note",
+      outgoing: [BEE],
+    },
+    {
+      incoming: [BEE],
+      label: "references both ways",
+      outgoing: [BEE],
+    },
+  ])(
+    "should describe the direction as $label",
+    async ({ incoming, label, outgoing }) => {
+      openNoteTab();
+      showNotePanelTab("links");
+      mockIPC((command) => {
+        if (command === "read_graph") {
+          return graphOfA({ incoming, outgoing });
+        }
+
+        throw new Error(`unexpected command: ${command}`);
+      });
+      const { user } = mountPanel();
+
+      const list = await screen.findByRole("list", {
+        name: "links and mentions",
+      });
+
+      const rows = await within(list).findAllByRole("button");
+
+      expect(rows).toHaveLength(1);
+      expect(rows[0]).toHaveAccessibleName(`Bee see a ${label}`);
+      await user.hover(
+        screen.getByRole("button", { name: `Bee see a ${label}` })
+      );
+      expect(
+        await screen.findByText(label, {
+          selector: '[data-slot="tooltip-content"]',
+        })
+      ).toBeVisible();
+    }
+  );
+
+  it("should keep incoming order and context before outgoing-only notes", async () => {
+    openNoteTab();
+    showNotePanelTab("links");
+    mockIPC((command) => {
+      if (command === "read_graph") {
+        return graphOfA({
+          incoming: [
+            BEE,
+            {
+              ...BEE,
+              note: { ...BEE.note, folder: "work", path: "work/bee.md" },
+            },
+          ],
+          outgoing: [
+            { ...BEE, note: { ...BEE.note, path: "ant.md", title: "Ant" } },
+            {
+              ...BEE,
+              lines: [{ at: 4, context: "see Bee from here", line: 2 }],
+            },
+          ],
+        });
+      }
+
+      throw new Error(`unexpected command: ${command}`);
+    });
+    mountPanel();
+
+    const list = await screen.findByRole("list", {
+      name: "links and mentions",
+    });
+
+    const rows = await within(list).findAllByRole("button");
+
+    expect(rows).toHaveLength(3);
+    expect(rows[0]).toHaveAccessibleName("Bee see a references both ways");
+    expect(rows[1]).toHaveAccessibleName("Bee work see a references this note");
+    expect(rows[2]).toHaveAccessibleName("Ant see a referenced by this note");
+    expect(screen.queryByText("see Bee from here")).not.toBeInTheDocument();
+  });
+
+  it("should explain a focused row and open its note beside the current note", async () => {
+    openNoteTab();
+    showNotePanelTab("links");
+    mockIPC((command) => {
+      if (command === "read_graph") {
+        return graphOfA({ incoming: [BEE] });
+      }
+
+      throw new Error(`unexpected command: ${command}`);
+    });
+    const { user } = mountPanel();
+
+    const row = await screen.findByRole("button", {
+      name: "Bee see a references this note",
+    });
+
+    onTestFinished(() => {
+      for (const tab of getTabState().tabs.filter(
+        (candidate) => candidate.id !== "a"
+      )) {
+        closeTab(tab.id);
+      }
+    });
+    await user.tab();
+    expect(row).toHaveFocus();
+    expect(
+      await screen.findByText("references this note", {
+        selector: '[data-slot="tooltip-content"]',
+      })
+    ).toBeVisible();
+    await user.keyboard("{Enter}");
+
+    expect(getTabState().tabs.map((tab) => tab.path)).toStrictEqual([
+      "a.md",
+      "bee.md",
+    ]);
+  });
+
+  it("should wait for links without showing an empty result", () => {
+    openNoteTab();
+    showNotePanelTab("links");
+    const graph = Promise.withResolvers<ReturnType<typeof graphOfA>>();
+    mockIPC(async (command) => {
+      if (command === "read_graph") {
+        return await graph.promise;
+      }
+
+      throw new Error(`unexpected command: ${command}`);
+    });
+    mountPanel();
+
+    expect(screen.getByText("loading links...")).toBeInTheDocument();
+    expect(screen.queryByText("no links or mentions")).not.toBeInTheDocument();
+    expect(screen.queryByText("to this note")).not.toBeInTheDocument();
+    expect(screen.queryByText("from this note")).not.toBeInTheDocument();
+  });
+
+  it("should keep the references this note when the search for unlinked mentions fails", async () => {
+    openNoteTab();
+    showNotePanelTab("links");
+    let reads = 0;
+    mockIPC((command) => {
+      if (command === "read_graph") {
+        reads += 1;
+
+        return graphOfA({
+          incoming: [BEE],
+          mentionsError:
+            reads === 1
+              ? { kind: "failed", message: "the disk is busy" }
+              : null,
+        });
+      }
+
+      throw new Error(`unexpected command: ${command}`);
+    });
+    const { user } = mountPanel();
+    const to = screen.getByRole("complementary");
+
+    expect(
+      await within(to).findByRole("button", { name: /Bee/u })
+    ).toBeInTheDocument();
+    expect(await within(to).findByText("the disk is busy")).toBeInTheDocument();
+
+    await user.click(within(to).getByRole("button", { name: "retry" }));
+
+    await waitFor(() => {
+      expect(
+        within(to).queryByText("the disk is busy")
+      ).not.toBeInTheDocument();
+    });
+    expect(
+      within(to).getByRole("button", { name: /Bee/u })
+    ).toBeInTheDocument();
   });
 });
 
@@ -289,17 +497,17 @@ describe("note panel footer", () => {
 
   it("should keep the footer when no notes link here", async () => {
     openNoteTab();
-    showNotePanelTab("mentions");
+    showNotePanelTab("links");
     mockIPC((command) => {
-      if (command === "find_mentions") {
-        return [];
+      if (command === "read_graph") {
+        return { mentionsError: null, picture: null };
       }
 
       throw new Error(`unexpected command: ${command}`);
     });
     mountPanel();
 
-    expect(await screen.findByText("no notes link here")).toBeInTheDocument();
+    expect(await screen.findByText("no links or mentions")).toBeInTheDocument();
     expect(screen.getByRole("group", { name: "view" })).toBeInTheDocument();
   });
 
@@ -327,19 +535,19 @@ describe("note panel footer", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("should hand focus to the first mention once they load, past the footer", async () => {
+  it("should hand focus to the first link once they load, past the footer", async () => {
     openNoteTab();
 
-    const mentions = Promise.withResolvers<(typeof BEE)[]>();
+    const graph = Promise.withResolvers<ReturnType<typeof graphOfA>>();
 
     mockIPC(async (command) => {
-      if (command === "find_mentions") {
-        return await mentions.promise;
+      if (command === "read_graph") {
+        return await graph.promise;
       }
 
       throw new Error(`unexpected command: ${command}`);
     });
-    openNotePanel("mentions");
+    openNotePanel("links");
     onTestFinished(() => {
       closeNotePanel();
     });
@@ -349,7 +557,7 @@ describe("note panel footer", () => {
       expect(screen.getByRole("complementary")).toHaveFocus();
     });
     act(() => {
-      mentions.resolve([BEE]);
+      graph.resolve(graphOfA({ incoming: [BEE] }));
     });
 
     await waitFor(() => {

@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::application::CommandError;
 use crate::index;
-use crate::relationships::{self, Graph, Hub, HubPill, Mention, NoteLink, RingMember};
+use crate::relationships::{self, Graph, Hub, HubPill, NoteLink, RingMember};
 use crate::Library;
 
 /// A read-only transaction containing one complete indexed library version.
@@ -376,16 +376,6 @@ impl ReadView {
         Ok(rows.collect::<rusqlite::Result<_>>()?)
     }
 
-    pub fn find_mentions(&self, path: &str) -> Result<Vec<Mention>, CommandError> {
-        let notes = select_notes(&self.conn, &NoteFilters::default(), &[])?;
-        let Some(target) = notes.iter().find(|note| note.path == path) else {
-            return Ok(Vec::new());
-        };
-        let links = select_links(&self.conn, false)?;
-        let bare = bare_mentions(self, target)?;
-        Ok(relationships::mentions(path, &links, &notes, &bare))
-    }
-
     pub fn read_graph(&self, target: &GraphTarget) -> Result<GraphResult, CommandError> {
         let notes = select_notes(&self.conn, &NoteFilters::default(), &[])?;
         match target {
@@ -461,6 +451,19 @@ mod tests {
         let directory = tempfile::tempdir().unwrap();
         let core = Library::open(directory.path(), &directory.path().join(".index")).unwrap();
         (directory, core)
+    }
+
+    /// The notes that link to or name `path`, as the graph reads them.
+    fn incoming(view: &ReadView, path: &str) -> Vec<relationships::Mention> {
+        let result = view
+            .read_graph(&GraphTarget::Note { path: path.into() })
+            .unwrap();
+        assert!(result.mentions_error.is_none());
+        match result.picture {
+            Some(Picture::Note { graph, .. }) => graph.incoming,
+            Some(Picture::Hub { .. }) => panic!("expected a note graph"),
+            None => Vec::new(),
+        }
     }
 
     fn save(core: &Library, path: &str, content: &str, updated_at: i64) {
@@ -539,7 +542,7 @@ mod tests {
         .unwrap();
 
         assert!(view.conn.execute("DELETE FROM note", []).is_err());
-        let mentions = view.find_mentions("ada.md").unwrap();
+        let mentions = incoming(&view, "ada.md");
         assert_eq!(mentions.len(), 1);
         assert_eq!(mentions[0].note.title, "Source");
         assert_eq!(mentions[0].note.tags, ["old"]);
@@ -552,14 +555,9 @@ mod tests {
             [5, 6]
         );
         assert_eq!(view.list_tags().unwrap()[0].tag, "old");
-        assert!(core
-            .read_view()
-            .unwrap()
-            .find_mentions("ada.md")
-            .unwrap()
-            .is_empty());
+        assert!(incoming(&core.read_view().unwrap(), "ada.md").is_empty());
         assert_eq!(
-            core.read_view().unwrap().find_mentions("grace.md").unwrap()[0]
+            incoming(&core.read_view().unwrap(), "grace.md")[0]
                 .note
                 .title,
             "Changed"
@@ -579,23 +577,11 @@ mod tests {
         )
         .unwrap();
 
-        assert_eq!(
-            core.read_view()
-                .unwrap()
-                .find_mentions("ada.md")
-                .unwrap()
-                .len(),
-            1
-        );
+        assert_eq!(incoming(&core.read_view().unwrap(), "ada.md").len(), 1);
         let mut scan = core.begin_scan(true);
         while !core.advance_scan(&mut scan).unwrap() {}
         core.finish_scan(scan).unwrap();
-        assert!(core
-            .read_view()
-            .unwrap()
-            .find_mentions("ada.md")
-            .unwrap()
-            .is_empty());
+        assert!(incoming(&core.read_view().unwrap(), "ada.md").is_empty());
     }
 
     #[test]
@@ -1121,7 +1107,7 @@ mod tests {
             "---\ntags: [x]\n---\n# Source\nAtlas in prose\n[[Atlas]] and [map](atlas.md)\n`Atlas`",
             2,
         );
-        let mentions = core.read_view().unwrap().find_mentions("atlas.md").unwrap();
+        let mentions = incoming(&core.read_view().unwrap(), "atlas.md");
         assert_eq!(mentions.len(), 1);
         assert_eq!(mentions[0].note.path, "source.md");
         assert_eq!(
@@ -1146,7 +1132,7 @@ mod tests {
         );
         save(&core, "atlas.md", "# Earth", 3);
         assert_eq!(
-            core.read_view().unwrap().find_mentions("atlas.md").unwrap()[0]
+            incoming(&core.read_view().unwrap(), "atlas.md")[0]
                 .lines
                 .len(),
             2
@@ -1163,7 +1149,7 @@ mod tests {
             "# Source\ncafé [[Atlas]]\ncafé Atlas",
             2,
         );
-        let mentions = core.read_view().unwrap().find_mentions("atlas.md").unwrap();
+        let mentions = incoming(&core.read_view().unwrap(), "atlas.md");
 
         assert_eq!(
             mentions[0]
@@ -1262,7 +1248,6 @@ mod tests {
                 [],
             )
             .unwrap();
-        assert!(core.read_view().unwrap().find_mentions("atlas.md").is_err());
         assert!(core
             .read_view()
             .unwrap()

@@ -1,3 +1,5 @@
+import { setTimeout as sleep } from "node:timers/promises";
+
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { clearMocks, mockIPC } from "@tauri-apps/api/mocks";
 import {
@@ -17,7 +19,8 @@ import type { Mention } from "@/core/links";
 import type { NoteMeta } from "@/core/notes";
 import { noteFolder, noteTitle } from "@/core/notes";
 import { noteQueries } from "@/data/queries";
-import { closeTab, getTabState, openNote } from "@/lib/tabs/store";
+import { createQueryClient } from "@/lib/query-client";
+import { closeTab, getTabState, openNote, useTabState } from "@/lib/tabs/store";
 import { focusGraph, hideGraph, useTabView } from "@/lib/ui/view";
 
 import { NoteGraph, TabGraph } from "./note-graph";
@@ -90,7 +93,7 @@ interface Handlers {
   onHop?: (path: string, beside: boolean) => void;
   onHub?: (hub: Hub) => void;
   onLeave?: () => void;
-  onShowMentions?: () => void;
+  onShowLinks?: () => void;
 }
 
 function mount(picture: Picture, handlers: Handlers = {}) {
@@ -99,12 +102,20 @@ function mount(picture: Picture, handlers: Handlers = {}) {
       onHop: handlers.onHop ?? (() => {}),
       onHub: handlers.onHub ?? (() => {}),
       onLeave: handlers.onLeave ?? (() => {}),
-      onShowMentions: handlers.onShowMentions ?? (() => {}),
+      onShowLinks: handlers.onShowLinks ?? (() => {}),
       picture,
     })
   );
 
   return container;
+}
+
+/** The graph of whichever tab is active, as the workspace draws it. */
+function ActiveGraph() {
+  const { activeId, tabs } = useTabState();
+  const tab = tabs.find((open) => open.id === activeId);
+
+  return tab === undefined ? null : createElement(TabGraph, { tab });
 }
 
 const pillX = (pill: HTMLElement) =>
@@ -128,8 +139,8 @@ describe(NoteGraph, () => {
       50
     );
     expect(pillX(screen.getByRole("button", { name: "c" }))).toBe(50);
-    expect(host.textContent).toContain("mentions");
-    expect(host.textContent).toContain("links");
+    expect(host.textContent).toContain("to this note");
+    expect(host.textContent).toContain("from this note");
   });
 
   it("should hold the note's folder and tags along the top, each with its count", () => {
@@ -258,7 +269,7 @@ describe(NoteGraph, () => {
     );
 
     expect(pillX(screen.getByRole("button", { name: "work 3" }))).toBe(50);
-    expect(host.textContent).not.toContain("mentions");
+    expect(host.textContent).not.toContain("this note");
 
     await user.click(screen.getByRole("button", { name: "a" }));
     expect(onHop).toHaveBeenLastCalledWith("work/a.md", false);
@@ -294,21 +305,23 @@ describe(NoteGraph, () => {
     expect(screen.getByRole("button", { name: "d" })).toHaveFocus();
   });
 
-  it("should fold a crowded left side into a count that opens the mentions list", async () => {
+  it("should fold a crowded left side into a count that opens the links list", async () => {
     const user = userEvent.setup();
-    const onShowMentions = vi.fn<() => void>();
+    const onShowLinks = vi.fn<() => void>();
     mount(
       notePicture({
         incoming: Array.from({ length: 14 }, (_, index) =>
           mention(`n${String(index).padStart(2, "0")}.md`)
         ),
       }),
-      { onShowMentions }
+      { onShowLinks }
     );
 
     expect(screen.getAllByRole("button")).toHaveLength(1 + 11 + 1);
-    await user.click(screen.getByRole("button", { name: "3 more mentions" }));
-    expect(onShowMentions).toHaveBeenCalledOnce();
+    await user.click(
+      screen.getByRole("button", { name: "3 more links to this note" })
+    );
+    expect(onShowLinks).toHaveBeenCalledOnce();
   });
 
   it("should fold a crowded right side into a count that lists every link, hopping on a pick", async () => {
@@ -323,7 +336,9 @@ describe(NoteGraph, () => {
       { onHop }
     );
 
-    await user.click(screen.getByRole("button", { name: "3 more links" }));
+    await user.click(
+      screen.getByRole("button", { name: "3 more links from this note" })
+    );
 
     const rows = screen.getAllByRole("menuitem");
 
@@ -333,7 +348,9 @@ describe(NoteGraph, () => {
     await user.click(screen.getByRole("menuitem", { name: "o05 see c" }));
     expect(onHop).toHaveBeenLastCalledWith("o05.md", false);
 
-    await user.click(screen.getByRole("button", { name: "3 more links" }));
+    await user.click(
+      screen.getByRole("button", { name: "3 more links from this note" })
+    );
     await user.keyboard("{Meta>}");
     await user.click(screen.getByRole("menuitem", { name: "o06 see c" }));
     await user.keyboard("{/Meta}");
@@ -376,7 +393,9 @@ describe(NoteGraph, () => {
       })
     );
 
-    await user.click(screen.getByRole("button", { name: "2 more links" }));
+    await user.click(
+      screen.getByRole("button", { name: "2 more links from this note" })
+    );
 
     const rows = screen.getAllByRole("menuitem");
 
@@ -415,15 +434,15 @@ describe(NoteGraph, () => {
     const host = mount(notePicture());
 
     expect(screen.getAllByRole("button")).toHaveLength(1);
-    expect(host.textContent).toContain("no links yet, and nothing mentions it");
+    expect(host.textContent).toContain("no links to or from this note");
     expect(host.textContent).not.toContain("links\n");
   });
 });
 
 describe(TabGraph, () => {
   it.each([
-    { beside: false, list: "links" },
-    { beside: true, list: "links" },
+    { beside: false, list: "links from this note" },
+    { beside: true, list: "links from this note" },
     { beside: false, list: "members" },
     { beside: true, list: "members" },
   ])(
@@ -500,7 +519,7 @@ describe(TabGraph, () => {
 
       await user.click(
         screen.getByRole("menuitem", {
-          name: list === "links" ? "o05 see c" : "m12 work",
+          name: list === "links from this note" ? "o05 see c" : "m12 work",
         })
       );
 
@@ -511,7 +530,7 @@ describe(TabGraph, () => {
       const { activeId, tabs } = getTabState();
 
       expect(tabs.find((tab) => tab.id === activeId)?.path).toBe(
-        list === "links" ? "o05.md" : "work/m12.md"
+        list === "links from this note" ? "o05.md" : "work/m12.md"
       );
       expect(tabs).toHaveLength(beside ? before + 1 : before);
       expect(tabs.some((tab) => tab.id === origin)).toBe(beside);
@@ -523,12 +542,8 @@ describe(TabGraph, () => {
 });
 
 describe("TabGraph native queries", () => {
-  it("should report a failed refresh while keeping the cached graph", async () => {
-    const client = new QueryClient({
-      defaultOptions: {
-        queries: { retry: false, staleTime: Number.POSITIVE_INFINITY },
-      },
-    });
+  it("should report a failed refresh once while keeping the cached graph", async () => {
+    const client = createQueryClient();
 
     const query = noteQueries.graph({ kind: "note", path: "c.md" });
     client.setQueryData(query.queryKey, {
@@ -557,15 +572,385 @@ describe("TabGraph native queries", () => {
     );
     await act(async () => {
       await client.invalidateQueries({ queryKey: query.queryKey });
+      // TanStack Query tells its observers on a zero timer, so the graph view
+      // sees the failed refresh a tick after the refetch settles.
+      await sleep(0);
     });
-    await waitFor(() => {
-      expect(reported).toHaveBeenCalledExactlyOnceWith({
+
+    expect(reported).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({
         description: "Permission denied",
-        title: "could not read the graph",
+        title: "could not refresh the links",
         type: "error",
-      });
-    });
+      })
+    );
     expect(screen.getByRole("button", { name: "c" })).toBeInTheDocument();
+  });
+
+  it("should toast once when the graph's first read fails", async () => {
+    const client = createQueryClient();
+
+    mockIPC(
+      vi
+        .fn<Parameters<typeof mockIPC>[0]>()
+        .mockRejectedValue({ kind: "failed", message: "Permission denied" })
+    );
+    const reported = vi.spyOn(toast, "add");
+    onTestFinished(() => {
+      client.clear();
+      reported.mockRestore();
+      clearMocks();
+    });
+    render(
+      createElement(
+        QueryClientProvider,
+        { client },
+        createElement(TabGraph, {
+          tab: { id: "c", kind: "note", path: "c.md" },
+        })
+      )
+    );
+
+    await waitFor(() => {
+      expect(reported).toHaveBeenCalledOnce();
+    });
+    // A second report would land after the first; let the queued observer
+    // updates and effects run before counting.
+    await act(async () => {
+      await sleep(0);
+    });
+
+    expect(reported).toHaveBeenCalledExactlyOnceWith({
+      description: "Permission denied",
+      title: "could not read the graph",
+      type: "error",
+    });
+  });
+
+  it("should report a failed hub read after another hub failed on the same tab", async () => {
+    const user = userEvent.setup();
+    const client = createQueryClient();
+
+    client.setQueryData(
+      noteQueries.graph({ kind: "note", path: "c.md" }).queryKey,
+      {
+        mentionsError: null,
+        picture: notePicture({ hubs: [folder("alpha"), folder("beta")] }),
+      }
+    );
+    mockIPC(
+      vi
+        .fn<Parameters<typeof mockIPC>[0]>()
+        .mockRejectedValue({ kind: "failed", message: "Permission denied" })
+    );
+    const reported = vi.spyOn(toast, "add");
+    onTestFinished(() => {
+      client.clear();
+      reported.mockRestore();
+      clearMocks();
+    });
+    render(
+      createElement(
+        QueryClientProvider,
+        { client },
+        createElement(TabGraph, {
+          tab: { id: "c", kind: "note", path: "c.md" },
+        })
+      )
+    );
+
+    await user.click(screen.getByRole("button", { name: "alpha 2" }));
+    await waitFor(() => {
+      expect(reported).toHaveBeenCalledOnce();
+    });
+    await user.click(screen.getByRole("button", { name: "beta 2" }));
+
+    await waitFor(() => {
+      expect(reported).toHaveBeenCalledTimes(2);
+    });
+    await act(async () => {
+      await sleep(0);
+    });
+
+    expect(reported).toHaveBeenCalledTimes(2);
+    expect(reported).toHaveBeenLastCalledWith({
+      description: "Permission denied",
+      title: "could not read the graph",
+      type: "error",
+    });
+  });
+
+  it("should report a hub read that fails again after leaving it", async () => {
+    const user = userEvent.setup();
+    const client = createQueryClient();
+
+    client.setQueryData(
+      noteQueries.graph({ kind: "note", path: "c.md" }).queryKey,
+      {
+        mentionsError: null,
+        picture: notePicture({ hubs: [folder("alpha"), folder("beta")] }),
+      }
+    );
+    mockIPC(
+      vi
+        .fn<Parameters<typeof mockIPC>[0]>()
+        .mockRejectedValue({ kind: "failed", message: "Permission denied" })
+    );
+    const reported = vi.spyOn(toast, "add");
+    onTestFinished(() => {
+      client.clear();
+      reported.mockRestore();
+      clearMocks();
+    });
+    render(
+      createElement(
+        QueryClientProvider,
+        { client },
+        createElement(TabGraph, {
+          tab: { id: "c", kind: "note", path: "c.md" },
+        })
+      )
+    );
+
+    await user.click(screen.getByRole("button", { name: "alpha 2" }));
+    await waitFor(() => {
+      expect(reported).toHaveBeenCalledOnce();
+    });
+    await user.keyboard("{Escape}");
+    await user.click(screen.getByRole("button", { name: "alpha 2" }));
+
+    await waitFor(() => {
+      expect(reported).toHaveBeenCalledTimes(2);
+    });
+  });
+
+  it("should read a failed hub again when it is picked again", async () => {
+    const user = userEvent.setup();
+    const client = createQueryClient();
+
+    client.setQueryData(
+      noteQueries.graph({ kind: "note", path: "c.md" }).queryKey,
+      {
+        mentionsError: null,
+        picture: notePicture({ hubs: [folder("alpha"), folder("beta")] }),
+      }
+    );
+
+    const read = vi
+      .fn<Parameters<typeof mockIPC>[0]>()
+      .mockRejectedValue({ kind: "failed", message: "Permission denied" });
+
+    mockIPC(read);
+    const reported = vi.spyOn(toast, "add");
+    onTestFinished(() => {
+      client.clear();
+      reported.mockRestore();
+      clearMocks();
+    });
+    render(
+      createElement(
+        QueryClientProvider,
+        { client },
+        createElement(TabGraph, {
+          tab: { id: "c", kind: "note", path: "c.md" },
+        })
+      )
+    );
+
+    await user.click(screen.getByRole("button", { name: "alpha 2" }));
+    await waitFor(() => {
+      expect(reported).toHaveBeenCalledOnce();
+    });
+    await user.click(screen.getByRole("button", { name: "alpha 2" }));
+
+    await waitFor(() => {
+      expect(reported).toHaveBeenCalledTimes(2);
+    });
+    expect(read).toHaveBeenCalledTimes(2);
+  });
+
+  it("should report a prose failure once until its reason changes", async () => {
+    const client = createQueryClient();
+    const query = noteQueries.graph({ kind: "note", path: "c.md" });
+
+    client.setQueryData(query.queryKey, {
+      mentionsError: { kind: "failed", message: "Permission denied" },
+      picture: notePicture(),
+    });
+    let reason = "Permission denied";
+    mockIPC((command) => {
+      if (command !== "read_graph") {
+        throw new Error(`unexpected command: ${command}`);
+      }
+
+      return {
+        mentionsError: { kind: "failed", message: reason },
+        picture: {
+          graph: { dangling: [], hubs: [], incoming: [], outgoing: [] },
+          kind: "note",
+          note: {
+            createdAt: 0,
+            folder: "",
+            path: "c.md",
+            pinned: false,
+            snippet: null,
+            tags: [],
+            title: "c",
+            updatedAt: 0,
+          },
+        },
+      };
+    });
+    const reported = vi.spyOn(toast, "add");
+    onTestFinished(() => {
+      client.clear();
+      reported.mockRestore();
+      clearMocks();
+    });
+    render(
+      createElement(
+        QueryClientProvider,
+        { client },
+        createElement(TabGraph, {
+          tab: { id: "c", kind: "note", path: "c.md" },
+        })
+      )
+    );
+
+    await waitFor(() => {
+      expect(reported).toHaveBeenCalledOnce();
+    });
+    await act(async () => {
+      await client.invalidateQueries({ queryKey: query.queryKey });
+      await sleep(0);
+    });
+
+    expect(reported).toHaveBeenCalledOnce();
+
+    reason = "Disk unavailable";
+    await act(async () => {
+      await client.invalidateQueries({ queryKey: query.queryKey });
+      await sleep(0);
+    });
+
+    expect(reported).toHaveBeenCalledTimes(2);
+    expect(reported).toHaveBeenLastCalledWith({
+      description: "Disk unavailable",
+      title: "could not read the graph",
+      type: "error",
+    });
+  });
+
+  it("should read a note whose graph failed again when it is picked again", async () => {
+    const user = userEvent.setup();
+    const client = createQueryClient();
+
+    client.setQueryData(
+      noteQueries.graph({ kind: "note", path: "c.md" }).queryKey,
+      {
+        mentionsError: null,
+        picture: notePicture({ outgoing: [mention("d.md"), mention("e.md")] }),
+      }
+    );
+
+    const read = vi
+      .fn<Parameters<typeof mockIPC>[0]>()
+      .mockRejectedValue({ kind: "failed", message: "Permission denied" });
+
+    mockIPC(read);
+    const reported = vi.spyOn(toast, "add");
+    openNote("c.md");
+    onTestFinished(() => {
+      for (const tab of getTabState().tabs) {
+        hideGraph(tab.id);
+        closeTab(tab.id);
+      }
+
+      client.clear();
+      reported.mockRestore();
+      clearMocks();
+    });
+
+    render(
+      createElement(QueryClientProvider, { client }, createElement(ActiveGraph))
+    );
+
+    await user.click(screen.getByRole("button", { name: "d" }));
+    await waitFor(() => {
+      expect(reported).toHaveBeenCalledOnce();
+    });
+    await user.click(screen.getByRole("button", { name: "d" }));
+
+    await waitFor(() => {
+      expect(reported).toHaveBeenCalledTimes(2);
+    });
+    expect(read).toHaveBeenCalledTimes(2);
+
+    await user.click(screen.getByRole("button", { name: "e" }));
+
+    const { activeId, tabs } = getTabState();
+    expect(tabs.find((tab) => tab.id === activeId)?.path).toBe("e.md");
+    await waitFor(() => {
+      expect(read).toHaveBeenCalledTimes(3);
+    });
+    expect(read.mock.calls[2]?.[1]).toStrictEqual({
+      target: { kind: "note", path: "e.md" },
+    });
+  });
+
+  it("should read the note again, not the hub, when a hub failed after a failed hop", async () => {
+    const user = userEvent.setup();
+    const client = createQueryClient();
+
+    client.setQueryData(
+      noteQueries.graph({ kind: "note", path: "c.md" }).queryKey,
+      {
+        mentionsError: null,
+        picture: notePicture({
+          hubs: [folder("alpha")],
+          outgoing: [mention("d.md")],
+        }),
+      }
+    );
+
+    const read = vi
+      .fn<Parameters<typeof mockIPC>[0]>()
+      .mockRejectedValue({ kind: "failed", message: "Permission denied" });
+
+    mockIPC(read);
+    const reported = vi.spyOn(toast, "add");
+    openNote("c.md");
+    onTestFinished(() => {
+      for (const tab of getTabState().tabs) {
+        hideGraph(tab.id);
+        closeTab(tab.id);
+      }
+
+      client.clear();
+      reported.mockRestore();
+      clearMocks();
+    });
+
+    render(
+      createElement(QueryClientProvider, { client }, createElement(ActiveGraph))
+    );
+
+    await user.click(screen.getByRole("button", { name: "d" }));
+    await waitFor(() => {
+      expect(reported).toHaveBeenCalledOnce();
+    });
+    await user.click(screen.getByRole("button", { name: "alpha 2" }));
+    await waitFor(() => {
+      expect(reported).toHaveBeenCalledTimes(2);
+    });
+    await user.click(screen.getByRole("button", { name: "d" }));
+
+    await waitFor(() => {
+      expect(read).toHaveBeenCalledTimes(3);
+    });
+    expect(read.mock.calls[2]?.[1]).toStrictEqual({
+      target: { kind: "note", path: "d.md" },
+    });
   });
 
   it("should keep the previous graph through a hop and show explicit links after a prose failure", async () => {

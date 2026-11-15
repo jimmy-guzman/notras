@@ -14,7 +14,6 @@ import type {
 import { getAppearance } from "./appearance";
 import { readConflictStash } from "./conflict-stash";
 import { getGraph } from "./get-graph";
-import { getMentions } from "./get-mentions";
 import { getNotes } from "./get-notes";
 import { nativeCommand } from "./native-command";
 import { getNotesDir } from "./notes-dir";
@@ -99,18 +98,17 @@ export const noteQueries = {
     }),
   graph: (target: GraphTarget) =>
     queryOptions({
-      meta: { what: "could not refresh the graph" },
+      meta: {
+        what:
+          target.kind === "note"
+            ? "could not refresh the links"
+            : "could not refresh the graph",
+      },
       queryFn: async () => await getGraph(target),
       queryKey: [...index, "graph", target] as const,
     }),
   index,
   list,
-  mentions: (path: string) =>
-    queryOptions({
-      meta: { what: "could not refresh the mentions" },
-      queryFn: async () => await getMentions(path),
-      queryKey: [...index, "mentions", path] as const,
-    }),
   search: (search: NoteSearch) =>
     queryOptions({
       meta: { what: "could not search notes" },

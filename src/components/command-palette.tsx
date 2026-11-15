@@ -85,7 +85,7 @@ import type { PaletteAction, PaletteScope } from "./palette-actions";
 import { PaletteFilters } from "./palette-filters";
 import {
   DeleteView,
-  MentionsView,
+  LinksToView,
   MoveView,
   RenameView,
   TagsView,
@@ -125,7 +125,7 @@ type PaletteView =
   | "delete"
   | "filters"
   | "find"
-  | "mentions"
+  | "links"
   | "move"
   | "rename"
   | "tags";
@@ -488,14 +488,14 @@ export function CommandPalette({
     },
     {
       Icon: Link2Icon,
-      label: "show mentions",
+      label: "show links to this note",
       needs: "note",
       onSelect: () => {
         setQuery("");
-        setView("mentions");
+        setView("links");
       },
-      text: "show mentions...",
-      value: "show-mentions",
+      text: "show links to this note...",
+      value: "show-links",
     },
     {
       Icon: PencilIcon,
@@ -802,8 +802,8 @@ export function CommandPalette({
             title={currentNote.title}
           />
         ) : null}
-        {view === "mentions" ? (
-          <MentionsView
+        {view === "links" ? (
+          <LinksToView
             onOpen={(path) => {
               close();
               // Beside the note being read, so that note stays open.
@@ -851,7 +851,7 @@ export function CommandPalette({
               delete: "confirm deletion",
               filters: "add a search filter",
               find: "find a note",
-              mentions: "show mentions",
+              links: "show links to this note",
               move: "move to folder",
               rename: "rename note",
               tags: "edit tags",
@@ -871,7 +871,7 @@ export function CommandPalette({
                 delete: "confirm deletion",
                 filters: "search filters...",
                 find: "find a note...",
-                mentions: "filter mentions...",
+                links: "filter links...",
                 move: "move to folder... (type a new name to create it)",
                 rename: "new title...",
                 tags: "find or create a tag...",

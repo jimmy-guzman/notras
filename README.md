@@ -22,9 +22,9 @@
 - **Diagrams as text**: a `mermaid` block draws as you type and folds its code away when you leave it. The PDF export prints the drawing.
 - **Callouts as GitHub writes them**: a quote opening on `[!NOTE]`, `[!TIP]`, `[!IMPORTANT]`, `[!WARNING]` or `[!CAUTION]` shows its type as a label, and search and find match that label.
 - **Tabs like a browser**: undo per tab, `⌘⇧T` reopens a closed one, `⌘1` to `⌘9` jump, and the open set comes back on relaunch.
-- **A graph you navigate**: `⌘⌥G` puts the note in the middle, with mentions on the left, links on the right, and its folder and tags on top. `←` and `→` walk it, and `⏎` opens the note you land on and re-centres there.
+- **A graph you navigate**: `⌘⌥G` puts the note in the middle, with the notes that link here or mention it on the left, the ones it links to on the right, and its folder and tags on top. `←` and `→` walk it, and `⏎` opens the note you land on and re-centres there.
 - **Tags in the file**: a frontmatter `tags:` list rather than a database. `⌘⇧Y` edits them, `#tag` filters search, the sidebar lists them, and the graph shows every note that carries one.
-- **Links you can query**: `[[wikilinks]]` with autocomplete, the notes that mention this one in the note panel, and search filters for tags, folders, links and mentions.
+- **Links you can query**: `[[wikilinks]]` with autocomplete, the notes that link to or mention this one and the ones it links to in the note panel, and search filters for tags, folders, links and mentions.
 - **WYSIWYG markdown**: `⌘E` for the source, a `/` menu, blocks you drag or move with `⌥↑` and `⌥↓`, and autosave.
 
 The note browser, with search, the collection picker and every note in the library.
@@ -39,16 +39,16 @@ The review, after an agent changed the line you were editing: each overlapping p
   <img src="assets/review.png" alt="The review for a note, with one overlapping place showing the unsaved text beside the version on disk and a resolve button" width="960">
 </p>
 
-The graph for a note, mentions on the left, links on the right and its tags above.
+The graph for a note, the notes that link here or mention it on the left, the ones it links to on the right and its tags above.
 
 <p align="center">
-  <img src="assets/graph.png" alt="The graph for a note, mentions on the left, links on the right and its tags above" width="960">
+  <img src="assets/graph.png" alt="The graph for a note, the notes that link here or mention it on the left, the ones it links to on the right and its tags above" width="960">
 </p>
 
-The note panel, `⌘⇧L` on its mentions: every note that links here, with the line that does.
+The note panel, `⌘⇧L` on its links: every note that links here or mentions it and every note this one links to, each with the line that does.
 
 <p align="center">
-  <img src="assets/panel.png" alt="The note panel beside a note, listing each note that mentions it with the line that links" width="960">
+  <img src="assets/panel.png" alt="The note panel beside a note, listing the notes that link to it or mention it and the notes it links to, each with the line that does" width="960">
 </p>
 
 The action palette, each action with its shortcut.
@@ -127,7 +127,7 @@ xattr -dr com.apple.quarantine /Applications/notras.app
 | `⌘⇧O` | open the link, image or diagram |
 | `⌘=` / `⌘-` / `⌘0` | zoom the open image or diagram |
 | `⌘⇧H` | the note's outline, in the note panel |
-| `⌘⇧L` | the note's mentions, in the note panel |
+| `⌘⇧L` | the note's links, in the note panel |
 | `⌘⇧Y` | edit tags, in the note panel |
 | `⌘⇧D` | pin or unpin the note |
 | `⌘,` | settings |

@@ -4,10 +4,16 @@ import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, onTestFinished, vi } from "vitest";
 
+import { Toaster } from "@/components/ui/toast";
+import { indexStatusQuery } from "@/data/index-status";
+import { noteQueries, notesDirQuery } from "@/data/queries";
 import { Layout } from "@/layout";
+import { createQueryClient } from "@/lib/query-client";
 import { rememberNote } from "@/lib/recent-notes";
 import { closeTab, getTabState, openNote } from "@/lib/tabs/store";
 import { closeNoteBrowser } from "@/lib/ui/note-browser";
+
+import { Home } from "./home";
 
 const note = (path: string, title: string, pinned = false) => ({
   createdAt: 1,
@@ -58,11 +64,7 @@ function mountHome(
       return null;
     }
 
-    if (
-      command === "list_tags" ||
-      command === "take_pending_open" ||
-      command === "find_mentions"
-    ) {
+    if (command === "list_tags" || command === "take_pending_open") {
       return [];
     }
 
@@ -209,5 +211,61 @@ describe("home", () => {
     mountHome([], "scanning");
 
     expect(await screen.findByText("indexing notes...")).toBeInTheDocument();
+  });
+
+  it("should keep the recent notes and toast the reason when a refresh fails", async () => {
+    rememberNote("/notes", "a.md");
+    mockIPC((command) => {
+      if (command === "list_notes") {
+        throw Object.assign(new Error("the disk is busy"), { kind: "failed" });
+      }
+
+      throw new Error(`unexpected command: ${command}`);
+    });
+    const client = createQueryClient();
+    client.setQueryData(notesDirQuery.queryKey, "/notes");
+    client.setQueryData(indexStatusQuery.queryKey, { state: "ready" });
+    client.setQueryData(noteQueries.list().queryKey, [
+      {
+        createdAt: new Date(1),
+        folder: "",
+        path: "a.md",
+        pinned: false,
+        snippet: null,
+        tags: [],
+        title: "A",
+        updatedAt: new Date(1),
+      },
+    ]);
+    onTestFinished(() => {
+      client.clear();
+      clearMocks();
+    });
+    render(
+      <QueryClientProvider client={client}>
+        <Home onNew={() => {}} onSearch={() => {}} />
+        <Toaster />
+      </QueryClientProvider>
+    );
+
+    await act(async () => {
+      await client.invalidateQueries({
+        queryKey: noteQueries.list().queryKey,
+      });
+    });
+
+    expect(
+      await screen.findByText("could not refresh the note list")
+    ).toBeInTheDocument();
+    expect(screen.getByText("the disk is busy")).toBeInTheDocument();
+    expect(
+      within(screen.getByRole("list", { name: "recent notes" })).getByRole(
+        "button",
+        { name: /A/u }
+      )
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText("could not load recent notes")
+    ).not.toBeInTheDocument();
   });
 });

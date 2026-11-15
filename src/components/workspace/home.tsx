@@ -25,7 +25,8 @@ function RecentNotes({ notesDir }: { notesDir: string }) {
   const library = useQuery(noteQueries.list());
   const status = useQuery(indexStatusQuery);
 
-  const notes = library.isSuccess ? recentNotes(notesDir, library.data) : [];
+  const notes =
+    library.data === undefined ? [] : recentNotes(notesDir, library.data);
 
   const rows = ROW_CHORDS.flatMap((hotkey, index) => {
     const note = notes[index];
@@ -50,7 +51,7 @@ function RecentNotes({ notesDir }: { notesDir: string }) {
     ) : null;
   }
 
-  if (library.isError) {
+  if (library.isLoadingError) {
     return (
       <Empty>
         <EmptyHeader>

@@ -438,11 +438,11 @@ export function Workspace({ onOpenSearch }: { onOpenSearch: () => void }) {
   useHotkey(
     "Mod+Shift+L",
     () => {
-      openNotePanel("mentions");
+      openNotePanel("links");
     },
     // Named for the panel's toggle, the place it opens; the palette's "show
-    // mentions..." row stays in the palette, so it carries no chord.
-    { meta: { name: "mentions" } }
+    // links to this note..." row stays in the palette, so it carries no chord.
+    { meta: { name: "links" } }
   );
   useHotkey(
     "Mod+Shift+Y",
