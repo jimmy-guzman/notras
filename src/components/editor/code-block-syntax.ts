@@ -221,13 +221,19 @@ export function windowSyntaxToScreen(view: EditorView): void {
   }
 }
 
-/** Decorate every block whole, for a print; the returned function windows them again. */
+/** Views a print holds whole while it awaits its dialog, which a scroll or resize must not narrow. */
+const revealed = new WeakSet<EditorView>();
+
+/** Decorate every block whole, for a print; the returned function windows what is on screen again. */
 export function revealSyntax(view: EditorView): () => void {
   const { viewport } = syntaxState(view.state);
+  revealed.add(view);
   setViewport(view, { from: 0, to: view.state.doc.content.size });
 
   return () => {
-    setViewport(view, viewport);
+    revealed.delete(view);
+    const seen = measureViewport(view);
+    setViewport(view, seen === undefined ? viewport : padded(seen));
   };
 }
 
@@ -256,6 +262,11 @@ function syntaxPlugin() {
 
       function tick() {
         frame = 0;
+
+        if (revealed.has(view)) {
+          return;
+        }
+
         const seen = measureViewport(view);
 
         if (seen === undefined) {
