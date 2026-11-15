@@ -3915,6 +3915,38 @@ describe("tab", () => {
 });
 
 describe("document selection mapping", () => {
+  it("should say so when a replaced note's caret cannot be restored", async () => {
+    render(<Toaster />);
+
+    const { editor, handle } = await mount({ initialContent: "old body" });
+    const manager = editor.markdown;
+
+    if (manager === undefined) {
+      throw new Error("the editor has no markdown converter");
+    }
+
+    const parse = manager.parse.bind(manager);
+
+    const failing = vi.spyOn(manager, "parse").mockImplementation((content) => {
+      if (content.includes(SENTINEL)) {
+        throw new Error("cannot map the selection");
+      }
+
+      return parse(content);
+    });
+
+    onTestFinished(() => {
+      failing.mockRestore();
+    });
+
+    act(() => {
+      handle.replaceContent("new body", { anchor: 2, head: 5 });
+    });
+
+    expect(await screen.findByText("cannot map the selection")).toBeVisible();
+    expect(screen.getByText("could not restore the caret")).toBeVisible();
+  });
+
   it("should replace the document when restoring its source selection fails", async () => {
     const { editor, handle, scroller } = await mount({
       initialContent: "old body",
@@ -4134,14 +4166,22 @@ describe("caret on mount", () => {
   it("should place the caret at a restored offset", async () => {
     const { editor } = await mount({
       focusOnMount: true,
-      initialContent: `# title\n\nbo${SENTINEL}dy`,
-      stripSentinel: true,
+      initialCaret: "# title\n\nbo".length,
+      initialContent: "# title\n\nbody",
     });
 
-    expect(editor.getText()).not.toContain(SENTINEL);
     expect(editor.state.selection.$from.parent.textContent).toBe("body");
     expect(editor.state.selection.$from.parentOffset).toBe(2);
     expect(document.activeElement).toBe(editor.view.dom);
+  });
+
+  it("should keep the note as written when the caret from the file splits a mark", async () => {
+    const { handle } = await mount({
+      initialCaret: 1,
+      initialContent: "**bold**\n",
+    });
+
+    expect(handle.getContent()).toBe("**bold**\n");
   });
 
   it("should color the code on screen at mount, before any frame runs", async () => {
@@ -4242,12 +4282,12 @@ describe("caret on mount", () => {
         null,
         createElement(Editor, {
           focusOnMount: true,
-          initialContent: `# title\n\nbo${SENTINEL}dy`,
+          initialCaret: "# title\n\nbo".length,
+          initialContent: "# title\n\nbody",
           onChange: () => {},
           onReady: (ready) => {
             handles.push(ready);
           },
-          stripSentinel: true,
         })
       )
     );
@@ -4267,7 +4307,6 @@ describe("caret on mount", () => {
 
     const { editor } = surface;
 
-    expect(editor.getText()).not.toContain(SENTINEL);
     expect(editor.state.selection.$from.parent.textContent).toBe("body");
     expect(editor.state.selection.$from.parentOffset).toBe(2);
   });
@@ -4343,8 +4382,8 @@ describe("markdown written elsewhere", () => {
 
   it("should read a note as written after placing the caret from source mode", async () => {
     const { handle } = await mount({
-      initialContent: `fi${SENTINEL}rst\n\n~gone~\n`,
-      stripSentinel: true,
+      initialCaret: "fi".length,
+      initialContent: "first\n\n~gone~\n",
     });
 
     expect(handle.getContent()).toBe("first\n\n~gone~\n");
@@ -4431,41 +4470,59 @@ describe("markdown written elsewhere", () => {
     );
   });
 
-  it("should keep a sentinel past a table's last pipe out of the note", async () => {
-    const { editor, handle } = await mount({
-      initialContent: `| a | b |\n| --- | --- |\n| x | y |${SENTINEL}`,
-      stripSentinel: true,
+  it("should keep the caret in its cell when the note ends past a table's last pipe", async () => {
+    const { editor } = await mount({
+      initialCaret: "| a | b |\n| --- | --- |\n| x | y |".length,
+      initialContent: "| a | b |\n| --- | --- |\n| x | y |",
     });
 
-    expect(handle.getContent()).not.toContain(SENTINEL);
+    expect(editor.state.selection.$head.parent.textContent).toBe("y");
+  });
+
+  it("should keep a replaced note's caret in its row when it sits past the last pipe", async () => {
+    const { editor, handle } = await mount({ initialContent: "start\n" });
+    const caret = "| a | b |\n| --- | --- |\n| x | y |".length;
+
+    act(() => {
+      handle.replaceContent(
+        "| a | b |\n| --- | --- |\n| x | y |\n| p | q |\n\nafter\n",
+        { anchor: caret, head: caret }
+      );
+    });
+
     expect(editor.state.selection.$head.parent.textContent).toBe("y");
   });
 
   it("should keep the caret in its row when a sentinel past the last pipe is lost", async () => {
     const { editor } = await mount({
-      initialContent: `| a | b |\n| --- | --- |\n| x | y |${SENTINEL}\n| p | q |\n\nafter\n`,
-      stripSentinel: true,
+      initialCaret: "| a | b |\n| --- | --- |\n| x | y |".length,
+      initialContent:
+        "| a | b |\n| --- | --- |\n| x | y |\n| p | q |\n\nafter\n",
     });
 
     expect(editor.state.selection.$head.parent.textContent).toBe("y");
   });
 
   it.each([
-    ["a pipe in a link", `[x](http://a|${SENTINEL}b)\n\nafter\n`],
-    ["a surplus cell", `|a|b|\n|-|-|\n|x|y|z|${SENTINEL}\n\nafter\n`],
+    ["a pipe in a link", "[x](http://a|b)\n\nafter\n", "[x](http://a|".length],
+    [
+      "a surplus cell",
+      "|a|b|\n|-|-|\n|x|y|z|\n\nafter\n",
+      "|a|b|\n|-|-|\n|x|y|z|".length,
+    ],
   ])(
     "should send a caret lost after %s to the end of the note",
-    async (_, initialContent) => {
-      const { editor } = await mount({ initialContent, stripSentinel: true });
+    async (_, initialContent, initialCaret) => {
+      const { editor } = await mount({ initialCaret, initialContent });
 
       expect(editor.state.selection.$head.parent.textContent).toBe("after");
     }
   );
 
-  it("should keep a sentinel held in a link out of the note", async () => {
+  it("should keep a link the caret from the file sits in as written", async () => {
     const { editor, handle } = await mount({
-      initialContent: `see [[No${SENTINEL}te]]\n`,
-      stripSentinel: true,
+      initialCaret: "see [[No".length,
+      initialContent: "see [[Note]]\n",
     });
 
     act(() => {
@@ -4719,7 +4776,7 @@ describe("markdown written elsewhere", () => {
     }
   );
 
-  it("should report no caret offset in an empty table cell", async () => {
+  it("should find the caret in an empty table cell", async () => {
     const { editor, handle } = await mount({
       initialContent: "|a|b|\n|-|-|\n||c|\n",
     });
@@ -4735,7 +4792,7 @@ describe("markdown written elsewhere", () => {
       editor.commands.setTextSelection(positions[0] ?? -1);
     });
 
-    expect(handle.getCaretSourceOffset()).toBe(-1);
+    expect(handle.getCaretSourceOffset()).toBe("|a|b|\n|-|-|\n|".length);
   });
 
   it("should keep a setext heading's underline when its text changes", async () => {
@@ -4771,6 +4828,282 @@ describe("markdown written elsewhere", () => {
     expect(handle.getContent()).toBe(
       "- item\n\n  |a|b|\n  |-|-|\n  |x|3|\n  |x|2|\n"
     );
+  });
+
+  it.each([
+    ["a bullet list", "- a\n-\n- b\n", "- a\n-".length],
+    ["a numbered list", "1. a\n2.\n3. b\n", "1. a\n2.".length],
+  ])(
+    "should find the caret in an empty item of %s",
+    async (_, initialContent, offset) => {
+      const { editor, handle } = await mount({ initialContent });
+      const positions: number[] = [];
+
+      editor.state.doc.descendants((node, pos) => {
+        if (node.type.name === "paragraph" && node.childCount === 0) {
+          positions.push(pos + 1);
+        }
+      });
+      act(() => {
+        editor.commands.setTextSelection(positions[0] ?? -1);
+      });
+
+      expect(handle.getCaretSourceOffset()).toBe(offset);
+    }
+  );
+
+  it("should keep a list's markers when an empty item is typed into", async () => {
+    const { editor, handle } = await mount({
+      initialContent: "* a\n*\n* b\n",
+    });
+
+    const positions: number[] = [];
+
+    editor.state.doc.descendants((node, pos) => {
+      if (node.type.name === "paragraph" && node.childCount === 0) {
+        positions.push(pos + 1);
+      }
+    });
+    act(() => {
+      editor.commands.insertContentAt(positions[0] ?? -1, "x");
+    });
+
+    expect(handle.getContent()).toBe("* a\n* x\n* b\n");
+  });
+
+  it("should keep a line of text that holds only a marker as written when typed into", async () => {
+    const { editor, handle } = await mount({ initialContent: "para\n+\n" });
+
+    act(() => {
+      editor.commands.insertContentAt(
+        1 + editor.state.doc.child(0).content.size,
+        "x"
+      );
+    });
+
+    expect(handle.getContent()).toBe("para\n+x\n");
+  });
+
+  it("should place a caret from the file at the end of a line of text that holds only a marker", async () => {
+    const { editor, handle } = await mount({
+      initialCaret: "para\n+".length,
+      initialContent: "para\n+\n",
+    });
+
+    expect(editor.state.selection.$head.parent.type.name).toBe("paragraph");
+    expect(editor.state.selection.$head.parentOffset).toBe(
+      editor.state.selection.$head.parent.content.size
+    );
+    expect(handle.getContent()).toBe("para\n+\n");
+  });
+
+  it("should place a caret from the file in an empty list item", async () => {
+    const { editor, handle } = await mount({
+      initialCaret: "- a\n-".length,
+      initialContent: "- a\n-\n- b\n",
+    });
+
+    const { $head } = editor.state.selection;
+
+    expect($head.node(1).child($head.index(1)).textContent).toBe("");
+    expect($head.index(1)).toBe(1);
+    expect(handle.getContent()).toBe("- a\n-\n- b\n");
+  });
+
+  it.each([
+    [
+      "the widest cell",
+      "|a|b|\n|-|-|\n|wide cell|2|\n",
+      "wide cell",
+      "|a|b|\n|-|-|\n|wide cellr|2|\n",
+    ],
+    [
+      "a narrower cell",
+      "|a|b|\n|-|-|\n|one|2|\n|wider cell|3|\n",
+      "one",
+      "|a|b|\n|-|-|\n|oner|2|\n|wider cell|3|\n",
+    ],
+  ])(
+    "should keep a table as written when %s grows",
+    async (_, initialContent, text, written) => {
+      const { editor, handle } = await mount({ initialContent });
+      const positions: number[] = [];
+
+      editor.state.doc.descendants((node, pos) => {
+        if (node.text === text) {
+          positions.push(pos + text.length);
+        }
+      });
+      act(() => {
+        editor.commands.insertContentAt(positions[0] ?? -1, "r");
+      });
+
+      expect(handle.getContent()).toBe(written);
+    }
+  );
+
+  it("should keep a table as written when an empty cell is typed into", async () => {
+    const { editor, handle } = await mount({
+      initialContent: "|a|b|\n|-|-|\n||c|\n",
+    });
+
+    const positions: number[] = [];
+
+    editor.state.doc.descendants((node, pos) => {
+      if (node.type.name === "paragraph" && node.childCount === 0) {
+        positions.push(pos + 1);
+      }
+    });
+    act(() => {
+      editor.commands.insertContentAt(positions[0] ?? -1, "x");
+    });
+
+    expect(handle.getContent()).toBe("|a|b|\n|-|-|\n|x|c|\n");
+  });
+
+  it("should render a table whole when a cell the file's row leaves out is typed into", async () => {
+    const { editor, handle } = await mount({
+      initialContent: "|a|b|\n|-|-|\n|x|\n",
+    });
+
+    const positions: number[] = [];
+
+    editor.state.doc.descendants((node, pos) => {
+      if (node.type.name === "paragraph" && node.childCount === 0) {
+        positions.push(pos + 1);
+      }
+    });
+    act(() => {
+      editor.commands.insertContentAt(positions[0] ?? -1, "y");
+    });
+
+    expect(handle.getContent()).toBe(
+      "| a   | b   |\n| --- | --- |\n| x   | y   |\n"
+    );
+  });
+
+  it.each([
+    ["a list item", "* a \\| b\n* z\n", "a | b", "* a \\| bc\n* z\n"],
+    ["a paragraph", "a &#124; b | c\n", "a | b | c", "a &#124; b | cc\n"],
+    [
+      "a list item beside a table",
+      "* t\n\n  |a|b|\n  |-|-|\n  |x|y|\n* a \\| b\n",
+      "a | b",
+      "* t\n\n  |a|b|\n  |-|-|\n  |x|y|\n* a \\| bc\n",
+    ],
+    [
+      "a quoted paragraph beside a table",
+      "> |a|b|\n> |-|-|\n> |x|y|\n>\n> p \\| q\n",
+      "p | q",
+      "> |a|b|\n> |-|-|\n> |x|y|\n>\n> p \\| qc\n",
+    ],
+  ])(
+    "should keep a pipe the file spells its own way when %s is typed into",
+    async (_, initialContent, text, written) => {
+      const { editor, handle } = await mount({ initialContent });
+      const positions: number[] = [];
+
+      editor.state.doc.descendants((node, pos) => {
+        if (node.text === text) {
+          positions.push(pos + text.length);
+        }
+      });
+      act(() => {
+        editor.commands.insertContentAt(positions[0] ?? -1, "c");
+      });
+
+      expect(handle.getContent()).toBe(written);
+    }
+  );
+
+  it.each([
+    ["stays as wide", "|a|\n|-|\n|x|\n", "y", "|a|\n|-|\n|xy|\n"],
+    ["widens", "|abc|\n|-|\n|x|\n", "yzw", "|abc|\n|-|\n|xyzw|\n"],
+  ])(
+    "should keep a one column table as written when its cell %s",
+    async (_, initialContent, typed, written) => {
+      const { editor, handle } = await mount({ initialContent });
+      const positions: number[] = [];
+
+      editor.state.doc.descendants((node, pos) => {
+        if (node.text === "x") {
+          positions.push(pos + 1);
+        }
+      });
+      act(() => {
+        editor.commands.insertContentAt(positions[0] ?? -1, typed);
+      });
+
+      expect(handle.getContent()).toBe(written);
+    }
+  );
+
+  it.each([
+    ["a row with text", "|a|b|\n|-|-|\n|---|y|\n", "|a|b|\n|-|-|\n|----|y|\n"],
+    [
+      "a row of dashes",
+      "|a|b|\n|-|-|\n|---|---|\n",
+      "|a|b|\n|-|-|\n|----|---|\n",
+    ],
+  ])(
+    "should keep a table as written when a cell of dashes in %s grows",
+    async (_, initialContent, written) => {
+      const { editor, handle } = await mount({ initialContent });
+      const positions: number[] = [];
+
+      editor.state.doc.descendants((node, pos) => {
+        if (node.text === "---") {
+          positions.push(pos + "---".length);
+        }
+      });
+      act(() => {
+        editor.commands.insertContentAt(positions[0] ?? -1, "-");
+      });
+
+      expect(handle.getContent()).toBe(written);
+    }
+  );
+
+  it("should keep a table as written when one edit changes two cells", async () => {
+    const { editor, handle } = await mount({
+      initialContent: "|a|b|\n|-|-|\n|x|y|\n",
+    });
+
+    const positions: number[] = [];
+
+    editor.state.doc.descendants((node, pos) => {
+      if (node.text === "x" || node.text === "y") {
+        positions.push(pos + 1);
+      }
+    });
+    act(() => {
+      const [x = -1, y = -1] = positions;
+
+      editor.view.dispatch(
+        editor.state.tr.insertText("wide", y).insertText("wide", x)
+      );
+    });
+
+    expect(handle.getContent()).toBe("|a|b|\n|-|-|\n|xwide|ywide|\n");
+  });
+
+  it("should keep a table as written when a cell holding an escaped pipe grows", async () => {
+    const { editor, handle } = await mount({
+      initialContent: "|a|b|\n|-|-|\n|x\\|y|z|\n",
+    });
+
+    const positions: number[] = [];
+
+    editor.state.doc.descendants((node, pos) => {
+      if (node.text === "x|y") {
+        positions.push(pos + "x|y".length);
+      }
+    });
+    act(() => {
+      editor.commands.insertContentAt(positions[0] ?? -1, "wide");
+    });
+
+    expect(handle.getContent()).toBe("|a|b|\n|-|-|\n|x\\|ywide|z|\n");
   });
 
   it.each([
@@ -4810,7 +5143,7 @@ describe("markdown written elsewhere", () => {
     });
 
     expect(handle.getContent()).toBe(
-      "- item\n\n  |a | b   |\n  | ---------- | --- |\n  | wide cellx|2|\n"
+      "- item\n\n  |a|b|\n  |-|-|\n  |wide cellx|2|\n"
     );
   });
 
@@ -4836,7 +5169,7 @@ describe("markdown written elsewhere", () => {
     );
   });
 
-  it("should render a table in a list whole when the file indents its rows past the render", async () => {
+  it("should keep a table in a list as written when the file indents its rows past the render", async () => {
     const { editor, handle } = await mount({
       initialContent: "-   item\n\n    |a|b|\n    |-|-|\n    |x|y|\n",
     });
@@ -4853,7 +5186,7 @@ describe("markdown written elsewhere", () => {
     });
 
     expect(handle.getContent()).toBe(
-      "- item\n  | a   | bwidened |\n  | --- | -------- |\n  | x   | y        |\n"
+      "-   item\n\n    |a|bwidened|\n    |-|-|\n    |x|y|\n"
     );
   });
 

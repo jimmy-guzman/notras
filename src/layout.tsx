@@ -4,7 +4,6 @@ import {
   useSuspenseQueries,
 } from "@tanstack/react-query";
 import { listen } from "@tauri-apps/api/event";
-import { error as logError } from "@tauri-apps/plugin-log";
 import { Suspense, useEffect, useState } from "react";
 import { ErrorBoundary } from "react-error-boundary";
 import type { FallbackProps } from "react-error-boundary";
@@ -20,6 +19,7 @@ import { isNoteFile } from "@/core/links";
 import { applyIndexStatus } from "@/data/index-status";
 import { invalidateImages, noteQueries, notesDirQuery } from "@/data/queries";
 import { startupQuery } from "@/data/restore-session";
+import { logBestEffort } from "@/lib/best-effort-log";
 import { disposeLater } from "@/lib/dispose-later";
 import { reloadExternalImages, reloadImages } from "@/lib/image-reloads";
 import { flushPendingWrites } from "@/lib/pending-flush";
@@ -232,11 +232,7 @@ function MainWindow() {
       try {
         persistTabs();
       } catch (error) {
-        try {
-          await logError(`could not persist the tabs: ${String(error)}`);
-        } catch {
-          // Best effort.
-        }
+        await logBestEffort(`could not persist the tabs: ${String(error)}`);
       }
 
       if (await flushPendingWrites()) {

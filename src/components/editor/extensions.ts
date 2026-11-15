@@ -73,7 +73,7 @@ import { createNoteMarked } from "./marked-blocks";
 import { MoveSelectionKeys } from "./move-selection-keys";
 import { SelectionHighlight } from "./selection-highlight";
 import { SlashMenu } from "./slash-menu";
-import { carryChange, keepsRowIndents } from "./source-change";
+import { carriedSpellings, keepsRowIndents } from "./source-change";
 import { TableNodeView } from "./table-node-view";
 import { isSafeUrl } from "./urls";
 import { Wikilink } from "./wikilink";
@@ -1307,9 +1307,9 @@ function carrySource(manager: MarkdownConverter, before: Node, after: Node) {
 
   // A blank paragraph's text only spells an empty line, and its render can
   // be empty, so nothing of it lines up to carry into.
-  const text = isBlankParagraph(was)
-    ? edited
-    : carryChange(
+  const texts = isBlankParagraph(was)
+    ? [edited]
+    : carriedSpellings(
         source.text,
         written(renderBlock(manager, was, old[at - 1], definedBefore)),
         edited
@@ -1322,11 +1322,13 @@ function carrySource(manager: MarkdownConverter, before: Node, after: Node) {
       ? (parsed, block) => parsed.eq(block)
       : isSameBlockButDestinations;
 
-  if (
-    text === null ||
-    !readsAs(parse, same, text, at, [node]) ||
-    !keepsNestedTables(was, source.text, text)
-  ) {
+  const text = texts.find(
+    (candidate) =>
+      readsAs(parse, same, candidate, at, [node]) &&
+      keepsNestedTables(was, source.text, candidate)
+  );
+
+  if (text === undefined) {
     return;
   }
 

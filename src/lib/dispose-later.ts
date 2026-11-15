@@ -1,4 +1,4 @@
-import { error as logError } from "@tauri-apps/plugin-log";
+import { logBestEffort } from "./best-effort-log";
 
 /**
  * An effect cleanup for Tauri listeners: each `listen` resolves to its own
@@ -12,11 +12,7 @@ export function disposeLater(...pending: Promise<() => void>[]) {
         try {
           (await unlisten)();
         } catch (error) {
-          try {
-            await logError(`could not remove a listener: ${String(error)}`);
-          } catch {
-            // Best effort.
-          }
+          await logBestEffort(`could not remove a listener: ${String(error)}`);
         }
       };
 

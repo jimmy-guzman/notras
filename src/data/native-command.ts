@@ -1,6 +1,5 @@
-import { error as logError } from "@tauri-apps/plugin-log";
-
 import { FileError, isNativeFailure, isNativeMessage } from "@/core/errors";
+import { logBestEffort } from "@/lib/best-effort-log";
 
 /** Preserve expected native failures; log unexpected defects before reporting them. */
 export async function nativeCommand<T>(
@@ -23,13 +22,9 @@ export async function nativeCommand<T>(
       throw new FileError({ kind: "failed", message: error }, { cause: error });
     }
 
-    try {
-      await logError(
-        error instanceof Error ? (error.stack ?? error.message) : String(error)
-      );
-    } catch {
-      // The caller must still receive the failure if the log sink is unavailable.
-    }
+    await logBestEffort(
+      error instanceof Error ? (error.stack ?? error.message) : String(error)
+    );
 
     throw new Error("An unexpected error", { cause: error });
   }

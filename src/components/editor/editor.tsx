@@ -59,7 +59,13 @@ import { LinkHover } from "./link-hover";
 import { dragRange, isRowRange } from "./move-selection";
 import type { DocumentEdit, SelectionReader } from "./note-document";
 import { NoteOutline } from "./note-outline";
-import { findSentinel, insertSentinel, SENTINEL } from "./sentinel";
+import {
+  findSentinel,
+  insertSentinel,
+  SENTINEL,
+  sentinelSpellings,
+} from "./sentinel";
+import { changedRange } from "./source-change";
 import { isSafeUrl, normalizeUrl } from "./urls";
 
 /** Long enough to cross the gap between a link and its panel. */
@@ -523,8 +529,10 @@ function sourceOffset(
 
     // A block that cannot keep the file's text with the sentinel in it is
     // rendered instead, so an offset into that render says nothing about the
-    // file.
-    return marked.replace(SENTINEL, "") === file ? offset : -1;
+    // file. An empty list item keeps it after the space its text needs.
+    const at = changedRange(file, marked).from;
+
+    return sentinelSpellings(file, at).includes(marked) ? at : -1;
   } catch {
     return -1;
   }
@@ -546,6 +554,18 @@ function sourceSelectionReader(
   };
 }
 
+/** Whether `marked` reads as `clean` once its sentinel is gone. */
+function keepsBlocks(marked: ProseMirrorNode, clean: ProseMirrorNode) {
+  const at = findSentinel(marked);
+
+  return at !== null && marked.replace(at, at + 1, Slice.empty).eq(clean);
+}
+
+/**
+ * Where a sentinel at `offset` in `content` lands in the parsed note, or null
+ * when the parse drops it. After a bare list marker, the spelling that keeps
+ * the note's blocks says which line holds the caret.
+ */
 function positionInDocument(
   editor: TiptapEditor,
   content: string,
@@ -553,18 +573,29 @@ function positionInDocument(
 ) {
   const manager = converterOf(editor);
 
-  const marked = editor.schema.nodeFromJSON(
-    manager.parse(insertSentinel(content, offset))
-  );
+  const parse = (text: string) =>
+    editor.schema.nodeFromJSON(manager.parse(text));
 
-  const clean = editor.schema.nodeFromJSON(manager.parse(content));
+  const clean = parse(content);
+  const spellings = sentinelSpellings(content, offset).map(parse);
 
-  return Math.min(findSentinel(marked) ?? 1, clean.content.size);
+  // A sentinel that splits a token, like `**`, keeps no spelling's blocks,
+  // and the plain one still puts the caret near it.
+  const marked =
+    spellings.find((doc) => keepsBlocks(doc, clean)) ?? spellings.at(0);
+
+  const position = marked === undefined ? null : findSentinel(marked);
+
+  return position === null ? null : Math.min(position, clean.content.size);
 }
 
 /** The last cell of the table row `offset` follows, or the end of the note. */
-function lostSelection(editor: TiptapEditor, content: string, offset: number) {
-  const { doc } = editor.state;
+function lostSelection(
+  editor: TiptapEditor,
+  doc: ProseMirrorNode,
+  content: string,
+  offset: number
+) {
   const row = content.slice(0, offset).trimEnd();
 
   // A pipe in a link or a surplus cell loses the sentinel a second time.
@@ -581,6 +612,20 @@ function lostSelection(editor: TiptapEditor, content: string, offset: number) {
   return cell === null
     ? Selection.atEnd(doc)
     : Selection.near(doc.resolve(Math.min(cell, doc.content.size)), -1);
+}
+
+/** The caret at `offset` in `content`, placed in `doc`, the note parsed from it. */
+function caretSelection(
+  editor: TiptapEditor,
+  doc: ProseMirrorNode,
+  content: string,
+  offset: number
+) {
+  const position = positionInDocument(editor, content, offset);
+
+  return position === null
+    ? lostSelection(editor, doc, content, offset)
+    : TextSelection.create(doc, position);
 }
 
 export interface EditorHandle {
@@ -616,6 +661,8 @@ interface EditorProps {
    */
   documentPath?: () => null | string;
   focusOnMount?: boolean;
+  /** Where the caret starts, as an offset into `initialContent`. */
+  initialCaret?: number;
   /** Initial markdown BODY -- the editor owns the buffer after mount. */
   initialContent: string;
   /** Opens find on this word at mount. */
@@ -638,11 +685,6 @@ interface EditorProps {
   resolveImageSrc?: (src: string) => ImageSource;
   /** The note a wikilink title lands on, or undefined when it names none. */
   resolveWikilink?: (title: string) => string | undefined;
-  /**
-   * The initial content carries a SENTINEL at the caret spot (source-mode
-   * exit): strip it after mount and place the caret exactly there.
-   */
-  stripSentinel?: boolean;
   /** Stable getter for live note titles (wikilink completion). */
   titles?: () => string[];
   /** Where the outline draws while the note panel shows it. Read live, unlike the mount props. */
@@ -1237,16 +1279,27 @@ export function Editor(mountProps: EditorProps) {
             try {
               transaction.setSelection(
                 TextSelection.between(
-                  transaction.doc.resolve(
-                    positionInDocument(instance, content, selection.anchor)
-                  ),
-                  transaction.doc.resolve(
-                    positionInDocument(instance, content, selection.head)
-                  )
+                  caretSelection(
+                    instance,
+                    transaction.doc,
+                    content,
+                    selection.anchor
+                  ).$head,
+                  caretSelection(
+                    instance,
+                    transaction.doc,
+                    content,
+                    selection.head
+                  ).$head
                 )
               );
-            } catch {
-              // Selection mapping is optional; the replacement must still reach the view.
+            } catch (error) {
+              // The replacement still lands, only without the caret.
+              toast.add({
+                description: reasonOf(error),
+                title: "could not restore the caret",
+                type: "error",
+              });
             }
           }
 
@@ -1308,93 +1361,28 @@ export function Editor(mountProps: EditorProps) {
   // would race us, so this effect owns all mount-time caret behavior. A
   // passive effect would paint the note once at the top first.
   useLayoutEffect(() => {
-    // Once per editor: a replay would find the sentinel gone and send the
-    // restored caret back to the start.
+    // Once per editor: a StrictMode replay would scroll and focus again.
     if (editor.isDestroyed || placedRef.current === editor) {
       return;
     }
 
     placedRef.current = editor;
 
-    const pos =
-      config.stripSentinel === true ? findSentinel(editor.state.doc) : null;
-
-    // Past a table's last pipe the parser drops the sentinel, and in a link it
-    // keeps it in an attribute, so `pos` cannot say whether the text holds one.
-    const cleanBody =
-      config.stripSentinel === true
-        ? config.initialContent.replaceAll(SENTINEL, "")
-        : config.initialContent;
-
-    const lost = pos === null && cleanBody !== config.initialContent;
-
-    if (lost) {
-      suppressChangeRef.current = true;
-      editor
-        .chain()
-        .setMeta("addToHistory", false)
-        .setContent(cleanBody, { contentType: "markdown", emitUpdate: false })
-        .run();
-      suppressChangeRef.current = false;
-    }
-
-    if (pos !== null) {
-      // Remove the sentinel outside history and without notifying autosave;
-      // the buffer must end up byte-identical to the file.
-      suppressChangeRef.current = true;
-      editor.view.dispatch(
-        editor.state.tr.delete(pos, pos + 1).setMeta("addToHistory", false)
-      );
-
-      // Corruption guard: if the sentinel split a syntax token, the parse
-      // diverged and stripping the char does not restore it -- serializing
-      // would then write escaped syntax into the file. Compare canonical
-      // forms and reparse the clean body when they differ.
-      const diverged = (() => {
-        try {
-          const manager = converterOf(editor);
-
-          const canonical = fileMarkdown(
-            manager,
-            editor.schema.nodeFromJSON(manager.parse(cleanBody))
-          );
-
-          // Trailing whitespace differs benignly (StarterKit's
-          // trailing-node appends an empty paragraph after list-ending
-          // docs).
-          return serializeMarkdown(editor).trimEnd() !== canonical.trimEnd();
-        } catch {
-          // Comparison itself failing is not evidence of corruption.
-          return false;
-        }
-      })();
-
-      if (diverged) {
-        editor.commands.setContent(cleanBody, {
-          contentType: "markdown",
-          emitUpdate: false,
-        });
-      }
-
-      suppressChangeRef.current = false;
-    }
-
-    rememberSources(converterOf(editor), editor.state.doc, cleanBody);
-
-    const { doc } = editor.state;
-
-    const unplaced = lost
-      ? lostSelection(
-          editor,
-          cleanBody,
-          config.initialContent.indexOf(SENTINEL)
-        )
-      : Selection.atStart(doc);
+    rememberSources(
+      converterOf(editor),
+      editor.state.doc,
+      config.initialContent
+    );
 
     const selection =
-      pos === null
-        ? unplaced
-        : TextSelection.create(doc, Math.min(pos, doc.content.size));
+      config.initialCaret === undefined
+        ? Selection.atStart(editor.state.doc)
+        : caretSelection(
+            editor,
+            editor.state.doc,
+            config.initialContent,
+            config.initialCaret
+          );
 
     const chain = editor.chain();
 

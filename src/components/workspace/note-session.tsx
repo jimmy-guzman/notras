@@ -6,7 +6,6 @@ import {
 } from "@tanstack/react-query";
 import type { NotifyOnChangeProps } from "@tanstack/react-query";
 import { convertFileSrc } from "@tauri-apps/api/core";
-import { error as logError } from "@tauri-apps/plugin-log";
 import { cn } from "cn";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { RefObject } from "react";
@@ -22,7 +21,6 @@ import type {
 } from "@/components/editor/note-document";
 import { createNotePersistence } from "@/components/editor/note-persistence";
 import type { SaveOutcome } from "@/components/editor/note-persistence";
-import { insertSentinel } from "@/components/editor/sentinel";
 import type { SourceEditorHandle } from "@/components/editor/source-editor";
 import { SourceEditor } from "@/components/editor/source-editor";
 import { useAutosave } from "@/components/editor/use-autosave";
@@ -60,6 +58,7 @@ import type { SessionFile } from "@/data/read-session-file";
 import { resolveExternalLink } from "@/data/resolve-external-link";
 import { resolveLinkedFile } from "@/data/resolve-linked-file";
 import { saveNote } from "@/data/save-note";
+import { logBestEffort } from "@/lib/best-effort-log";
 import { exportPdf } from "@/lib/export-pdf";
 import { externalImageVersion, imageVersion } from "@/lib/image-reloads";
 import { renameRecentNote } from "@/lib/recent-notes";
@@ -346,7 +345,7 @@ function SessionBuffer({ active, file, stash, tab }: SessionBufferProps) {
           try {
             await clearConflictStash(openKind, path);
           } catch (error) {
-            await logError(
+            await logBestEffort(
               `could not remove the stored review: ${String(error)}`
             );
             throw error;
@@ -516,18 +515,19 @@ function SessionBuffer({ active, file, stash, tab }: SessionBufferProps) {
   // Anchors carried across mode toggles so the caret keeps its spot.
   const [sourceCursor, setSourceCursor] = useState(0);
 
-  // Body carrying a sentinel char at the caret (set when leaving source mode,
-  // and at mount for a tab restored from the last session); the rich editor
-  // strips it after mount and places the caret.
-  const [sentineledBody, setSentineledBody] = useState<string | undefined>(
-    () => {
-      const caret = restoredCaret(id);
+  // The body the rich editor mounts with and the caret's offset in it, set
+  // when leaving source mode and at mount for a tab restored from the last
+  // session.
+  const [placedCaret, setPlacedCaret] = useState<{
+    body?: string;
+    caret?: number;
+  }>(() => {
+    const caret = restoredCaret(id);
 
-      return caret === undefined
-        ? undefined
-        : insertSentinel(parseNote(file.content).body, caret);
-    }
-  );
+    return caret === undefined
+      ? {}
+      : { body: parseNote(file.content).body, caret };
+  });
 
   useEffect(() => {
     clearRestoredCaret(id);
@@ -953,7 +953,7 @@ function SessionBuffer({ active, file, stash, tab }: SessionBufferProps) {
           Math.min(offset - prefixLength, currentBody.length)
         );
 
-        setSentineledBody(insertSentinel(currentBody, bodyOffset));
+        setPlacedCaret({ body: currentBody, caret: bodyOffset });
       } else {
         const offset = editorRef.current?.getCaretSourceOffset() ?? -1;
 
@@ -1059,7 +1059,8 @@ function SessionBuffer({ active, file, stash, tab }: SessionBufferProps) {
         ) : (
           <Editor
             focusOnMount={focusOnMount}
-            initialContent={sentineledBody ?? body}
+            initialCaret={placedCaret.caret}
+            initialContent={placedCaret.body ?? body}
             initialFind={
               active && findState.searchPending ? findState.query : undefined
             }
@@ -1072,7 +1073,6 @@ function SessionBuffer({ active, file, stash, tab }: SessionBufferProps) {
             onSelect={deferBodySelection}
             outlineHost={outlineHost}
             resolveImageSrc={resolveImageSrc}
-            stripSentinel={sentineledBody !== undefined}
             titles={getTitles}
             {...linkHandling}
           />
