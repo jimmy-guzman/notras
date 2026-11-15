@@ -1570,6 +1570,93 @@ describe("recent note results", () => {
     });
   });
 
+  it("should retry the failed recent list after switching to search results", async () => {
+    render(<Toaster />);
+    let listReads = 0;
+    let searchReads = 0;
+    mockIPC((command) => {
+      if (command === "list_notes") {
+        listReads += 1;
+
+        if (listReads === 1) {
+          throw Object.assign(new Error("the disk is busy"), {
+            kind: "failed",
+          });
+        }
+
+        return [
+          {
+            createdAt: 0,
+            folder: "",
+            path: "recent.md",
+            pinned: false,
+            snippet: null,
+            tags: [],
+            title: "Refreshed recent note",
+            updatedAt: 1,
+          },
+        ];
+      }
+
+      if (command === "search_notes") {
+        searchReads += 1;
+
+        return [
+          {
+            createdAt: 0,
+            folder: "",
+            path: "found.md",
+            pinned: false,
+            snippet: "Matching context",
+            tags: [],
+            title: "Found",
+            updatedAt: 0,
+          },
+        ];
+      }
+
+      throw new Error(`unexpected command: ${command}`);
+    });
+
+    const palette = mount("find", [
+      {
+        createdAt: new Date(0),
+        folder: "",
+        path: "recent.md",
+        pinned: false,
+        snippet: null,
+        tags: [],
+        title: "Recent",
+        updatedAt: new Date(0),
+      },
+    ]);
+
+    await screen.findByRole("option", { name: "Recent" });
+    await act(async () => {
+      await palette.client.invalidateQueries({
+        queryKey: noteQueries.list().queryKey,
+      });
+    });
+    await screen.findByText("could not refresh the note list");
+    await palette.user.type(palette.input, "found");
+    await screen.findByRole("option", { name: FOUND_NOTE });
+
+    await palette.user.click(screen.getByRole("button", { name: "retry" }));
+
+    await waitFor(() => {
+      expect(listReads).toBe(2);
+    });
+    expect(searchReads).toBe(1);
+    expect(screen.getByRole("option", { name: FOUND_NOTE })).toBeVisible();
+    await palette.user.clear(palette.input);
+    expect(
+      await screen.findByRole("option", {
+        name: "Refreshed recent note",
+      })
+    ).toBeVisible();
+    expect(listReads).toBe(2);
+  });
+
   it("should rank the full list and exclude the showing note before taking twenty", async () => {
     const notes: NoteMeta[] = Array.from({ length: 23 }, (_, index) => ({
       createdAt: new Date(0),

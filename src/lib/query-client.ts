@@ -3,6 +3,22 @@ import { QueryCache, QueryClient } from "@tanstack/react-query";
 import { toast } from "@/components/ui/toast";
 import { reasonOf } from "@/lib/ui/failure";
 
+async function retryFailedQueries(client: QueryClient, what: string) {
+  // Explicit retry includes queries disabled since the failure.
+  // The cache reports any new failures through the same toast.
+  await Promise.allSettled(
+    client
+      .getQueryCache()
+      .findAll({
+        predicate: (failed) =>
+          failed.meta?.what === what && failed.state.status === "error",
+      })
+      .map(
+        async (failed) => await failed.fetch(undefined, { cancelRefetch: true })
+      )
+  );
+}
+
 /**
  * The watcher decides staleness; a failed read surfaces at once. The cache
  * speaks only for a refetch of data already on screen, which would otherwise
@@ -34,12 +50,7 @@ export function createQueryClient(): QueryClient {
               children: "retry",
               onClick: () => {
                 toast.close(id);
-                // Every query the one toast stands for reads again.
-                void client.refetchQueries({
-                  predicate: (failed) =>
-                    failed.meta?.what === what &&
-                    failed.state.status === "error",
-                });
+                void retryFailedQueries(client, what);
               },
             },
             description: reason,
