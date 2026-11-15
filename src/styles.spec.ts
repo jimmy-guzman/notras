@@ -769,55 +769,56 @@ describe("launch background", () => {
 });
 
 /**
- * Two declarations take away the mark the platform draws: `outline: none`
- * removes the ring, and `appearance: none` strips the native control drawing
- * it. Either leaves keyboard focus landing on a control with nothing on screen
- * unless that control draws its own. The task checkbox is why this is a gate
- * rather than a review note: TipTap cancels its `mousedown`, so Tab is the only
- * way to reach it and the outline is the only state it has.
+ * The base layer draws the focus mark on every element, and any rule outside a
+ * layer that zeroes the outline's style or width outranks it, leaving keyboard
+ * focus on a control with nothing on screen. The task checkbox is why this is
+ * a gate rather than a review note: TipTap cancels its `mousedown`, so Tab is
+ * the only way to reach it and the outline is the only state it has.
  */
-const STRIPS_AFFORDANCE = /(?:outline|appearance):\s*none/u;
+const STRIPS_THE_MARK = /outline(?:-style|-width)?:\s*(?:none|0)(?=[\s;!]|$)/u;
 
 /**
- * The keyboard focus mark, read as declarations rather than as the
- * presence of a `:focus-visible` selector. A rule that names the selector and
- * then paints nothing, or offsets an outline it never draws, leaves the control
- * exactly as bare as no rule at all.
+ * A ring in the focus color. The base mark sets an offset on every element, so
+ * a rule that draws one without its own offset inherits 2px it never asked for.
  */
 const DRAWS_THE_MARK = /outline:\s*2px\s+solid\s+var\(--ring\)/u;
 
-/** Signed, since a control filling a scrolling surface takes the mark inset. */
-const OFFSETS_THE_MARK = /outline-offset:\s*-?[\d.]+px/u;
-
-const selectorsOf = (prelude: string) =>
-  prelude
-    .split(",")
-    .map((selector) => selector.trim())
-    .filter((selector) => selector !== "");
-
 const noteRules = rulesOf(source);
 
-const strippedSelectors = noteRules
-  .filter(({ body }) => STRIPS_AFFORDANCE.test(body))
-  .flatMap(({ prelude }) => selectorsOf(prelude));
-
-const focusBodiesOf = (selector: string) =>
-  noteRules
-    .filter(({ prelude }) =>
-      selectorsOf(prelude).includes(`${selector}:focus-visible`)
-    )
-    .map(({ body }) => body);
-
 describe("focus affordance", () => {
-  it("should replace every stripped affordance with a focus-visible outline", () => {
-    expect(strippedSelectors).not.toStrictEqual([]);
+  it("should strip the outline in no rule, since that hides the base focus mark", () => {
     expect(
-      strippedSelectors.filter(
-        (selector) =>
-          !focusBodiesOf(selector).some(
-            (body) => DRAWS_THE_MARK.test(body) && OFFSETS_THE_MARK.test(body)
-          )
+      noteRules
+        .filter(({ body }) => STRIPS_THE_MARK.test(body))
+        .map(({ prelude }) => prelude)
+    ).toStrictEqual([]);
+  });
+
+  it("should draw the mark on every element that takes keyboard focus", () => {
+    expect(
+      noteRules.some(
+        ({ body, prelude }) =>
+          prelude === "*" &&
+          /outline:\s*2px\s+none\s+var\(--ring\)/u.test(body) &&
+          /outline-offset:\s*2px/u.test(body)
       )
+    ).toBeTruthy();
+    expect(
+      noteRules.some(
+        ({ body, prelude }) =>
+          prelude === "*:focus-visible" && /outline-style:\s*solid/u.test(body)
+      )
+    ).toBeTruthy();
+  });
+
+  it("should state the offset on every other ring, since the base mark sets one on every element", () => {
+    expect(
+      noteRules
+        .filter(
+          ({ body }) =>
+            DRAWS_THE_MARK.test(body) && !/outline-offset:/u.test(body)
+        )
+        .map(({ prelude }) => prelude)
     ).toStrictEqual([]);
   });
 });

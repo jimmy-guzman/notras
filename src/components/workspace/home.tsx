@@ -85,7 +85,7 @@ function RecentNotes({ notesDir }: { notesDir: string }) {
         {rows.map(({ hotkey, note }) => (
           <li key={note.path}>
             <button
-              className="hover:bg-muted/50 focus-visible:inset-ring-ring flex h-8 w-full items-center gap-2 rounded-md px-2 text-sm outline-none focus-visible:inset-ring-2"
+              className="hover:bg-muted/50 flex h-8 w-full items-center gap-2 rounded-md px-2 text-sm focus-visible:-outline-offset-2"
               onClick={() => {
                 openSearchResult(note, false);
               }}

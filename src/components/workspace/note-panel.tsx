@@ -98,7 +98,7 @@ function Mentions({ path }: { path: string }) {
         return (
           <li key={note.path}>
             <button
-              className="hover:bg-muted dark:hover:bg-muted/50 focus-visible:outline-ring flex w-full min-w-0 flex-col rounded-md px-2 py-1.5 text-start text-sm transition-colors duration-150 ease-out focus-visible:outline-2 focus-visible:-outline-offset-2"
+              className="hover:bg-muted dark:hover:bg-muted/50 flex w-full min-w-0 flex-col rounded-md px-2 py-1.5 text-start text-sm transition-colors duration-150 ease-out focus-visible:-outline-offset-2"
               onClick={() => {
                 // Beside the note being read, so that note stays open.
                 openNote(note.path, true);
@@ -165,7 +165,7 @@ function Tags({ id, path }: { id: string; path: string }) {
               {tag}
               <button
                 aria-label={`remove ${tag}`}
-                className="text-muted-foreground hover:text-foreground focus-visible:outline-ring inline-flex size-5 items-center justify-center rounded-sm transition-colors duration-150 ease-out focus-visible:outline-2 focus-visible:-outline-offset-2"
+                className="text-muted-foreground hover:text-foreground inline-flex size-5 items-center justify-center rounded-sm transition-colors duration-150 ease-out focus-visible:-outline-offset-2"
                 onClick={() => {
                   void toggle(tag);
                 }}
@@ -219,7 +219,7 @@ function Tags({ id, path }: { id: string; path: string }) {
           {suggestions.map(({ tag }) => (
             <li key={tag}>
               <button
-                className="text-muted-foreground hover:bg-muted hover:text-foreground dark:hover:bg-muted/50 focus-visible:outline-ring w-full rounded-md px-2 py-1 text-start text-sm transition-colors duration-150 ease-out focus-visible:outline-2 focus-visible:-outline-offset-2"
+                className="text-muted-foreground hover:bg-muted hover:text-foreground dark:hover:bg-muted/50 w-full rounded-md px-2 py-1 text-start text-sm transition-colors duration-150 ease-out focus-visible:-outline-offset-2"
                 onClick={() => {
                   void toggle(tag);
                 }}

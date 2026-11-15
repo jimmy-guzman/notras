@@ -277,7 +277,7 @@ function TabItem({ active, notesDir, sole, tab }: TabItemProps) {
           button a sibling of the tab rather than a child of it. */}
       <span
         className={cn(
-          "group tab-motion tab-shape hover:text-foreground has-[:focus-visible]:outline-ring flex h-7 max-w-56 min-w-24 flex-1 basis-0 items-center rounded-t-sm has-[:focus-visible]:outline-2 has-[:focus-visible]:-outline-offset-2",
+          "group tab-motion tab-shape hover:text-foreground flex h-7 max-w-56 min-w-24 flex-1 basis-0 items-center rounded-t-sm has-[:focus-visible]:outline-2 has-[:focus-visible]:-outline-offset-2",
           active
             ? "bg-background text-foreground"
             : "hover:bg-muted dark:hover:bg-muted/50",
