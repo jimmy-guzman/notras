@@ -195,8 +195,8 @@ importers:
         specifier: 1.8.0
         version: 1.8.0
       '@tanstack/react-hotkeys':
-        specifier: 0.23.1
-        version: 0.23.1(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
+        specifier: 0.25.0
+        version: 0.25.0(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
       '@tanstack/react-pacer':
         specifier: 0.24.1
         version: 0.24.1(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
@@ -2087,8 +2087,8 @@ packages:
     engines: {node: '>=18'}
     hasBin: true
 
-  '@tanstack/hotkeys@0.27.1':
-    resolution: {integrity: sha512-ZgZWw1jcAYwukEwF9Fk7JQSLh4dunfI5ElP48/YoRFBnXqtMwP9MmTKazMKcyW6tOLYZ1gx9bWe9KfQdPuRZMA==}
+  '@tanstack/hotkeys@0.29.0':
+    resolution: {integrity: sha512-aRL4MICfFmvzVgz5pAC1JmFTeeJjd5KbFA4ZLAZuqAPoqsDUUtJfTZpx+WKKNDJGi3X/p9gO87CZ+alFHTd3Og==}
     engines: {node: '>=20'}
 
   '@tanstack/pacer@0.23.1':
@@ -2098,8 +2098,8 @@ packages:
   '@tanstack/query-core@5.107.1':
     resolution: {integrity: sha512-PSyAik11oQBEVOiVy5hjZWHmoUqOXqK1WYy4v55mcxozEfKaQgpUMsgnXhWjuESzSht8JfzqMS1m6M/9CpNgvg==}
 
-  '@tanstack/react-hotkeys@0.23.1':
-    resolution: {integrity: sha512-g8t5B/8+lIRvL+Ph/zhoFWttTnjpwndQij5Z8y4XUHtyNSRSaEAEW12P4QfGh6AZ51tMav6Jatbgt++UY3XEIA==}
+  '@tanstack/react-hotkeys@0.25.0':
+    resolution: {integrity: sha512-pVkW1du9rp7YA9InTbuwIQGCcS678wkxXy854nN+Q8crMP84+LwqAr20kvu2XY5keY4KdLI9LTv1DeiuZDT7NA==}
     engines: {node: '>=20'}
     peerDependencies:
       react: '>=18.0.0'
@@ -6163,7 +6163,7 @@ snapshots:
 
   '@tanstack/devtools-event-client@0.5.0': {}
 
-  '@tanstack/hotkeys@0.27.1': {}
+  '@tanstack/hotkeys@0.29.0': {}
 
   '@tanstack/pacer@0.23.1':
     dependencies:
@@ -6172,9 +6172,9 @@ snapshots:
 
   '@tanstack/query-core@5.107.1': {}
 
-  '@tanstack/react-hotkeys@0.23.1(react-dom@19.3.1(react@19.3.1))(react@19.3.1)':
+  '@tanstack/react-hotkeys@0.25.0(react-dom@19.3.1(react@19.3.1))(react@19.3.1)':
     dependencies:
-      '@tanstack/hotkeys': 0.27.1
+      '@tanstack/hotkeys': 0.29.0
       react: 19.3.1
       react-dom: 19.3.1(react@19.3.1)
 

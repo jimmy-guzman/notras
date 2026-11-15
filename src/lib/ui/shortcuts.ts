@@ -1,6 +1,5 @@
 import {
   detectPlatform,
-  formatForDisplay,
   getHotkeyManager,
   normalizeHotkey,
   useHotkeyRegistrations,
@@ -106,22 +105,6 @@ export function useHotkey(
   options?: ShortcutOptions
 ): void {
   useHotkeys([{ callback, hotkey, options }]);
-}
-
-/**
- * A chord as the interface prints it, lowercase throughout.
- *
- * The separator follows the platform rather than being dropped: mac renders
- * symbols, which separate themselves, but the word labels everywhere else run
- * together without one, so `Mod+Shift+K` would read `ctrlshiftk`.
- */
-export function chordGlyph(hotkey: HotkeyChord) {
-  const platform = detectPlatform();
-
-  return formatForDisplay(hotkey, {
-    platform,
-    separatorToken: platform === "mac" ? "" : "+",
-  }).toLowerCase();
 }
 
 /**
