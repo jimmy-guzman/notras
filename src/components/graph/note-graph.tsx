@@ -46,9 +46,9 @@ interface RingKeys {
 type PillRef = (key: string, element: HTMLButtonElement | null) => void;
 
 type Overflow =
-  | { dangling: string[]; kind: "links"; outgoing: Mention[] }
+  | { dangling: string[]; kind: "from"; outgoing: Mention[] }
   | { kind: "members"; members: RingMember[] }
-  | { kind: "mentions" };
+  | { kind: "to" };
 
 type Item =
   | { both: boolean; kind: "note"; note: NoteMeta; position: RingPosition }
@@ -200,7 +200,7 @@ function itemsOf(picture: Picture): Item[] {
             count: left.hidden,
             id: "overflow:in",
             kind: "overflow" as const,
-            more: { kind: "mentions" as const },
+            more: { kind: "to" as const },
             position: overflowIn,
           },
         ]
@@ -217,7 +217,7 @@ function itemsOf(picture: Picture): Item[] {
             count: hiddenRight,
             id: "overflow:out",
             kind: "overflow" as const,
-            more: { dangling, kind: "links" as const, outgoing },
+            more: { dangling, kind: "from" as const, outgoing },
             position: overflowOut,
           },
         ]
@@ -499,7 +499,7 @@ interface OverflowPillProps {
   keys: RingKeys;
   onHop: (path: string, beside: boolean) => void;
   onHub: (hub: Hub) => void;
-  onShowMentions: () => void;
+  onShowLinks: () => void;
   pillRef: PillRef;
 }
 
@@ -508,7 +508,7 @@ function OverflowPill({
   keys,
   onHop,
   onHub,
-  onShowMentions,
+  onShowLinks,
   pillRef,
 }: OverflowPillProps) {
   const attach = (element: HTMLButtonElement | null) => {
@@ -517,13 +517,13 @@ function OverflowPill({
 
   const pill = (
     <RingBadge
-      onClick={item.more.kind === "mentions" ? onShowMentions : undefined}
+      onClick={item.more.kind === "to" ? onShowLinks : undefined}
       onKeyDown={(event) => {
         ringKeyDown(event, item.id, keys);
       }}
       render={
         <button
-          aria-label={`${item.count} more ${item.more.kind}`}
+          aria-label={`${item.count} more ${item.more.kind === "members" ? "members" : `links ${item.more.kind} this note`}`}
           ref={attach}
           type="button"
         />
@@ -535,7 +535,7 @@ function OverflowPill({
     </RingBadge>
   );
 
-  if (item.more.kind === "mentions") {
+  if (item.more.kind === "to") {
     return pill;
   }
 
@@ -543,7 +543,7 @@ function OverflowPill({
     <DropdownMenu>
       <DropdownMenuTrigger render={pill} />
       <DropdownMenuContent align="start" className="w-72" side="bottom">
-        {item.more.kind === "links"
+        {item.more.kind === "from"
           ? [
               ...item.more.outgoing.map((mention) => (
                 <MentionItem
@@ -586,7 +586,7 @@ interface NoteGraphProps {
   onHop: (path: string, beside: boolean) => void;
   onHub: (hub: Hub) => void;
   onLeave: () => void;
-  onShowMentions: () => void;
+  onShowLinks: () => void;
   picture: Picture;
 }
 
@@ -599,7 +599,7 @@ export function NoteGraph({
   onHop,
   onHub,
   onLeave,
-  onShowMentions,
+  onShowLinks,
   picture,
 }: NoteGraphProps) {
   const stageRef = useRef<HTMLDivElement>(null);
@@ -660,11 +660,11 @@ export function NoteGraph({
     <div className="relative h-full w-full select-none" ref={stageRef}>
       {lone || picture.kind === "hub" ? null : (
         <>
-          <span className="text-faint absolute top-[6%] left-[12%] -translate-x-1/2 text-xs tracking-wider uppercase">
-            mentions
+          <span className="text-faint absolute top-[6%] left-[12%] -translate-x-1/2 text-xs tracking-wider whitespace-nowrap uppercase">
+            to this note
           </span>
-          <span className="text-faint absolute top-[6%] left-[88%] -translate-x-1/2 text-xs tracking-wider uppercase">
-            links
+          <span className="text-faint absolute top-[6%] left-[88%] -translate-x-1/2 text-xs tracking-wider whitespace-nowrap uppercase">
+            from this note
           </span>
         </>
       )}
@@ -699,7 +699,7 @@ export function NoteGraph({
               keys={keys}
               onHop={onHop}
               onHub={onHub}
-              onShowMentions={onShowMentions}
+              onShowLinks={onShowLinks}
               pillRef={pillRef}
             />
           );
@@ -722,7 +722,7 @@ export function NoteGraph({
         <p className="text-faint absolute top-[calc(50%+2rem)] left-1/2 -translate-x-1/2 text-xs whitespace-nowrap">
           {picture.kind === "hub"
             ? "nothing here yet"
-            : "no links yet, and nothing mentions it"}
+            : "no links to or from this note"}
         </p>
       ) : null}
     </div>
@@ -751,19 +751,39 @@ export function TabGraph({ tab }: TabGraphProps) {
     )
   );
 
+  const target = hub === null ? tab.path : hubKey(hub);
   const reported = useRef<string | null>(null);
-  const failure = result.error ?? result.data?.mentionsError ?? null;
+
+  // A failed refresh of a graph already on screen is the query cache's to
+  // report, so only a first read's failure speaks here.
+  const readFailure = result.isLoadingError ? result.error : null;
+  const proseFailure = result.data?.mentionsError ?? null;
+  const { errorUpdateCount } = result;
 
   useEffect(() => {
-    if (failure !== null && reported.current !== tab.path) {
-      reported.current = tab.path;
+    const failure = readFailure ?? proseFailure;
+
+    if (failure === null) {
+      return;
+    }
+
+    // Every failed read speaks, so picking a hub again reports again. A prose
+    // failure speaks once per picture and reason, so the refreshes that keep
+    // carrying it stay quiet.
+    const key =
+      readFailure === null
+        ? `${target} ${reasonOf(failure)}`
+        : `${target} #${errorUpdateCount}`;
+
+    if (reported.current !== key) {
+      reported.current = key;
       toast.add({
         description: reasonOf(failure),
         title: "could not read the graph",
         type: "error",
       });
     }
-  }, [failure, tab.path]);
+  }, [errorUpdateCount, proseFailure, readFailure, target]);
 
   const picture = result.data?.picture;
   const [last, setLast] = useState(picture);
@@ -782,11 +802,27 @@ export function TabGraph({ tab }: TabGraphProps) {
     <div className="bg-background absolute inset-0 overflow-clip p-6">
       <NoteGraph
         onHop={(path, beside) => {
-          setHubState(null);
-          hopTo(path, beside);
+          // The note already open keeps the same query, so hopping to it
+          // again would not read it again.
+          if (path === tab.path && hub === null && result.isLoadingError) {
+            void result.refetch();
+          } else {
+            setHubState(null);
+            hopTo(path, beside);
+          }
         }}
         onHub={(next) => {
-          setHubState({ forPath: tab.path, hub: next });
+          // The same hub keeps the same query, so picking it again would not
+          // read it again.
+          if (
+            hub !== null &&
+            hubKey(next) === hubKey(hub) &&
+            result.isLoadingError
+          ) {
+            void result.refetch();
+          } else {
+            setHubState({ forPath: tab.path, hub: next });
+          }
         }}
         onLeave={() => {
           if (hub === null) {
@@ -795,8 +831,8 @@ export function TabGraph({ tab }: TabGraphProps) {
             setHubState(null);
           }
         }}
-        onShowMentions={() => {
-          openNotePanel("mentions");
+        onShowLinks={() => {
+          openNotePanel("links");
         }}
         picture={shown}
       />

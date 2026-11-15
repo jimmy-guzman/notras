@@ -19,7 +19,6 @@ export const commands = {
 	classifyOpenPaths: (paths: string[]) => __TAURI_INVOKE<PendingOpen[]>("classify_open_paths", { paths }),
 	clearConflict: (kind: OpenKind, path: string) => __TAURI_INVOKE<null>("clear_conflict", { kind, path }),
 	deleteNote: (path: string) => __TAURI_INVOKE<DeleteReceipt>("delete_note", { path }),
-	findMentions: (path: string) => __TAURI_INVOKE<Mention_Serialize[]>("find_mentions", { path }).then((v) => (v.map(i=>({...i,note:({...i.note,createdAt:new Date(i.note.createdAt),updatedAt:new Date(i.note.updatedAt)})})) as typeof v)),
 	getNotesDir: () => __TAURI_INVOKE<string>("get_notes_dir"),
 	indexStatus: () => __TAURI_INVOKE<IndexStatus>("index_status"),
 	listFolders: () => __TAURI_INVOKE<string[]>("list_folders"),

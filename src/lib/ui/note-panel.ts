@@ -3,7 +3,7 @@ import { boolean, maxValue, minValue, number, pipe } from "valibot";
 
 import { readStored, writeStored } from "@/lib/storage";
 
-export type NotePanelTab = "mentions" | "outline" | "tags";
+export type NotePanelTab = "links" | "outline" | "tags";
 
 const panel = createStore<{
   /** Bumped each time the panel opens, so it takes focus as the browser does. */

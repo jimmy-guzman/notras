@@ -1,3 +1,5 @@
+import { setTimeout as sleep } from "node:timers/promises";
+
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { createStore } from "@tanstack/react-store";
 import { clearMocks, mockIPC, mockWindows } from "@tauri-apps/api/mocks";
@@ -19,6 +21,7 @@ import { SNIPPET_END, SNIPPET_START } from "@/core/fts-markers";
 import type { NoteMeta } from "@/core/notes";
 import { parseSearch } from "@/core/search";
 import { appearanceQuery, noteQueries } from "@/data/queries";
+import { createQueryClient } from "@/lib/query-client";
 import { readRecentNotes, rememberNote } from "@/lib/recent-notes";
 import type { TabSnapshot } from "@/lib/tabs/store";
 import {
@@ -40,11 +43,7 @@ const CREATE_NOTE = /create/u;
 function mount(mode: "actions" | "find", notes: NoteMeta[]) {
   const user = userEvent.setup();
 
-  const client = new QueryClient({
-    defaultOptions: {
-      queries: { retry: false, staleTime: Number.POSITIVE_INFINITY },
-    },
-  });
+  const client = createQueryClient();
 
   client.setQueryData(noteQueries.list().queryKey, notes);
   // A disk holding these notes holds their folders and every ancestor.
@@ -889,7 +888,7 @@ describe("recent commands", () => {
       "move to folder...",
       "delete note...",
       "edit tags...",
-      "show mentions...",
+      "show links to this note...",
     ]) {
       const palette = mount("actions", []);
       // oxlint-disable-next-line no-await-in-loop -- choices must finish in order to establish recency
@@ -900,7 +899,7 @@ describe("recent commands", () => {
     const palette = mount("actions", []);
 
     const recent = [
-      "show mentions...",
+      "show links to this note...",
       "edit tags...",
       "delete note...",
       "move to folder...",
@@ -927,7 +926,7 @@ describe("recent commands", () => {
         .map((row) => row.textContent)
     ).toStrictEqual([
       "settings",
-      "show mentions...",
+      "show links to this note...",
       "edit tags...",
       "delete note...",
       "move to folder...",
@@ -993,7 +992,7 @@ describe("recent commands", () => {
         "move-note",
         "delete-note",
         "edit-tags",
-        "show-mentions",
+        "show-links",
         "settings",
       ])
     );
@@ -1418,13 +1417,19 @@ describe("steady palette searches", () => {
       updatedAt: new Date(0),
     };
 
+    mockIPC((command) => {
+      if (command === "search_notes") {
+        throw Object.assign(new Error("index unavailable"), {
+          kind: "failed",
+        });
+      }
+
+      throw new Error(`unexpected command: ${command}`);
+    });
+    onTestFinished(() => {
+      clearMocks();
+    });
     const palette = mount("find", [note]);
-    const key = noteQueries.search(parseSearch("broken")).queryKey;
-    palette.client.setQueryData(key, []);
-    palette.client
-      .getQueryCache()
-      .find({ queryKey: key })
-      ?.setState({ error: new Error("index unavailable"), status: "error" });
     await palette.user.clear(palette.input);
     await palette.user.type(palette.input, "broken");
     await waitFor(() => {
@@ -1763,5 +1768,414 @@ describe("recent note results", () => {
       expect(getTabState().tabs).toStrictEqual([]);
     });
     expect(readRecentNotes("/notes")).toStrictEqual([]);
+  });
+});
+
+describe("links to this note", () => {
+  it("should keep the links listed when the search for unlinked mentions fails", async () => {
+    openNote("atlas.md");
+    const tab = getTabState().activeId;
+    registerTabSnapshot(
+      tab,
+      createStore<TabSnapshot>(() => ({
+        pinned: false,
+        reason: undefined,
+        sourceMode: false,
+        status: "saved",
+        tags: [],
+        title: "Atlas",
+      }))
+    );
+    onTestFinished(() => {
+      closeTab(tab);
+    });
+
+    const bee: NoteMeta = {
+      createdAt: new Date(0),
+      folder: "",
+      path: "bee.md",
+      pinned: false,
+      snippet: null,
+      tags: [],
+      title: "Bee",
+      updatedAt: new Date(0),
+    };
+
+    const palette = mount("actions", []);
+    palette.client.setQueryData(
+      noteQueries.graph({ kind: "note", path: "atlas.md" }).queryKey,
+      {
+        mentionsError: { kind: "failed", message: "the disk is busy" },
+        picture: {
+          dangling: [],
+          hubs: [],
+          incoming: [
+            { lines: [{ at: 4, context: "see Atlas", line: 1 }], note: bee },
+          ],
+          kind: "note",
+          note: { ...bee, path: "atlas.md", title: "Atlas" },
+          outgoing: [],
+        },
+      }
+    );
+
+    await palette.user.click(
+      screen.getByRole("option", { name: "show links to this note..." })
+    );
+
+    expect(screen.getByRole("option", { name: /Bee/u })).toBeInTheDocument();
+    expect(screen.getByText("the disk is busy")).toBeInTheDocument();
+  });
+
+  it("should say no notes link here for a note the index does not hold", async () => {
+    openNote("atlas.md");
+    const tab = getTabState().activeId;
+    registerTabSnapshot(
+      tab,
+      createStore<TabSnapshot>(() => ({
+        pinned: false,
+        reason: undefined,
+        sourceMode: false,
+        status: "saved",
+        tags: [],
+        title: "Atlas",
+      }))
+    );
+    onTestFinished(() => {
+      closeTab(tab);
+    });
+
+    const palette = mount("actions", []);
+    palette.client.setQueryData(
+      noteQueries.graph({ kind: "note", path: "atlas.md" }).queryKey,
+      { mentionsError: null, picture: undefined }
+    );
+
+    await palette.user.click(
+      screen.getByRole("option", { name: "show links to this note..." })
+    );
+
+    expect(screen.getByText("no notes link here")).toBeInTheDocument();
+  });
+
+  it("should say why the links failed and load them again on retry", async () => {
+    openNote("atlas.md");
+    const tab = getTabState().activeId;
+    registerTabSnapshot(
+      tab,
+      createStore<TabSnapshot>(() => ({
+        pinned: false,
+        reason: undefined,
+        sourceMode: false,
+        status: "saved",
+        tags: [],
+        title: "Atlas",
+      }))
+    );
+    let reads = 0;
+    mockIPC((command) => {
+      if (command === "read_graph") {
+        reads += 1;
+
+        if (reads === 1) {
+          throw Object.assign(new Error("the disk is busy"), {
+            kind: "failed",
+          });
+        }
+
+        return {
+          mentionsError: null,
+          picture: {
+            graph: {
+              dangling: [],
+              hubs: [],
+              incoming: [
+                {
+                  lines: [{ at: 4, context: "see Atlas", line: 1 }],
+                  note: {
+                    createdAt: 0,
+                    folder: "",
+                    path: "bee.md",
+                    pinned: false,
+                    snippet: null,
+                    tags: [],
+                    title: "Bee",
+                    updatedAt: 0,
+                  },
+                },
+              ],
+              outgoing: [],
+            },
+            kind: "note",
+            note: {
+              createdAt: 0,
+              folder: "",
+              path: "atlas.md",
+              pinned: false,
+              snippet: null,
+              tags: [],
+              title: "Atlas",
+              updatedAt: 0,
+            },
+          },
+        };
+      }
+
+      throw new Error(`unexpected command: ${command}`);
+    });
+    onTestFinished(() => {
+      closeTab(tab);
+      clearMocks();
+    });
+
+    const palette = mount("actions", []);
+
+    await palette.user.click(
+      screen.getByRole("option", { name: "show links to this note..." })
+    );
+
+    expect(await screen.findByText("could not load links")).toBeInTheDocument();
+    expect(screen.getByText("the disk is busy")).toBeInTheDocument();
+
+    await palette.user.click(screen.getByRole("button", { name: "retry" }));
+
+    expect(
+      await screen.findByRole("option", { name: /Bee/u })
+    ).toBeInTheDocument();
+    expect(screen.queryByText("could not load links")).not.toBeInTheDocument();
+  });
+
+  it("should clear the unlinked mention failure on retry and keep the links", async () => {
+    openNote("atlas.md");
+    const tab = getTabState().activeId;
+    registerTabSnapshot(
+      tab,
+      createStore<TabSnapshot>(() => ({
+        pinned: false,
+        reason: undefined,
+        sourceMode: false,
+        status: "saved",
+        tags: [],
+        title: "Atlas",
+      }))
+    );
+    mockIPC((command) => {
+      if (command === "read_graph") {
+        return {
+          mentionsError: null,
+          picture: {
+            graph: {
+              dangling: [],
+              hubs: [],
+              incoming: [
+                {
+                  lines: [{ at: 4, context: "see Atlas", line: 1 }],
+                  note: {
+                    createdAt: 0,
+                    folder: "",
+                    path: "bee.md",
+                    pinned: false,
+                    snippet: null,
+                    tags: [],
+                    title: "Bee",
+                    updatedAt: 0,
+                  },
+                },
+              ],
+              outgoing: [],
+            },
+            kind: "note",
+            note: {
+              createdAt: 0,
+              folder: "",
+              path: "atlas.md",
+              pinned: false,
+              snippet: null,
+              tags: [],
+              title: "Atlas",
+              updatedAt: 0,
+            },
+          },
+        };
+      }
+
+      throw new Error(`unexpected command: ${command}`);
+    });
+    onTestFinished(() => {
+      closeTab(tab);
+      clearMocks();
+    });
+
+    const bee: NoteMeta = {
+      createdAt: new Date(0),
+      folder: "",
+      path: "bee.md",
+      pinned: false,
+      snippet: null,
+      tags: [],
+      title: "Bee",
+      updatedAt: new Date(0),
+    };
+
+    const palette = mount("actions", []);
+    palette.client.setQueryData(
+      noteQueries.graph({ kind: "note", path: "atlas.md" }).queryKey,
+      {
+        mentionsError: { kind: "failed", message: "the disk is busy" },
+        picture: {
+          dangling: [],
+          hubs: [],
+          incoming: [
+            { lines: [{ at: 4, context: "see Atlas", line: 1 }], note: bee },
+          ],
+          kind: "note",
+          note: { ...bee, path: "atlas.md", title: "Atlas" },
+          outgoing: [],
+        },
+      }
+    );
+
+    await palette.user.click(
+      screen.getByRole("option", { name: "show links to this note..." })
+    );
+    await palette.user.click(screen.getByRole("button", { name: "retry" }));
+
+    await waitFor(() => {
+      expect(screen.queryByText("the disk is busy")).not.toBeInTheDocument();
+    });
+    expect(screen.getByRole("option", { name: /Bee/u })).toBeInTheDocument();
+  });
+
+  it("should keep the links and toast the reason when a refresh fails", async () => {
+    render(<Toaster />);
+    openNote("atlas.md");
+    const tab = getTabState().activeId;
+    registerTabSnapshot(
+      tab,
+      createStore<TabSnapshot>(() => ({
+        pinned: false,
+        reason: undefined,
+        sourceMode: false,
+        status: "saved",
+        tags: [],
+        title: "Atlas",
+      }))
+    );
+    let reads = 0;
+    mockIPC((command) => {
+      if (command === "read_graph") {
+        reads += 1;
+
+        throw Object.assign(new Error("the disk is busy"), { kind: "failed" });
+      }
+
+      throw new Error(`unexpected command: ${command}`);
+    });
+    onTestFinished(() => {
+      closeTab(tab);
+      clearMocks();
+    });
+
+    const bee: NoteMeta = {
+      createdAt: new Date(0),
+      folder: "",
+      path: "bee.md",
+      pinned: false,
+      snippet: null,
+      tags: [],
+      title: "Bee",
+      updatedAt: new Date(0),
+    };
+
+    const palette = mount("actions", []);
+    palette.client.setQueryData(
+      noteQueries.graph({ kind: "note", path: "atlas.md" }).queryKey,
+      {
+        mentionsError: null,
+        picture: {
+          dangling: [],
+          hubs: [],
+          incoming: [
+            { lines: [{ at: 4, context: "see Atlas", line: 1 }], note: bee },
+          ],
+          kind: "note",
+          note: { ...bee, path: "atlas.md", title: "Atlas" },
+          outgoing: [],
+        },
+      }
+    );
+
+    await palette.user.click(
+      screen.getByRole("option", { name: "show links to this note..." })
+    );
+    await act(async () => {
+      await palette.client.invalidateQueries({
+        queryKey: noteQueries.graph({ kind: "note", path: "atlas.md" })
+          .queryKey,
+      });
+      // TanStack Query tells its observers on a zero timer, so the failed
+      // refresh reaches the view a tick after the refetch settles.
+      await sleep(0);
+    });
+
+    expect(reads).toBe(1);
+    expect(screen.getByRole("option", { name: /Bee/u })).toBeInTheDocument();
+    expect(screen.queryByText("could not load links")).not.toBeInTheDocument();
+    expect(
+      await screen.findByText("could not refresh the links")
+    ).toBeInTheDocument();
+    expect(screen.getByText("the disk is busy")).toBeInTheDocument();
+  });
+});
+
+describe("edit tags", () => {
+  it("should keep the tags and toast the reason when a refresh fails", async () => {
+    render(<Toaster />);
+    openNote("atlas.md");
+    const tab = getTabState().activeId;
+    registerTabSnapshot(
+      tab,
+      createStore<TabSnapshot>(() => ({
+        pinned: false,
+        reason: undefined,
+        sourceMode: false,
+        status: "saved",
+        tags: [],
+        title: "Atlas",
+      }))
+    );
+    mockIPC((command) => {
+      if (command === "list_tags") {
+        throw Object.assign(new Error("the disk is busy"), { kind: "failed" });
+      }
+
+      throw new Error(`unexpected command: ${command}`);
+    });
+    onTestFinished(() => {
+      closeTab(tab);
+      clearMocks();
+    });
+    const palette = mount("actions", []);
+
+    await palette.user.click(
+      screen.getByRole("option", { name: "edit tags..." })
+    );
+    await act(async () => {
+      await palette.client.invalidateQueries({
+        queryKey: noteQueries.tags().queryKey,
+      });
+      // TanStack Query tells its observers on a zero timer, so the failed
+      // refresh reaches the view a tick after the refetch settles.
+      await sleep(0);
+    });
+
+    expect(screen.getByRole("option", { name: /work/u })).toBeInTheDocument();
+    expect(
+      screen.queryByText("could not load tag suggestions")
+    ).not.toBeInTheDocument();
+    expect(
+      await screen.findByText("could not refresh the tag list")
+    ).toBeInTheDocument();
+    expect(screen.getByText("the disk is busy")).toBeInTheDocument();
   });
 });

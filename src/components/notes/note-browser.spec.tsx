@@ -1,4 +1,4 @@
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryClientProvider } from "@tanstack/react-query";
 import { clearMocks, mockIPC, mockWindows } from "@tauri-apps/api/mocks";
 import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -9,6 +9,7 @@ import { Toaster } from "@/components/ui/toast";
 import { SNIPPET_END, SNIPPET_START } from "@/core/fts-markers";
 import { noteQueries } from "@/data/queries";
 import { Layout } from "@/layout";
+import { createQueryClient } from "@/lib/query-client";
 import { rememberNote } from "@/lib/recent-notes";
 import { closeTab, getTabState, openNote } from "@/lib/tabs/store";
 import { noteFind } from "@/lib/ui/find";
@@ -78,12 +79,7 @@ function mount(
     }
 
     if (
-      [
-        "list_tags",
-        "take_pending_open",
-        "pending_open_files",
-        "find_mentions",
-      ].includes(command)
+      ["list_tags", "take_pending_open", "pending_open_files"].includes(command)
     ) {
       return [];
     }
@@ -95,11 +91,7 @@ function mount(
     throw new Error(`unexpected command: ${command}`);
   });
 
-  const client = new QueryClient({
-    defaultOptions: {
-      queries: { retry: false, staleTime: Number.POSITIVE_INFINITY },
-    },
-  });
+  const client = createQueryClient();
 
   const view = render(
     <QueryClientProvider client={client}>
@@ -854,6 +846,207 @@ describe("note browser", () => {
     ).not.toBeInTheDocument();
     await user.click(browser.getByRole("button", { name: "retry" }));
     expect(await browser.findByText("One")).toBeVisible();
+    expect(browser.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
+  it("should keep the listed notes and toast the reason when a refresh fails", async () => {
+    let failing = false;
+
+    const user = mount(
+      () => {
+        if (failing) {
+          throw Object.assign(new Error("the disk is busy"), {
+            kind: "failed",
+          });
+        }
+
+        return [
+          {
+            createdAt: 0,
+            folder: "",
+            path: "one.md",
+            pinned: false,
+            snippet: "Preview",
+            tags: [],
+            title: "One",
+            updatedAt: 1,
+          },
+        ];
+      },
+      () => []
+    );
+
+    await user.click(
+      await screen.findByRole("button", { name: "browse notes" })
+    );
+
+    const browser = within(
+      await screen.findByRole("complementary", { name: "browse notes" })
+    );
+
+    await browser.findByText("One");
+    failing = true;
+    await act(async () => {
+      await user.client.invalidateQueries({ queryKey: noteQueries.index });
+    });
+
+    expect(
+      await screen.findByText("could not refresh the note list")
+    ).toBeInTheDocument();
+    expect(screen.getAllByText("could not refresh the note list")).toHaveLength(
+      1
+    );
+    expect(screen.getByText("the disk is busy")).toBeInTheDocument();
+    expect(browser.getByText("One")).toBeVisible();
+    expect(browser.queryByText("could not load notes")).not.toBeInTheDocument();
+  });
+
+  it("should read every failed note list again from the toast's retry", async () => {
+    let failing = false;
+    let reads = 0;
+
+    const user = mount(
+      () => {
+        reads += 1;
+
+        if (failing) {
+          throw Object.assign(new Error("the disk is busy"), {
+            kind: "failed",
+          });
+        }
+
+        return [
+          {
+            createdAt: 0,
+            folder: "",
+            path: "one.md",
+            pinned: false,
+            snippet: "Preview",
+            tags: [],
+            title: "One",
+            updatedAt: 1,
+          },
+        ];
+      },
+      () => []
+    );
+
+    await user.click(
+      await screen.findByRole("button", { name: "browse notes" })
+    );
+
+    const browser = within(
+      await screen.findByRole("complementary", { name: "browse notes" })
+    );
+
+    await browser.findByText("One");
+    failing = true;
+    await act(async () => {
+      await user.client.invalidateQueries({ queryKey: noteQueries.index });
+    });
+    await screen.findByText("could not refresh the note list");
+    failing = false;
+    const before = reads;
+
+    await user.click(screen.getByRole("button", { name: "retry" }));
+
+    await waitFor(() => {
+      expect(
+        user.client
+          .getQueryCache()
+          .findAll({ predicate: (query) => query.state.status === "error" })
+      ).toStrictEqual([]);
+    });
+    expect(reads - before).toBe(2);
+    expect(browser.getByText("One")).toBeVisible();
+  });
+
+  it("should keep nothing found for an empty list when a refresh fails", async () => {
+    let failing = false;
+
+    const user = mount(
+      () => {
+        if (failing) {
+          throw Object.assign(new Error("the disk is busy"), {
+            kind: "failed",
+          });
+        }
+
+        return [];
+      },
+      () => []
+    );
+
+    await user.click(
+      await screen.findByRole("button", { name: "browse notes" })
+    );
+
+    const browser = within(
+      await screen.findByRole("complementary", { name: "browse notes" })
+    );
+
+    await browser.findByText("nothing found");
+    failing = true;
+    await act(async () => {
+      await user.client.invalidateQueries({ queryKey: noteQueries.index });
+    });
+
+    expect(
+      await screen.findByText("could not refresh the note list")
+    ).toBeInTheDocument();
+    expect(browser.getByText("nothing found")).toBeInTheDocument();
+    expect(browser.queryByText("could not load notes")).not.toBeInTheDocument();
+  });
+
+  it("should say why the collections could not load and read them again on retry", async () => {
+    let failing = true;
+
+    const user = mount(
+      () => [
+        {
+          createdAt: 0,
+          folder: "work",
+          path: "work/one.md",
+          pinned: false,
+          snippet: null,
+          tags: [],
+          title: "One",
+          updatedAt: 1,
+        },
+      ],
+      () => {
+        if (failing) {
+          throw Object.assign(new Error("the disk is busy"), {
+            kind: "failed",
+          });
+        }
+
+        return ["work"];
+      }
+    );
+
+    await user.click(
+      await screen.findByRole("button", { name: "browse notes" })
+    );
+
+    const browser = within(
+      await screen.findByRole("complementary", { name: "browse notes" })
+    );
+
+    await user.click(
+      browser.getByRole("button", { name: "choose collection: all notes" })
+    );
+
+    expect(await browser.findByRole("alert")).toHaveTextContent(
+      "the disk is busy"
+    );
+
+    failing = false;
+    await user.click(browser.getByRole("button", { name: "retry" }));
+
+    expect(
+      await browser.findByRole("button", { name: /^work 1$/u })
+    ).toBeInTheDocument();
     expect(browser.queryByRole("alert")).not.toBeInTheDocument();
   });
 });

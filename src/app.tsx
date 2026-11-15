@@ -1,42 +1,16 @@
-import {
-  QueryCache,
-  QueryClient,
-  QueryClientProvider,
-} from "@tanstack/react-query";
+import { QueryClientProvider } from "@tanstack/react-query";
 import { useEffect } from "react";
 
 import { CaptureWindow } from "@/components/capture-window";
 import { Toaster, toast } from "@/components/ui/toast";
+import { createQueryClient } from "@/lib/query-client";
 import { reasonOf } from "@/lib/ui/failure";
 import { reportNoteWarnings } from "@/lib/ui/note-warnings";
 import { events } from "@/server/adapters/bindings";
 
 import { Layout } from "./layout";
 
-/**
- * The watcher decides staleness; a failed read surfaces at once. The cache
- * speaks only for a refetch of data already on screen, which would otherwise
- * keep rendering in silence; a first read has a surface of its own. Each
- * query's `meta.what` says whether it speaks, and in what words.
- */
-const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      refetchOnWindowFocus: false,
-      retry: false,
-      staleTime: Number.POSITIVE_INFINITY,
-    },
-  },
-  queryCache: new QueryCache({
-    onError: (error, query) => {
-      const what = query.meta?.what;
-
-      if (what !== undefined && query.state.data !== undefined) {
-        toast.add({ description: reasonOf(error), title: what, type: "error" });
-      }
-    },
-  }),
-});
+const queryClient = createQueryClient();
 
 const isCaptureWindow = new URLSearchParams(globalThis.location.search).has(
   "window"

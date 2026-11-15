@@ -2,13 +2,14 @@ import { useQuery } from "@tanstack/react-query";
 import {
   Code2Icon,
   FileTextIcon,
-  LinkIcon,
+  Link2Icon,
   ListTreeIcon,
   TagIcon,
   WaypointsIcon,
   XIcon,
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import type { ReactNode } from "react";
 
 import { Chord } from "@/components/chord";
 import { NoteLabel } from "@/components/notes/note-label";
@@ -23,6 +24,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { contextFrom } from "@/core/links";
+import type { Mention } from "@/core/links";
 import { noteQueries } from "@/data/queries";
 import { changeNoteMetadata, openNote, useTabSnapshot } from "@/lib/tabs/store";
 import type { Tab } from "@/lib/tabs/tab";
@@ -40,80 +42,148 @@ import { useChordsByName } from "@/lib/ui/shortcuts";
 import { showView, useTabView } from "@/lib/ui/view";
 import type { TabView } from "@/lib/ui/view";
 
-function Mentions({ path }: { path: string }) {
-  const mentions = useQuery(noteQueries.mentions(path));
-  const list = useRef<HTMLUListElement>(null);
+interface DirectionProps {
+  children?: ReactNode;
+  empty: string;
+  heading: string;
+  /** Undefined until the graph is read: the heading shows, the list waits. */
+  rows: Mention[] | undefined;
+}
 
-  // Opened before the mentions arrived, the panel took focus itself; the
+/** One direction of the note's links, under its heading. */
+function Direction({ children, empty, heading, rows }: DirectionProps) {
+  return (
+    <section aria-label={heading} className="flex flex-col">
+      <p className="text-muted-foreground flex h-8 items-center px-2 text-xs tracking-wider uppercase">
+        {heading}
+      </p>
+      {rows?.length === 0 ? (
+        <p className="text-muted-foreground px-2 text-sm">{empty}</p>
+      ) : null}
+      {rows === undefined || rows.length === 0 ? null : (
+        <ul className="flex flex-col">
+          {rows.map(({ lines, note }) => {
+            const [first] = lines;
+
+            return (
+              <li key={note.path}>
+                <button
+                  className="hover:bg-muted dark:hover:bg-muted/50 flex w-full min-w-0 flex-col rounded-md px-2 py-1.5 text-start text-sm transition-colors duration-150 ease-out focus-visible:-outline-offset-2"
+                  onClick={() => {
+                    // Beside the note being read, so that note stays open.
+                    openNote(note.path, true);
+                  }}
+                  type="button"
+                >
+                  <NoteLabel note={note} />
+                  <span className="text-muted-foreground line-clamp-2 text-xs">
+                    {contextFrom(first)}
+                  </span>
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+      {children}
+    </section>
+  );
+}
+
+/**
+ * The notes that link to this one, then the notes it links to: one read of
+ * the note's graph, which the graph view shares.
+ */
+function Links({ path }: { path: string }) {
+  const graph = useQuery({
+    ...noteQueries.graph({ kind: "note", path }),
+    select: ({ mentionsError, picture }) => {
+      if (picture?.kind === "hub") {
+        throw new Error("The host answered a note's graph with a hub");
+      }
+
+      // No picture is a note the index does not hold, which links nowhere.
+      return {
+        incoming: picture?.incoming ?? [],
+        mentionsError,
+        outgoing: picture?.outgoing ?? [],
+      };
+    },
+  });
+
+  const holder = useRef<HTMLDivElement>(null);
+
+  // Opened before the rows arrived, the panel took focus itself; the
   // first row takes it over once there is one.
-  const arrived = mentions.data;
+  const arrived = graph.data;
 
   useEffect(() => {
-    const holder = document.activeElement;
+    const focused = document.activeElement;
 
     if (
       arrived !== undefined &&
-      holder instanceof HTMLElement &&
-      holder.dataset.notePanel !== undefined
+      focused instanceof HTMLElement &&
+      focused.dataset.notePanel !== undefined
     ) {
-      list.current?.querySelector("button")?.focus();
+      holder.current?.querySelector<HTMLElement>("li button")?.focus();
     }
   }, [arrived]);
 
-  // Rows already loaded stay through a failed refresh, which the query
-  // cache reports on its own.
-  if (mentions.data === undefined) {
-    return mentions.isError ? (
-      <div className="px-2 text-sm" role="alert">
-        <p>could not load mentions</p>
-        <p className="text-muted-foreground">{reasonOf(mentions.error)}</p>
-        <Button
-          onClick={() => {
-            void mentions.refetch();
-          }}
-          size="sm"
-          variant="ghost"
-        >
-          retry
-        </Button>
-      </div>
-    ) : (
-      <output className="text-muted-foreground block px-2 text-sm">
-        loading mentions...
-      </output>
-    );
-  }
-
-  if (mentions.data.length === 0) {
-    return (
-      <p className="text-muted-foreground px-2 text-sm">no notes link here</p>
-    );
-  }
+  const mentionsError = graph.data?.mentionsError ?? null;
 
   return (
-    <ul className="flex flex-col" ref={list}>
-      {mentions.data.map(({ lines, note }) => {
-        const [first] = lines;
-
-        return (
-          <li key={note.path}>
-            <button
-              className="hover:bg-muted dark:hover:bg-muted/50 flex w-full min-w-0 flex-col rounded-md px-2 py-1.5 text-start text-sm transition-colors duration-150 ease-out focus-visible:-outline-offset-2"
+    <div className="flex flex-col gap-4" ref={holder}>
+      <Direction
+        empty="no notes link here"
+        heading="to this note"
+        rows={graph.data?.incoming}
+      >
+        {mentionsError === null ? null : (
+          <div className="px-2 text-sm" role="alert">
+            <p>could not look for unlinked mentions</p>
+            <p className="text-muted-foreground">{reasonOf(mentionsError)}</p>
+            <Button
               onClick={() => {
-                // Beside the note being read, so that note stays open.
-                openNote(note.path, true);
+                void graph.refetch();
               }}
-              type="button"
+              size="sm"
+              variant="ghost"
             >
-              <NoteLabel note={note} />
-              <span className="text-muted-foreground line-clamp-2 text-xs">
-                {contextFrom(first)}
-              </span>
-            </button>
-          </li>
-        );
-      })}
-    </ul>
+              retry
+            </Button>
+          </div>
+        )}
+      </Direction>
+      <Direction
+        empty="this note links to no notes"
+        heading="from this note"
+        rows={graph.data?.outgoing}
+      />
+      {graph.isPending ? (
+        // Held back as the code and csv tabs hold theirs, so a read that
+        // lands quickly never flashes the line.
+        <output className="text-muted-foreground animate-in fade-in fill-mode-backwards block px-2 text-sm delay-300">
+          loading links...
+        </output>
+      ) : null}
+      {/* Rows already loaded stay through a failed refresh, which the query
+          cache reports on its own. */}
+      {graph.isLoadingError ? (
+        <div className="px-2 text-sm" role="alert">
+          <p>could not load links</p>
+          <p className="text-muted-foreground">{reasonOf(graph.error)}</p>
+          <Button
+            onClick={() => {
+              void graph.refetch();
+            }}
+            size="sm"
+            variant="ghost"
+          >
+            retry
+          </Button>
+        </div>
+      ) : null}
+    </div>
   );
 }
 
@@ -194,7 +264,7 @@ function Tags({ id, path }: { id: string; path: string }) {
         placeholder="add a tag..."
         value={draft}
       />
-      {vocabulary.isError && vocabulary.data === undefined ? (
+      {vocabulary.isLoadingError ? (
         <div className="text-sm" role="alert">
           <p>could not load tag suggestions</p>
           <p className="text-muted-foreground">{reasonOf(vocabulary.error)}</p>
@@ -236,7 +306,7 @@ function Tags({ id, path }: { id: string; path: string }) {
 }
 
 interface PanelToggleProps {
-  Icon: typeof LinkIcon;
+  Icon: typeof Link2Icon;
   /** Also the name its chord registers under, so the tooltip reads the binding. */
   label: string;
   value: NotePanelTab | TabView;
@@ -265,16 +335,16 @@ function PanelToggle({ Icon, label, value }: PanelToggleProps) {
 }
 
 const TOGGLES: {
-  Icon: typeof LinkIcon;
+  Icon: typeof Link2Icon;
   label: string;
   tab: NotePanelTab;
 }[] = [
   { Icon: ListTreeIcon, label: "outline", tab: "outline" },
-  { Icon: LinkIcon, label: "mentions", tab: "mentions" },
+  { Icon: Link2Icon, label: "links", tab: "links" },
   { Icon: TagIcon, label: "tags", tab: "tags" },
 ];
 
-/** What a tab can show: only a library note has mentions and tags. */
+/** What a tab can show: only a library note has links and tags. */
 function shownTab(tab: Tab | undefined, wanted: NotePanelTab) {
   return tab?.kind === "note" ? wanted : "outline";
 }
@@ -346,7 +416,7 @@ function focusPanel(panel: HTMLElement, content: HTMLElement) {
   (first ?? panel).focus();
 }
 
-/** The left card: whichever of the outline, mentions and tags its toggles picked. */
+/** The left card: whichever of the outline, links and tags its toggles picked. */
 export function NotePanel({ tab }: { tab: Tab | undefined }) {
   const panel = useNotePanel();
   const showing = shownTab(tab, panel.tab);
@@ -398,8 +468,8 @@ export function NotePanel({ tab }: { tab: Tab | undefined }) {
               no outline for this file
             </p>
           )}
-          {showing === "mentions" && tab?.kind === "note" ? (
-            <Mentions path={tab.path} />
+          {showing === "links" && tab?.kind === "note" ? (
+            <Links path={tab.path} />
           ) : null}
           {showing === "tags" && tab?.kind === "note" ? (
             <Tags id={tab.id} path={tab.path} />

@@ -174,15 +174,20 @@ describe("queries", () => {
           };
         }
 
+        if (command === "read_graph") {
+          return { mentionsError: null, picture: null };
+        }
+
         return command === "read_conflict" ? null : [];
       });
       await client.query(tabOpeningQuery("tab-1", "note", "atlas.md"));
-      await client.query(noteQueries.mentions("atlas.md"));
+      await client.query(noteQueries.graph({ kind: "note", path: "atlas.md" }));
       await client.query(noteQueries.tags());
       await client.invalidateQueries({ queryKey: noteQueries.index });
       expect(
-        client.getQueryState(noteQueries.mentions("atlas.md").queryKey)
-          ?.isInvalidated
+        client.getQueryState(
+          noteQueries.graph({ kind: "note", path: "atlas.md" }).queryKey
+        )?.isInvalidated
       ).toBeTruthy();
       expect(
         client.getQueryState(noteQueries.tags().queryKey)?.isInvalidated

@@ -9,10 +9,12 @@ import { createElement } from "react";
 import { describe, expect, it, onTestFinished, vi } from "vitest";
 
 import { Command, CommandList } from "@/components/ui/command";
+import { Toaster } from "@/components/ui/toast";
 import type { NoteMeta } from "@/core/notes";
 import { parseSearch } from "@/core/search";
 import { indexStatusQuery } from "@/data/index-status";
 import { noteQueries } from "@/data/queries";
+import { createQueryClient } from "@/lib/query-client";
 
 import { PaletteSearch } from "./palette-search";
 
@@ -32,17 +34,22 @@ function mount(query: string, error?: Error) {
 
   client.setQueryData(noteQueries.tags().queryKey, []);
   const options = noteQueries.search(parseSearch(query));
-  client.setQueryData(options.queryKey, []);
 
-  if (error) {
-    client
-      .getQueryCache()
-      .find({ queryKey: options.queryKey })
-      ?.setState({ error, status: "error" });
+  if (error === undefined) {
+    client.setQueryData(options.queryKey, []);
+  } else {
+    mockIPC((command) => {
+      if (command === "search_notes") {
+        throw Object.assign(error, { kind: "failed" });
+      }
+
+      throw new Error(`unexpected command: ${command}`);
+    });
   }
 
   onTestFinished(() => {
     client.clear();
+    clearMocks();
   });
 
   const search = (value: string) =>
@@ -394,23 +401,20 @@ describe("palette search states", () => {
     expect(host.textContent).not.toContain("create");
   });
 
-  it("should show the read failure reason without offering creation", () => {
+  it("should show the read failure reason without offering creation", async () => {
     const { host } = mount("folder:work", new Error("index unavailable"));
-    expect(host.textContent).toContain("could not search notes");
+    await waitFor(() => {
+      expect(host.textContent).toContain("could not search notes");
+    });
     expect(host.textContent).toContain("index unavailable");
     expect(host.textContent).not.toContain("create");
   });
 });
 
 describe("palette search", () => {
-  it("should keep cached notes usable beside a failed refresh and retry the search", async () => {
+  it("should keep cached notes usable and toast once when a refresh fails", async () => {
     const user = userEvent.setup();
-
-    const client = new QueryClient({
-      defaultOptions: {
-        queries: { retry: false, staleTime: Number.POSITIVE_INFINITY },
-      },
-    });
+    const client = createQueryClient();
 
     const options = noteQueries.search(parseSearch("budget"));
     client.setQueryData(options.queryKey, [
@@ -426,19 +430,12 @@ describe("palette search", () => {
       },
     ]);
     client.setQueryData(indexStatusQuery.queryKey, { state: "ready" });
-    let attempts = 0;
     mockIPC((command) => {
       if (command !== "search_notes") {
         throw new Error(`unexpected command: ${command}`);
       }
 
-      attempts += 1;
-
-      if (attempts === 1) {
-        throw Object.assign(new Error("index unavailable"), { kind: "failed" });
-      }
-
-      return [];
+      throw Object.assign(new Error("index unavailable"), { kind: "failed" });
     });
     onTestFinished(() => {
       clearMocks();
@@ -458,15 +455,15 @@ describe("palette search", () => {
             />
           </CommandList>
         </Command>
+        <Toaster />
       </QueryClientProvider>
     );
     await act(async () => {
       await client.invalidateQueries({ queryKey: options.queryKey });
     });
-    await waitFor(() => {
-      expect(screen.getByText("could not search notes")).toBeInTheDocument();
-    });
-    expect(screen.getByText("index unavailable")).toBeInTheDocument();
+
+    expect(await screen.findByText("index unavailable")).toBeInTheDocument();
+    expect(screen.getAllByText("could not search notes")).toHaveLength(1);
     const row = screen.getByRole("option", { name: "Budget" });
     expect(row).toHaveAttribute("aria-disabled", "false");
     expect(
@@ -476,19 +473,6 @@ describe("palette search", () => {
     expect(select).toHaveBeenCalledExactlyOnceWith(
       expect.objectContaining({ path: "budget.md" })
     );
-    await user.click(screen.getByRole("button", { name: "retry" }));
-    await waitFor(() => {
-      expect(
-        screen.getByRole("option", { name: /create/u })
-      ).toBeInTheDocument();
-    });
-    expect(
-      screen.queryByText("could not search notes")
-    ).not.toBeInTheDocument();
-    expect(
-      screen.queryByRole("option", { name: "Budget" })
-    ).not.toBeInTheDocument();
-    expect(attempts).toBe(2);
   });
 
   it("should start an initial filtered search without unrelated recent rows", () => {

@@ -47,7 +47,7 @@ describe("workspace", () => {
         return [];
       }
 
-      if (command === "take_pending_open" || command === "find_mentions") {
+      if (command === "take_pending_open") {
         return [];
       }
 
@@ -103,7 +103,7 @@ describe("workspace", () => {
         return [];
       }
 
-      if (command === "take_pending_open" || command === "find_mentions") {
+      if (command === "take_pending_open") {
         return [];
       }
 
@@ -230,7 +230,7 @@ describe("workspace", () => {
           return [["Lima", "first"]];
         }
 
-        if (command === "take_pending_open" || command === "find_mentions") {
+        if (command === "take_pending_open") {
           return [];
         }
 
@@ -321,7 +321,7 @@ describe("workspace", () => {
         return await tags.promise;
       }
 
-      if (command === "take_pending_open" || command === "find_mentions") {
+      if (command === "take_pending_open") {
         return [];
       }
 
@@ -439,7 +439,7 @@ describe("workspace", () => {
         };
       }
 
-      if (command === "take_pending_open" || command === "find_mentions") {
+      if (command === "take_pending_open") {
         return [];
       }
 
@@ -549,7 +549,7 @@ describe("workspace", () => {
         };
       }
 
-      if (command === "take_pending_open" || command === "find_mentions") {
+      if (command === "take_pending_open") {
         return [];
       }
 
@@ -652,7 +652,7 @@ describe("workspace", () => {
         };
       }
 
-      if (command === "take_pending_open" || command === "find_mentions") {
+      if (command === "take_pending_open") {
         return [];
       }
 
@@ -710,7 +710,7 @@ describe("workspace", () => {
     expect(showingTab()).toHaveAccessibleDescription("note");
   });
 
-  it("should switch the note panel between mentions and the outline by chord", async () => {
+  it("should switch the note panel between links and the outline by chord", async () => {
     localStorage.setItem(
       "tabs",
       JSON.stringify({
@@ -749,8 +749,12 @@ describe("workspace", () => {
         };
       }
 
-      if (command === "take_pending_open" || command === "find_mentions") {
+      if (command === "take_pending_open") {
         return [];
+      }
+
+      if (command === "read_graph") {
+        return { mentionsError: null, picture: null };
       }
 
       if (command.startsWith("plugin:")) {
@@ -787,7 +791,7 @@ describe("workspace", () => {
     await screen.findByText("body");
     await user.keyboard("{Control>}{Shift>}l{/Shift}{/Control}");
     expect(
-      await screen.findByRole("complementary", { name: "note panel: mentions" })
+      await screen.findByRole("complementary", { name: "note panel: links" })
     ).toBeInTheDocument();
     expect(await screen.findByText("no notes link here")).toBeInTheDocument();
 
@@ -857,7 +861,7 @@ describe("workspace", () => {
         };
       }
 
-      if (command === "take_pending_open" || command === "find_mentions") {
+      if (command === "take_pending_open") {
         return [];
       }
 
@@ -979,7 +983,7 @@ describe("workspace", () => {
         };
       }
 
-      if (command === "take_pending_open" || command === "find_mentions") {
+      if (command === "take_pending_open") {
         return [];
       }
 
@@ -1083,7 +1087,7 @@ describe("workspace", () => {
               };
         }
 
-        if (command === "take_pending_open" || command === "find_mentions") {
+        if (command === "take_pending_open") {
           return [];
         }
 
@@ -1213,9 +1217,7 @@ describe("workspace", () => {
           throw new Error(`unexpected path: ${String(args.path)}`);
         }
 
-        if (
-          ["list_tags", "take_pending_open", "find_mentions"].includes(command)
-        ) {
+        if (["list_tags", "take_pending_open"].includes(command)) {
           return [];
         }
 

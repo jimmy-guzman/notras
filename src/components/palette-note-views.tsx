@@ -118,8 +118,7 @@ export function MoveView({
     // Only a query with nothing to show can fail the view; a stale error
     // beside cached data waits for the other query instead.
     const failure =
-      [notes, known].find((read) => read.data === undefined && read.isError)
-        ?.error ?? null;
+      [notes, known].find((read) => read.isLoadingError)?.error ?? null;
 
     return (
       <output className="block p-4 text-sm">
@@ -285,7 +284,7 @@ export function TagsView({
           loading tag suggestions...
         </output>
       ) : null}
-      {vocabulary.isError ? (
+      {vocabulary.isLoadingError ? (
         <output className="block p-4 text-sm">
           <span className="block">could not load tag suggestions</span>
           <span className="block">{reasonOf(vocabulary.error)}</span>
@@ -335,7 +334,7 @@ export function TagsView({
   );
 }
 
-interface MentionsViewProps {
+interface LinksToViewProps {
   onOpen: (path: string) => void;
   path: string;
   query: string;
@@ -343,36 +342,44 @@ interface MentionsViewProps {
 }
 
 /** The notes that link to this one; choosing one opens it. */
-export function MentionsView({
-  onOpen,
-  path,
-  query,
-  title,
-}: MentionsViewProps) {
-  const mentions = useQuery(noteQueries.mentions(path));
+export function LinksToView({ onOpen, path, query, title }: LinksToViewProps) {
+  const graph = useQuery({
+    ...noteQueries.graph({ kind: "note", path }),
+    select: ({ mentionsError, picture }) => {
+      if (picture?.kind === "hub") {
+        throw new Error("The host answered a note's graph with a hub");
+      }
+
+      // No picture is a note the index does not hold, which nothing links to.
+      return { incoming: picture?.incoming ?? [], mentionsError };
+    },
+  });
+
   const needle = query.trim().toLowerCase();
 
-  const shown = (mentions.data ?? []).filter(
+  const shown = (graph.data?.incoming ?? []).filter(
     ({ lines, note }) =>
       note.title.toLowerCase().includes(needle) ||
       lines.some((line) => line.context.toLowerCase().includes(needle))
   );
 
   const retry = async () => {
-    await mentions.refetch();
+    await graph.refetch();
   };
 
   return (
     <>
-      {mentions.isPending ? (
+      {graph.isPending ? (
         <output className="text-muted-foreground block p-4 text-sm">
-          loading mentions...
+          loading links...
         </output>
       ) : null}
-      {mentions.isError ? (
+      {/* Rows already loaded stay through a failed refresh, which the query
+          cache reports on its own. */}
+      {graph.isLoadingError ? (
         <output className="block p-4 text-sm">
-          <span className="block">could not load mentions</span>
-          <span className="block">{reasonOf(mentions.error)}</span>
+          <span className="block">could not load links</span>
+          <span className="block">{reasonOf(graph.error)}</span>
           <Button
             onClick={() => {
               void retry();
@@ -384,15 +391,30 @@ export function MentionsView({
           </Button>
         </output>
       ) : null}
-      {mentions.data?.length === 0 ? (
+      {graph.data?.incoming.length === 0 ? (
         <p className="text-muted-foreground p-4 text-sm">no notes link here</p>
       ) : null}
-      {mentions.data !== undefined &&
-      mentions.data.length > 0 &&
+      {graph.data !== undefined &&
+      graph.data.incoming.length > 0 &&
       shown.length === 0 ? (
-        <p className="text-muted-foreground p-4 text-sm">no mentions match</p>
+        <p className="text-muted-foreground p-4 text-sm">no links match</p>
       ) : null}
-      <CommandGroup heading={`mentions of "${title}"`} variant="title">
+      {graph.data === undefined || graph.data.mentionsError === null ? null : (
+        <output className="block p-4 text-sm">
+          <span className="block">could not look for unlinked mentions</span>
+          <span className="block">{reasonOf(graph.data.mentionsError)}</span>
+          <Button
+            onClick={() => {
+              void retry();
+            }}
+            size="sm"
+            variant="ghost"
+          >
+            retry
+          </Button>
+        </output>
+      )}
+      <CommandGroup heading={`links to "${title}"`} variant="title">
         {shown.map(({ lines, note }) => {
           const [first] = lines;
 
