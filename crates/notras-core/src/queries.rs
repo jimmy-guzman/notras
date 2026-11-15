@@ -41,6 +41,7 @@ impl Library {
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct NoteMeta {
+    #[cfg_attr(feature = "bindings", specta(type = crate::UnixMillis))]
     pub created_at: i64,
     pub folder: String,
     pub path: String,
@@ -48,6 +49,7 @@ pub struct NoteMeta {
     pub snippet: Option<String>,
     pub tags: Vec<String>,
     pub title: String,
+    #[cfg_attr(feature = "bindings", specta(type = crate::UnixMillis))]
     pub updated_at: i64,
 }
 

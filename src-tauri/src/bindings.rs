@@ -1,9 +1,10 @@
 use serde::{Deserialize, Serialize};
+use specta_typescript::semantic::{Configuration, Transform};
 use tauri::Runtime;
 
 use crate::state::Ending;
 use crate::{clipboard, notes, pdf, windows};
-use notras_core::MutationWarning;
+use notras_core::{MutationWarning, UnixMillis};
 
 /// Every window flushes its unsaved buffers and answers `quit_app`, or calls
 /// the quit off with `cancel_quit`.
@@ -43,13 +44,13 @@ pub enum IndexStatus {
 pub fn builder<R: Runtime>() -> tauri_specta::Builder<R> {
     tauri_specta::Builder::new()
         .error_handling(tauri_specta::ErrorHandlingMode::Throw)
+        .semantic_types(Configuration::empty().define::<UnixMillis>(
+            |_| specta_typescript::define("Date").into(),
+            Some(Transform::new(|value| format!("{value}.getTime()"))),
+            Some(Transform::new(|value| format!("new Date({value})"))),
+        ))
         // Exported integers are line numbers, counts and millisecond
         // timestamps, all far below 2^53.
-        // TODO: map timestamps to `Date` through `semantic_types` and drop the
-        // `new Date(...)` conversions in `src/data`, once specta-typescript's
-        // runtime transforms reach values inside enums. As of 0.0.12 they skip
-        // enums while still typing their fields as `Date`, so `SaveOutcome`
-        // and `Picture` would carry numbers typed as dates.
         .dangerously_cast_bigints_to_number()
         // Specta collects metadata in a nested function, which needs a concrete
         // runtime. Tauri infers the actual handler runtime independently.

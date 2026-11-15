@@ -4,7 +4,8 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { FileError } from "@/core/errors";
 
 import { createNote } from "./create-note";
-import { writeExternalNote } from "./external-note";
+import { readExternalNote, writeExternalNote } from "./external-note";
+import { moveNote } from "./move-note";
 import { nativeCommand } from "./native-command";
 import { saveNote } from "./save-note";
 
@@ -12,6 +13,56 @@ describe("native command", () => {
   afterEach(clearMocks);
 
   describe("native command boundary", () => {
+    it("should return an external file with its modification date", async () => {
+      mockIPC((command, args) => {
+        expect(command).toBe("read_external");
+        expect(args).toStrictEqual({ path: "/outside/a.md" });
+
+        return { content: "# external", revision: "r1", updatedAt: 0 };
+      });
+
+      await expect(readExternalNote("/outside/a.md")).resolves.toStrictEqual({
+        content: "# external",
+        revision: "r1",
+        updatedAt: new Date(0),
+      });
+    });
+
+    it("should return a moved file with its date and publication warnings", async () => {
+      mockIPC((command, args) => {
+        expect(command).toBe("move_note");
+        expect(args).toStrictEqual({ folder: "work", path: "a.md" });
+
+        return {
+          file: { content: "# moved", revision: "r2", updatedAt: 1234 },
+          path: "work/a.md",
+          remainingSource: null,
+          title: null,
+          warnings: [
+            {
+              kind: "index",
+              message: "The index is unavailable",
+              path: "work/a.md",
+            },
+          ],
+        };
+      });
+
+      await expect(moveNote("a.md", "work")).resolves.toStrictEqual({
+        file: { content: "# moved", revision: "r2", updatedAt: new Date(1234) },
+        path: "work/a.md",
+        remainingSource: null,
+        title: null,
+        warnings: [
+          {
+            kind: "index",
+            message: "The index is unavailable",
+            path: "work/a.md",
+          },
+        ],
+      });
+    });
+
     it("should send a title to native creation and return its chosen path", async () => {
       mockIPC((command, args) => {
         expect(command).toBe("create_note");
@@ -109,6 +160,33 @@ describe("native command", () => {
       });
       await expect(
         saveNote("a.md", "# mine", null, "stale")
+      ).resolves.toStrictEqual({
+        file: {
+          content: "# on disk",
+          revision: "r9",
+          updatedAt: new Date(1234),
+        },
+        kind: "conflict",
+      });
+    });
+
+    it("should return the file on disk with a date when an external save is refused", async () => {
+      mockIPC((command, args) => {
+        expect(command).toBe("write_external");
+        expect(args).toStrictEqual({
+          content: "# mine",
+          expected: "stale",
+          name: null,
+          path: "/outside/a.md",
+        });
+
+        return {
+          file: { content: "# on disk", revision: "r9", updatedAt: 1234 },
+          kind: "conflict",
+        };
+      });
+      await expect(
+        writeExternalNote("/outside/a.md", "# mine", null, "stale")
       ).resolves.toStrictEqual({
         file: {
           content: "# on disk",

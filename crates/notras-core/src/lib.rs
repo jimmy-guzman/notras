@@ -15,6 +15,8 @@ mod queries;
 mod relationships;
 mod relative_path;
 mod scan;
+#[cfg(feature = "bindings")]
+mod timestamp;
 
 use std::cell::Cell;
 use std::fs;
@@ -37,6 +39,8 @@ pub use queries::{
 };
 pub use relationships::{Graph, Hub, HubPill, Mention, MentionLine, RingMember};
 pub use scan::Scan;
+#[cfg(feature = "bindings")]
+pub use timestamp::UnixMillis;
 
 pub(crate) fn index_key(notes_dir: &Path) -> String {
     note_file::sha256_hex(notes_dir.as_os_str().as_encoded_bytes())

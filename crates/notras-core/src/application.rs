@@ -137,6 +137,7 @@ impl From<&str> for CommandError {
 pub struct NoteFile {
     pub content: String,
     pub revision: String,
+    #[cfg_attr(feature = "bindings", specta(type = crate::UnixMillis))]
     pub updated_at: i64,
 }
 
@@ -279,6 +280,7 @@ pub enum MutationWarning {
 pub struct MutationReceipt {
     pub path: String,
     pub revision: String,
+    #[cfg_attr(feature = "bindings", specta(type = crate::UnixMillis))]
     pub updated_at: i64,
     pub warnings: Vec<MutationWarning>,
 }

@@ -14,16 +14,9 @@ export async function readConflictStash(
   kind: OpenKind,
   path: string
 ): Promise<ConflictStash | null> {
-  const stash = await nativeCommand(
+  return await nativeCommand(
     async () => await commands.readConflict(kind, path)
   );
-
-  return stash === null
-    ? null
-    : {
-        base: { ...stash.base, updatedAt: new Date(stash.base.updatedAt) },
-        ours: stash.ours,
-      };
 }
 
 /** Store a review so it survives closing the tab and the app. */
@@ -33,11 +26,7 @@ export async function stashConflict(
   stash: ConflictStash
 ): Promise<void> {
   await nativeCommand(
-    async () =>
-      await commands.stashConflict(kind, path, {
-        base: { ...stash.base, updatedAt: stash.base.updatedAt.getTime() },
-        ours: stash.ours,
-      })
+    async () => await commands.stashConflict(kind, path, stash)
   );
 }
 

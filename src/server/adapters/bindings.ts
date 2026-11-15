@@ -6,14 +6,7 @@ import * as __TAURI_EVENT from "@tauri-apps/api/event";
 /** Commands */
 export const commands = {
 	/**  Read where the pasted text came from, only while the native clipboard still matches it. */
-	readClipboardSource: (text: string) => __TAURI_INVOKE<
-/**  A code editor, with the language it named. */
-{ kind: "code"; language: string | null } | 
-/**
- *  A native rich-text app, such as Terminal, whose plain text flattens its
- *  formatting rather than writing markdown.
- */
-{ kind: "richText" } | null>("read_clipboard_source", { text }),
+	readClipboardSource: (text: string) => __TAURI_INVOKE<ClipboardSource_Serialize | null>("read_clipboard_source", { text }),
 	/**  The clipboard's plain text, if it holds any. */
 	readClipboardText: () => __TAURI_INVOKE<string | null>("read_clipboard_text"),
 	attachFile: (source: string) => __TAURI_INVOKE<string>("attach_file", { source }),
@@ -26,48 +19,35 @@ export const commands = {
 	classifyOpenPaths: (paths: string[]) => __TAURI_INVOKE<PendingOpen[]>("classify_open_paths", { paths }),
 	clearConflict: (kind: OpenKind, path: string) => __TAURI_INVOKE<null>("clear_conflict", { kind, path }),
 	deleteNote: (path: string) => __TAURI_INVOKE<DeleteReceipt>("delete_note", { path }),
-	findMentions: (path: string) => __TAURI_INVOKE<Mention[]>("find_mentions", { path }),
+	findMentions: (path: string) => __TAURI_INVOKE<Mention_Serialize[]>("find_mentions", { path }).then((v) => (v.map(i=>({...i,note:({...i.note,createdAt:new Date(i.note.createdAt),updatedAt:new Date(i.note.updatedAt)})})) as typeof v)),
 	getNotesDir: () => __TAURI_INVOKE<string>("get_notes_dir"),
 	indexStatus: () => __TAURI_INVOKE<IndexStatus>("index_status"),
 	listFolders: () => __TAURI_INVOKE<string[]>("list_folders"),
 	listImages: () => __TAURI_INVOKE<ImageList>("list_images"),
-	listNotes: (filters: NoteFilters) => __TAURI_INVOKE<NoteMeta[]>("list_notes", { filters }),
+	listNotes: (filters: NoteFilters_Deserialize) => __TAURI_INVOKE<NoteMeta_Serialize[]>("list_notes", { filters }).then((v) => (v.map(i=>({...i,createdAt:new Date(i.createdAt),updatedAt:new Date(i.updatedAt)})) as typeof v)),
 	listTags: () => __TAURI_INVOKE<CountedTag[]>("list_tags"),
-	readGraph: (target: GraphTarget) => __TAURI_INVOKE<GraphResult>("read_graph", { target }),
-	searchNotes: (search: NoteSearch) => __TAURI_INVOKE<NoteMeta[]>("search_notes", { search }),
+	readGraph: (target: GraphTarget) => __TAURI_INVOKE<GraphResult_Serialize>("read_graph", { target }).then((v) => (({...v,picture:v.picture==null?v.picture:v.picture!=null&&v.picture.kind==="note"?({...v.picture,note:({...v.picture.note,createdAt:new Date(v.picture.note.createdAt),updatedAt:new Date(v.picture.note.updatedAt)}),graph:({...v.picture.graph,incoming:v.picture.graph.incoming.map(i=>({...i,note:({...i.note,createdAt:new Date(i.note.createdAt),updatedAt:new Date(i.note.updatedAt)})})),outgoing:v.picture.graph.outgoing.map(i=>({...i,note:({...i.note,createdAt:new Date(i.note.createdAt),updatedAt:new Date(i.note.updatedAt)})}))})}):v.picture!=null&&v.picture.kind==="hub"?({...v.picture,members:v.picture.members.map(i=>i!=null&&i.kind==="note"?({...i,note:({...i.note,createdAt:new Date(i.note.createdAt),updatedAt:new Date(i.note.updatedAt)})}):i)}):v.picture}) as typeof v)),
+	searchNotes: (search: NoteSearch) => __TAURI_INVOKE<NoteMeta_Serialize[]>("search_notes", { search }).then((v) => (v.map(i=>({...i,createdAt:new Date(i.createdAt),updatedAt:new Date(i.updatedAt)})) as typeof v)),
 	pendingOpenFiles: () => __TAURI_INVOKE<PendingOpen[]>("pending_open_files"),
 	/**
 	 *  Answer the quit handshake: this window has flushed its pending writes. The
 	 *  app exits, or restarts, once every window has.
 	 */
 	quitApp: () => __TAURI_INVOKE<void>("quit_app"),
-	readConflict: (kind: OpenKind, path: string) => __TAURI_INVOKE<{
-	base: NoteFile,
-	ours: string,
-} | null>("read_conflict", { kind, path }),
-	readCodeIfMoved: (path: string, known: string | null) => __TAURI_INVOKE<{
-	text: string,
-	revision: string,
-} | null>("read_code_if_moved", { path, known }),
-	readCsvIfMoved: (path: string, known: string | null) => __TAURI_INVOKE<{
-	header: string[],
-	rows: number,
-	probe: string[][],
-	pages: number[],
-	page: number,
-	revision: string,
-} | null>("read_csv_if_moved", { path, known }),
+	readConflict: (kind: OpenKind, path: string) => __TAURI_INVOKE<ConflictStash | null>("read_conflict", { kind, path }).then((v) => (v==null?v:({...v,base:({...v.base,updatedAt:new Date(v.base.updatedAt)})}) as typeof v)),
+	readCodeIfMoved: (path: string, known: string | null) => __TAURI_INVOKE<CodeFile | null>("read_code_if_moved", { path, known }),
+	readCsvIfMoved: (path: string, known: string | null) => __TAURI_INVOKE<CsvFile | null>("read_csv_if_moved", { path, known }),
 	readCsvRows: (path: string, revision: string, start: number) => __TAURI_INVOKE<string[][]>("read_csv_rows", { path, revision, start }),
-	readExternal: (path: string) => __TAURI_INVOKE<NoteFile>("read_external", { path }),
-	readNote: (path: string) => __TAURI_INVOKE<NoteFile>("read_note", { path }),
+	readExternal: (path: string) => __TAURI_INVOKE<NoteFile>("read_external", { path }).then((v) => (({...v,updatedAt:new Date(v.updatedAt)}) as typeof v)),
+	readNote: (path: string) => __TAURI_INVOKE<NoteFile>("read_note", { path }).then((v) => (({...v,updatedAt:new Date(v.updatedAt)}) as typeof v)),
 	reindexAll: () => __TAURI_INVOKE<string[]>("reindex_all"),
 	/**
 	 *  Restart into an installed update once every window has flushed its pending
 	 *  writes, through the same handshake as a quit.
 	 */
 	restartApp: () => __TAURI_INVOKE<void>("restart_app"),
-	createNote: (options: CreateNote) => __TAURI_INVOKE<MutationReceipt>("create_note", { options }),
-	moveNote: (path: string, folder: string) => __TAURI_INVOKE<PathMutationReceipt>("move_note", { path, folder }),
+	createNote: (options: CreateNote_Deserialize) => __TAURI_INVOKE<MutationReceipt>("create_note", { options }).then((v) => (({...v,updatedAt:new Date(v.updatedAt)}) as typeof v)),
+	moveNote: (path: string, folder: string) => __TAURI_INVOKE<PathMutationReceipt_Serialize>("move_note", { path, folder }).then((v) => (({...v,file:({...v.file,updatedAt:new Date(v.file.updatedAt)})}) as typeof v)),
 	openCode: (path: string) => __TAURI_INVOKE<null>("open_code", { path }),
 	openCsv: (path: string) => __TAURI_INVOKE<null>("open_csv", { path }),
 	openExternalFile: (document: string, destination: string) => __TAURI_INVOKE<null>("open_external_file", { document, destination }),
@@ -79,9 +59,9 @@ export const commands = {
 	 */
 	resolveLinkedFile: (path: string) => __TAURI_INVOKE<LinkTarget>("resolve_linked_file", { path }),
 	setNotesDir: (path: string) => __TAURI_INVOKE<null>("set_notes_dir", { path }),
-	stashConflict: (kind: OpenKind, path: string, stash: ConflictStash) => __TAURI_INVOKE<null>("stash_conflict", { kind, path, stash }),
-	writeExternal: (path: string, content: string, name: { kind: "content" } | { kind: "filename"; value: string } | null, expected: string) => __TAURI_INVOKE<SaveOutcome>("write_external", { path, content, name, expected }),
-	saveNote: (path: string, content: string, name: { kind: "content" } | { kind: "filename"; value: string } | null, expected: string) => __TAURI_INVOKE<SaveOutcome>("save_note", { path, content, name, expected }),
+	stashConflict: (kind: OpenKind, path: string, stash: ConflictStash) => __TAURI_INVOKE<null>("stash_conflict", { kind, path, stash: ({...stash,base:({...stash.base,updatedAt:stash.base.updatedAt.getTime()})}) }),
+	writeExternal: (path: string, content: string, name: SaveName | null, expected: string) => __TAURI_INVOKE<SaveOutcome>("write_external", { path, content, name, expected }).then((v) => (v!=null&&v.kind==="committed"?({...v,receipt:({...v.receipt,updatedAt:new Date(v.receipt.updatedAt)})}):v!=null&&v.kind==="conflict"?({...v,file:({...v.file,updatedAt:new Date(v.file.updatedAt)})}):v as typeof v)),
+	saveNote: (path: string, content: string, name: SaveName | null, expected: string) => __TAURI_INVOKE<SaveOutcome>("save_note", { path, content, name, expected }).then((v) => (v!=null&&v.kind==="committed"?({...v,receipt:({...v.receipt,updatedAt:new Date(v.receipt.updatedAt)})}):v!=null&&v.kind==="conflict"?({...v,file:({...v.file,updatedAt:new Date(v.file.updatedAt)})}):v as typeof v)),
 	/**  Write the webview's current document to `path` as a paginated PDF. */
 	exportPdf: (path: string, title: string) => __TAURI_INVOKE<null>("export_pdf", { path, title }),
 	/**
@@ -91,10 +71,7 @@ export const commands = {
 	 */
 	pdfLayoutWidth: () => __TAURI_INVOKE<number | null>("pdf_layout_width"),
 	/**  Bring up the main window, and open the jot there when one was saved. */
-	continueJot: (jot: {
-	caret: number,
-	path: string,
-} | null) => __TAURI_INVOKE<null>("continue_jot", { jot }),
+	continueJot: (jot: JotContinued | null) => __TAURI_INVOKE<null>("continue_jot", { jot }),
 	getAppearance: () => __TAURI_INVOKE<Appearance>("get_appearance"),
 	/**
 	 *  Save the appearance, then paint it. A choice the next launch would forget
@@ -109,11 +86,11 @@ export const commands = {
 
 /** Events */
 export const events = {
-	appQuit: makeEvent<AppQuit>("app-quit"),
-	indexStatus: makeEvent<IndexStatus>("index-status"),
-	jotContinued: makeEvent<JotContinued>("jot-continued"),
-	mutationWarnings: makeEvent<MutationWarnings>("mutation-warnings"),
-	notesChanged: makeEvent<NotesChanged>("notes-changed"),
+	appQuit: makeEvent<AppQuit, AppQuit>("app-quit"),
+	indexStatus: makeEvent<IndexStatus, IndexStatus>("index-status"),
+	jotContinued: makeEvent<JotContinued, JotContinued>("jot-continued"),
+	mutationWarnings: makeEvent<MutationWarnings, MutationWarnings>("mutation-warnings"),
+	notesChanged: makeEvent<NotesChanged, NotesChanged>("notes-changed"),
 };
 
 /* Types */
@@ -129,7 +106,20 @@ export type AppQuit = {
 export type Appearance = "auto" | "light" | "dark";
 
 /**  Where the pasted text came from, as far as the native clipboard says. */
-export type ClipboardSource = 
+export type ClipboardSource = ClipboardSource_Serialize | ClipboardSource_Deserialize;
+
+/**  Where the pasted text came from, as far as the native clipboard says. */
+export type ClipboardSource_Deserialize = 
+/**  A code editor, with the language it named. */
+{ kind: "code"; language?: string | null } | 
+/**
+ *  A native rich-text app, such as Terminal, whose plain text flattens its
+ *  formatting rather than writing markdown.
+ */
+{ kind: "richText" };
+
+/**  Where the pasted text came from, as far as the native clipboard says. */
+export type ClipboardSource_Serialize = 
 /**  A code editor, with the language it named. */
 { kind: "code"; language: string | null } | 
 /**
@@ -161,7 +151,14 @@ export type CountedTag = {
 	tag: string,
 };
 
-export type CreateNote = {
+export type CreateNote = CreateNote_Serialize | CreateNote_Deserialize;
+
+export type CreateNote_Deserialize = {
+	content?: string | null,
+	name?: NoteName | null,
+};
+
+export type CreateNote_Serialize = {
 	content: string | null,
 	name: NoteName | null,
 };
@@ -196,19 +193,35 @@ export type Ending = "exit" | "restart";
  */
 export type ErrorKind = "failed" | "not-found";
 
-export type Graph = {
-	dangling: string[],
-	hubs: HubPill[],
-	incoming: Mention[],
-	outgoing: Mention[],
+export type Graph = Graph_Serialize | Graph_Deserialize;
+
+export type GraphResult = GraphResult_Serialize | GraphResult_Deserialize;
+
+export type GraphResult_Deserialize = {
+	picture?: Picture_Deserialize | null,
+	mentionsError?: CommandError | null,
 };
 
-export type GraphResult = {
-	picture: Picture | null,
+export type GraphResult_Serialize = {
+	picture: Picture_Serialize | null,
 	mentionsError: CommandError | null,
 };
 
 export type GraphTarget = { kind: "note"; path: string } | { kind: "hub"; hub: Hub };
+
+export type Graph_Deserialize = {
+	dangling: string[],
+	hubs: HubPill[],
+	incoming: Mention_Deserialize[],
+	outgoing: Mention_Deserialize[],
+};
+
+export type Graph_Serialize = {
+	dangling: string[],
+	hubs: HubPill[],
+	incoming: Mention_Serialize[],
+	outgoing: Mention_Serialize[],
+};
 
 export type Hub = { kind: "folder"; folder: string } | { kind: "tag"; tag: string };
 
@@ -245,10 +258,7 @@ export type JotContinued = {
  */
 export type LinkTarget = { to: "app"; path: string } | { to: "tab"; open: PendingOpen };
 
-export type Mention = {
-	lines: MentionLine[],
-	note: NoteMeta,
-};
+export type Mention = Mention_Serialize | Mention_Deserialize;
 
 export type MentionLine = {
 	/**
@@ -260,10 +270,20 @@ export type MentionLine = {
 	line: number,
 };
 
+export type Mention_Deserialize = {
+	lines: MentionLine[],
+	note: NoteMeta_Deserialize,
+};
+
+export type Mention_Serialize = {
+	lines: MentionLine[],
+	note: NoteMeta_Serialize,
+};
+
 export type MutationReceipt = {
 	path: string,
 	revision: string,
-	updatedAt: number,
+	updatedAt: Date,
 	warnings: MutationWarning[],
 };
 
@@ -277,10 +297,21 @@ export type MutationWarnings = {
 export type NoteFile = {
 	content: string,
 	revision: string,
-	updatedAt: number,
+	updatedAt: Date,
 };
 
-export type NoteFilters = {
+export type NoteFilters = NoteFilters_Serialize | NoteFilters_Deserialize;
+
+export type NoteFilters_Deserialize = {
+	folder?: string | null,
+	includePreview?: boolean | null,
+	limit?: number | null,
+	pinnedOnly?: boolean | null,
+	query?: string | null,
+	tag?: string | null,
+};
+
+export type NoteFilters_Serialize = {
 	folder: string | null,
 	includePreview: boolean | null,
 	limit: number | null,
@@ -290,15 +321,30 @@ export type NoteFilters = {
 };
 
 /**  One indexed note. In a search result, `title` and `snippet` wrap matched tokens in U+0001 and U+0002, which no markdown file carries. */
-export type NoteMeta = {
-	createdAt: number,
+export type NoteMeta = NoteMeta_Serialize | NoteMeta_Deserialize;
+
+/**  One indexed note. In a search result, `title` and `snippet` wrap matched tokens in U+0001 and U+0002, which no markdown file carries. */
+export type NoteMeta_Deserialize = {
+	createdAt: Date,
+	folder: string,
+	path: string,
+	pinned: boolean,
+	snippet?: string | null,
+	tags: string[],
+	title: string,
+	updatedAt: Date,
+};
+
+/**  One indexed note. In a search result, `title` and `snippet` wrap matched tokens in U+0001 and U+0002, which no markdown file carries. */
+export type NoteMeta_Serialize = {
+	createdAt: Date,
 	folder: string,
 	path: string,
 	pinned: boolean,
 	snippet: string | null,
 	tags: string[],
 	title: string,
-	updatedAt: number,
+	updatedAt: Date,
 };
 
 export type NoteName = { kind: "filename"; value: string } | { kind: "title"; value: string };
@@ -319,7 +365,17 @@ export type NotesChanged = {
 
 export type OpenKind = "code" | "csv" | "external" | "note";
 
-export type PathMutationReceipt = {
+export type PathMutationReceipt = PathMutationReceipt_Serialize | PathMutationReceipt_Deserialize;
+
+export type PathMutationReceipt_Deserialize = {
+	path: string,
+	file: NoteFile,
+	remainingSource?: string | null,
+	title?: string | null,
+	warnings: MutationWarning[],
+};
+
+export type PathMutationReceipt_Serialize = {
 	path: string,
 	file: NoteFile,
 	remainingSource: string | null,
@@ -337,9 +393,17 @@ export type PendingOpen = {
 	path: string,
 };
 
-export type Picture = { kind: "note"; note: NoteMeta; graph: Graph } | { kind: "hub"; hub: HubPill; members: RingMember[] };
+export type Picture = Picture_Serialize | Picture_Deserialize;
 
-export type RingMember = { kind: "hub"; pill: HubPill } | { kind: "note"; note: NoteMeta };
+export type Picture_Deserialize = { kind: "note"; note: NoteMeta_Deserialize; graph: Graph_Deserialize } | { kind: "hub"; hub: HubPill; members: RingMember_Deserialize[] };
+
+export type Picture_Serialize = { kind: "note"; note: NoteMeta_Serialize; graph: Graph_Serialize } | { kind: "hub"; hub: HubPill; members: RingMember_Serialize[] };
+
+export type RingMember = RingMember_Serialize | RingMember_Deserialize;
+
+export type RingMember_Deserialize = { kind: "hub"; pill: HubPill } | { kind: "note"; note: NoteMeta_Deserialize };
+
+export type RingMember_Serialize = { kind: "hub"; pill: HubPill } | { kind: "note"; note: NoteMeta_Serialize };
 
 export type SaveName = { kind: "content" } | { kind: "filename"; value: string };
 
@@ -348,25 +412,31 @@ export type SaveOutcome = { kind: "committed"; receipt: MutationReceipt } | { ki
 
 export type SearchFilter = { kind: "folder"; value: string } | { kind: "from"; value: string } | { kind: "link"; value: string } | { kind: "mention"; value: string } | { kind: "tag"; value: string } | { kind: "to"; value: string };
 
+/**  Binding metadata for a Unix timestamp carried as numeric milliseconds. */
+export type UnixMillis = Date;
+
 /* Tauri Specta runtime */
 type EventEmit<T> = [T] extends [null] ? () => Promise<void> : (payload: T) => Promise<void>;
 
-function makeEvent<T>(name: string, serialize?: (payload: T) => unknown, deserialize?: (payload: any) => T) {
-    const mapEvent = (cb: __TAURI_EVENT.EventCallback<T>) => (event: __TAURI_EVENT.Event<any>) => cb({ ...event, payload: deserialize ? deserialize(event.payload) : event.payload });
-    const mapPayload = (payload: T) => serialize ? serialize(payload) : payload;
+type EventEmitTo<T> = [T] extends [null] ? (target: __TAURI_EVENT.EventTarget | string) => Promise<void> : (target: __TAURI_EVENT.EventTarget | string, payload: T) => Promise<void>;
+
+function makeEvent<TListen, TEmit = TListen>(name: string, serialize?: (payload: TEmit) => unknown, deserialize?: (payload: any) => TListen) {
+    const mapEvent = (cb: __TAURI_EVENT.EventCallback<TListen>) => (event: __TAURI_EVENT.Event<any>) => cb({ ...event, payload: deserialize ? deserialize(event.payload) : event.payload });
+    const mapPayload = (payload: TEmit) => serialize ? serialize(payload) : payload;
 
     const base = {
-        listen: (cb: __TAURI_EVENT.EventCallback<T>) => __TAURI_EVENT.listen(name, mapEvent(cb)),
-        once: (cb: __TAURI_EVENT.EventCallback<T>) => __TAURI_EVENT.once(name, mapEvent(cb)),
-        emit: ((payload: T) => __TAURI_EVENT.emit(name, mapPayload(payload)) as unknown) as EventEmit<T>
+        listen: (cb: __TAURI_EVENT.EventCallback<TListen>) => __TAURI_EVENT.listen(name, mapEvent(cb)),
+        once: (cb: __TAURI_EVENT.EventCallback<TListen>) => __TAURI_EVENT.once(name, mapEvent(cb)),
+        emit: ((payload: TEmit) => __TAURI_EVENT.emit(name, mapPayload(payload)) as unknown) as EventEmit<TEmit>,
+        emitTo: ((to: __TAURI_EVENT.EventTarget | string, payload: TEmit) => __TAURI_EVENT.emitTo(to, name, mapPayload(payload)) as unknown) as EventEmitTo<TEmit>
     };
 
     const fn = (target: import("@tauri-apps/api/webview").Webview | import("@tauri-apps/api/window").Window) => ({
-        listen: (cb: __TAURI_EVENT.EventCallback<T>) => target.listen(name, mapEvent(cb)),
-        once: (cb: __TAURI_EVENT.EventCallback<T>) => target.once(name, mapEvent(cb)),
-        emit: ((payload: T) => target.emit(name, mapPayload(payload)) as unknown) as EventEmit<T>
+        listen: (cb: __TAURI_EVENT.EventCallback<TListen>) => target.listen(name, mapEvent(cb)),
+        once: (cb: __TAURI_EVENT.EventCallback<TListen>) => target.once(name, mapEvent(cb)),
+        emit: ((payload: TEmit) => target.emit(name, mapPayload(payload)) as unknown) as EventEmit<TEmit>,
+        emitTo: ((to: __TAURI_EVENT.EventTarget | string, payload: TEmit) => target.emitTo(to, name, mapPayload(payload)) as unknown) as EventEmitTo<TEmit>
     });
 
     return Object.assign(fn, base);
 }
-

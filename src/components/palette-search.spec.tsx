@@ -153,14 +153,7 @@ describe("palette search states", () => {
       await screen.findByRole("option", { name: "Recent" })
     ).toBeInTheDocument();
     expect(list).toHaveBeenCalledWith({
-      filters: {
-        folder: null,
-        includePreview: null,
-        limit: null,
-        pinnedOnly: null,
-        query: null,
-        tag: null,
-      },
+      filters: {},
     });
   });
 
