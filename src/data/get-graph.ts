@@ -2,22 +2,18 @@ import type { Picture } from "@/core/graph";
 import { commands } from "@/server/adapters/bindings";
 import type {
   GraphTarget,
-  Picture as NativePicture,
+  Picture_Serialize as NativePicture,
 } from "@/server/adapters/bindings";
 
 import { nativeCommand } from "./native-command";
-import { mentionResult, noteResult } from "./note-results";
+import { mentionResult } from "./note-results";
 
 function pictureResult(picture: NativePicture): Picture {
   if (picture.kind === "hub") {
     const hubs = picture.members.filter((member) => member.kind === "hub");
 
     const notes = picture.members
-      .flatMap((member) =>
-        member.kind === "note"
-          ? [{ ...member, note: noteResult(member.note) }]
-          : []
-      )
+      .filter((member) => member.kind === "note")
       .toSorted((left, right) => left.note.path.localeCompare(right.note.path));
 
     return { ...picture, members: [...hubs, ...notes] };
@@ -29,7 +25,7 @@ function pictureResult(picture: NativePicture): Picture {
       .map(mentionResult)
       .toSorted((left, right) => left.note.path.localeCompare(right.note.path)),
     kind: "note",
-    note: noteResult(picture.note),
+    note: picture.note,
     outgoing: picture.graph.outgoing.map(mentionResult),
   };
 }

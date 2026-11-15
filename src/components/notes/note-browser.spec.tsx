@@ -2,7 +2,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { clearMocks, mockIPC, mockWindows } from "@tauri-apps/api/mocks";
 import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { nullable, object, parse, string } from "valibot";
+import { nullish, object, parse, string } from "valibot";
 import { describe, expect, it, onTestFinished } from "vitest";
 
 import { Toaster } from "@/components/ui/toast";
@@ -13,7 +13,12 @@ import { rememberNote } from "@/lib/recent-notes";
 import { closeTab, getTabState, openNote } from "@/lib/tabs/store";
 import { noteFind } from "@/lib/ui/find";
 import { closeNoteBrowser } from "@/lib/ui/note-browser";
-import type { NoteMeta } from "@/server/adapters/bindings";
+import type { NoteMeta_Serialize } from "@/server/adapters/bindings";
+
+type NoteMeta = Omit<NoteMeta_Serialize, "createdAt" | "updatedAt"> & {
+  createdAt: number;
+  updatedAt: number;
+};
 
 function mount(
   list: (query: string | null) => NoteMeta[] | Promise<NoteMeta[]>,
@@ -33,11 +38,11 @@ function mount(
 
     if (command === "list_notes") {
       const { filters } = parse(
-        object({ filters: object({ query: nullable(string()) }) }),
+        object({ filters: object({ query: nullish(string()) }) }),
         args
       );
 
-      return await list(filters.query);
+      return await list(filters.query ?? null);
     }
 
     if (command === "list_folders") {

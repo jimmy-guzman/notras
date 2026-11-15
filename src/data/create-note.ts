@@ -8,7 +8,7 @@ interface CreateNoteOptions {
 }
 
 export async function createNote(options?: CreateNoteOptions) {
-  const receipt = await nativeCommand(
+  return await nativeCommand(
     async () =>
       await commands.createNote({
         content: options?.content ?? null,
@@ -18,6 +18,4 @@ export async function createNote(options?: CreateNoteOptions) {
             : { kind: "title", value: options.title },
       })
   );
-
-  return { ...receipt, updatedAt: new Date(receipt.updatedAt) };
 }

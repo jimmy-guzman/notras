@@ -20,9 +20,14 @@ import type { TabSnapshot } from "@/lib/tabs/store";
 import type { Tab } from "@/lib/tabs/tab";
 import { tabPanelId } from "@/lib/tabs/tab";
 import { hideGraph, showGraph } from "@/lib/ui/view";
-import type { NoteMeta } from "@/server/adapters/bindings";
+import type { NoteMeta_Serialize } from "@/server/adapters/bindings";
 
 import { TabStrip } from "./tab-strip";
+
+type NoteMeta = Omit<NoteMeta_Serialize, "createdAt" | "updatedAt"> & {
+  createdAt: number;
+  updatedAt: number;
+};
 
 async function mountStrip(
   tabs: Tab[],

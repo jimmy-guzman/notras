@@ -1,8 +1,8 @@
 import { hasMessage } from "@/core/errors";
 import { commands } from "@/server/adapters/bindings";
-import type { ClipboardSource } from "@/server/adapters/bindings";
+import type { ClipboardSource_Serialize as ClipboardSource } from "@/server/adapters/bindings";
 
-export type { ClipboardSource } from "@/server/adapters/bindings";
+export type { ClipboardSource_Serialize as ClipboardSource } from "@/server/adapters/bindings";
 
 export type ReadClipboardSource = (
   text: string

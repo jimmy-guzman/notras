@@ -3,6 +3,7 @@ import { clearMocks, mockIPC } from "@tauri-apps/api/mocks";
 import { afterEach, describe, expect, it, onTestFinished, vi } from "vitest";
 
 import { getNote } from "./get-note";
+import { getNotes } from "./get-notes";
 import { noteQueries, tabOpeningQuery } from "./queries";
 
 describe("queries", () => {
@@ -56,6 +57,40 @@ describe("queries", () => {
   });
 
   describe("saved query boundary", () => {
+    it("should omit absent filters and preserve supplied filter values", async () => {
+      const calls: unknown[] = [];
+      mockIPC((command, args) => {
+        expect(command).toBe("list_notes");
+        calls.push(args);
+
+        return [];
+      });
+
+      await getNotes();
+      await getNotes({
+        folder: "work",
+        includePreview: false,
+        limit: 0,
+        pinnedOnly: false,
+        query: "",
+        tag: "planning",
+      });
+
+      expect(calls).toStrictEqual([
+        { filters: {} },
+        {
+          filters: {
+            folder: "work",
+            includePreview: false,
+            limit: 0,
+            pinnedOnly: false,
+            query: "",
+            tag: "planning",
+          },
+        },
+      ]);
+    });
+
     it("should read file content and revision and preserve missing-file failures", async () => {
       const calls: unknown[] = [];
       mockIPC((command, args) => {
