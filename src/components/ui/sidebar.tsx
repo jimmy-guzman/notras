@@ -95,7 +95,7 @@ function SidebarGroupLabel({ className, ...props }: ComponentProps<"div">) {
       data-sidebar="group-label"
       data-slot="sidebar-group-label"
       className={cn(
-        "text-muted-foreground ring-ring flex h-8 shrink-0 items-center rounded-md px-2 text-xs font-normal tracking-wider uppercase outline-hidden focus-visible:ring-2 [&>svg]:size-4 [&>svg]:shrink-0",
+        "text-muted-foreground flex h-8 shrink-0 items-center rounded-md px-2 text-xs font-normal tracking-wider uppercase focus-visible:-outline-offset-2 [&>svg]:size-4 [&>svg]:shrink-0",
         className
       )}
       {...props}
@@ -152,7 +152,7 @@ function SidebarMenuButton({
       data-slot="sidebar-menu-button"
       type="button"
       className={cn(
-        "hover:bg-muted/50 focus-visible:inset-ring-ring data-active:bg-accent data-active:text-accent-foreground relative flex w-full items-center gap-2 rounded-md text-left outline-none focus-visible:inset-ring-2 [&_svg]:size-3.5 [&_svg]:shrink-0",
+        "hover:bg-muted/50 data-active:bg-accent data-active:text-accent-foreground relative flex w-full items-center gap-2 rounded-md text-left focus-visible:-outline-offset-2 [&_svg]:size-3.5 [&_svg]:shrink-0",
         size === "note"
           ? "data-active:before:bg-primary h-auto min-h-20 px-3 py-3 data-active:before:absolute data-active:before:inset-y-3 data-active:before:left-0 data-active:before:w-0.5 data-active:before:rounded-full"
           : "min-h-8 px-2 py-1.5 text-xs pointer-coarse:min-h-11",

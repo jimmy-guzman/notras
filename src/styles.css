@@ -209,8 +209,17 @@
 }
 
 @layer base {
+  /* The one focus mark. An outline rather than a box-shadow ring, since
+     forced-colors mode keeps outlines and drops shadows. Every element carries
+     its width, color and offset unfocused, so a `transition-all` control shows
+     the mark at once instead of fading and growing it in. */
   * {
-    @apply border-border outline-ring/50;
+    @apply border-border;
+    outline: 2px none var(--ring);
+    outline-offset: 2px;
+  }
+  *:focus-visible {
+    outline-style: solid;
   }
   /* Tells the webview which schemes exist, which themes the scrollbars, the
      caret, and native controls like the code-block language picker. index.html
@@ -674,6 +683,7 @@ body.dragging .ProseMirror .selected-text,
 }
 .ProseMirror .ProseMirror-selectednode :is(img, .image-failure) {
   outline: 2px solid var(--ring);
+  outline-offset: 0;
 }
 .ProseMirror :is(.image-failure, .embed-failure) {
   display: none;
@@ -844,6 +854,7 @@ body.dragging .ProseMirror .selected-text,
 .ProseMirror .ProseMirror-selectednode.embed[data-shown][data-wikilink],
 .ProseMirror .ProseMirror-selectednode.embed > .embed-failure {
   outline: 2px solid var(--ring);
+  outline-offset: 0;
 }
 
 /* Suggestion menus (slash commands, wikilink completion). */
@@ -1024,7 +1035,6 @@ body.dragging .ProseMirror .selected-text,
   color: var(--muted-foreground);
   appearance: none;
   cursor: pointer;
-  outline: none;
   background: transparent;
   border-radius: var(--radius-sm);
 }
@@ -1126,7 +1136,6 @@ body.dragging .ProseMirror .selected-text,
   height: 1.75rem;
   padding-inline: 0.5rem;
   font-size: 0.8rem;
-  outline: none;
   background: var(--input);
   border-radius: calc(var(--radius-lg) - 0.35rem);
 }
@@ -1173,17 +1182,6 @@ body.dragging .ProseMirror .selected-text,
 }
 .link-hover-missing {
   color: var(--destructive);
-}
-
-/* Four of the five controls the app draws itself, the tab strip carrying the
-   fifth. None declares the border a shadcn ring recolors, and forced-colors
-   mode drops the box-shadow half of that ring where it keeps an outline. */
-.ProseMirror ul[data-type="taskList"] > li > label > input:focus-visible,
-.code-block-button:focus-visible,
-.code-block-language:focus-visible,
-.link-editor-input:focus-visible {
-  outline: 2px solid var(--ring);
-  outline-offset: 2px;
 }
 
 /* The note surface, as a typeset preset. Typeset derives the list indent

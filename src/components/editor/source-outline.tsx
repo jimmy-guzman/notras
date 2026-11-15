@@ -240,7 +240,7 @@ export function SourceOutline({ editor, host, onJump }: SourceOutlineProps) {
               <button
                 aria-current={index === reading ? "location" : undefined}
                 className={cn(
-                  "focus-visible:outline-ring block w-full truncate rounded-sm py-1 text-start text-sm transition-colors duration-150 ease-out focus-visible:outline-2 focus-visible:-outline-offset-2",
+                  "block w-full truncate rounded-sm py-1 text-start text-sm transition-colors duration-150 ease-out focus-visible:-outline-offset-2",
                   INDENT[heading.level - top],
                   index === reading
                     ? "text-foreground"

@@ -243,7 +243,7 @@ function FolderCollection({
           <details open className="group/folder pl-4">
             <summary
               aria-label={`subfolders in ${folder.folder}`}
-              className="text-muted-foreground hover:text-foreground focus-visible:ring-ring flex min-h-6 cursor-pointer list-none items-center gap-1 rounded-sm px-2 text-xs outline-none focus-visible:ring-2 [&::-webkit-details-marker]:hidden"
+              className="text-muted-foreground hover:text-foreground flex min-h-6 cursor-pointer list-none items-center gap-1 rounded-sm px-2 text-xs focus-visible:-outline-offset-2 [&::-webkit-details-marker]:hidden"
             >
               <ChevronRightIcon className="size-3 group-open/folder:rotate-90" />
               subfolders
