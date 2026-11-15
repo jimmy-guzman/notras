@@ -434,6 +434,42 @@ describe("code block highlighting", () => {
     expect(coloredText(editor, "syntax-keyword")).toContain("const");
   });
 
+  it("should keep a revealed block whole through a scroll and window the screen after", ({
+    onTestFinished,
+  }) => {
+    vi.useFakeTimers({ toFake: ["requestAnimationFrame"] });
+    onTestFinished(() => {
+      vi.useRealTimers();
+    });
+    const lines = 3000;
+
+    const editor = createEditor(
+      "ts",
+      Array.from({ length: lines }, (_, i) => `const v${i} = ${i};`).join("\n")
+    );
+
+    onTestFinished(() => {
+      editor.destroy();
+    });
+    const viewport = fakeViewport(editor, onTestFinished);
+
+    // The first measure narrows the window to the top of the block.
+    vi.advanceTimersToNextFrame();
+    expect(coloredText(editor, "syntax-number")).not.toContain(
+      String(lines - 1)
+    );
+
+    const windowAgain = revealSyntax(editor.view);
+    viewport.scrollTo(editor.state.doc.content.size - 4000);
+    vi.advanceTimersToNextFrame();
+
+    expect(coloredText(editor, "syntax-keyword")).toBe("const ".repeat(lines));
+
+    windowAgain();
+    expect(coloredText(editor, "syntax-number")).toContain(String(lines - 1));
+    expect(coloredText(editor, "syntax-number")).not.toContain("1000");
+  });
+
   it("should color short blocks only near the viewport and follow a scroll", async ({
     onTestFinished,
   }) => {
