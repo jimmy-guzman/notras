@@ -4761,6 +4761,90 @@ describe("markdown written elsewhere", () => {
   });
 
   it.each([
+    ["between two paragraphs", "a\n\n\n\n\n\nb\n"],
+    ["before the first block", "\n\n\n\n__b__\n"],
+    ["before a blank line that opens the file", "\n\n\n\n&nbsp;\n\na\n"],
+    ["before a blank line written as &nbsp;", "a\n\n\n\n\n\n&nbsp;\n\nb\n"],
+    ["after a blank line written as &nbsp;", "a\n\n&nbsp;\n\n\n\nb\n"],
+  ])("should keep a run of blank lines %s", async (_, initialContent) => {
+    const { handle } = await mount({ initialContent });
+
+    expect(handle.getContent()).toBe(initialContent);
+  });
+
+  it.each([
+    ["above", 1, "xa\n\n\n\n\n\nb\n"],
+    ["below", 8, "a\n\n\n\n\n\nxb\n"],
+  ])(
+    "should keep a run of blank lines through an edit of the block %s it",
+    async (_, position, expected) => {
+      const { editor, handle } = await mount({
+        initialContent: "a\n\n\n\n\n\nb\n",
+      });
+
+      act(() => {
+        editor.commands.insertContentAt(position, "x");
+      });
+
+      expect(handle.getContent()).toBe(expected);
+    }
+  );
+
+  it("should find the caret in a block under a run of blank lines", async () => {
+    const { editor, handle } = await mount({
+      initialContent: "a\n\n\n\n\n\nb\n",
+    });
+
+    act(() => {
+      editor.commands.setTextSelection(8);
+    });
+
+    expect(handle.getCaretSourceOffset()).toBe("a\n\n\n\n\n\n".length);
+  });
+
+  it.each([
+    [3, "&nbsp;\n\n".length],
+    [5, "&nbsp;\n\n\n\n".length],
+  ])(
+    "should find the caret at %i on its line of a run under a blank line written as &nbsp;",
+    async (position, expected) => {
+      const { editor, handle } = await mount({
+        initialContent: "&nbsp;\n\n\n\n\n\nb\n",
+      });
+
+      act(() => {
+        editor.commands.setTextSelection(position);
+      });
+
+      expect(handle.getCaretSourceOffset()).toBe(expected);
+    }
+  );
+
+  it("should drop a run of blank lines once its blank lines are deleted", async () => {
+    const { editor, handle } = await mount({
+      initialContent: "a\n\n\n\n\n\nb\n",
+    });
+
+    act(() => {
+      editor.commands.deleteRange({ from: 3, to: 7 });
+    });
+
+    expect(handle.getContent()).toBe("a\n\nb\n");
+  });
+
+  it("should keep the &nbsp; lines of a note of blank lines through an edit of its first line", async () => {
+    const { editor, handle } = await mount({
+      initialContent: "&nbsp;\n\n&nbsp;\n",
+    });
+
+    act(() => {
+      editor.commands.insertContentAt(1, "x");
+    });
+
+    expect(handle.getContent()).toBe("x\n\n&nbsp;\n");
+  });
+
+  it.each([
     ["a list", "- item\n"],
     ["a setext heading", "Title\n---\n"],
   ])(
