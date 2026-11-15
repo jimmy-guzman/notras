@@ -519,12 +519,21 @@ function sourceOffset(
 
     const $position = state.doc.resolve(position);
 
-    // The sentinel changes only the caret's block, so the blocks before a
-    // blank paragraph keep their text and the caret lands where the line
-    // starts. The file leaves out the editor's blank line after its last
-    // block, where the caret is at the file's end.
+    // The sentinel breaks the run of blank lines its paragraph sits in, so the
+    // run is rendered fresh at two lines per blank paragraph, where the file's
+    // own text can hold more. That text holds at least as many lines, so the
+    // caret keeps its line rather than its offset. The file leaves out the
+    // editor's blank line after its last block, where the caret is at the
+    // file's end.
     if ($position.depth === 1 && isBlankParagraph($position.parent)) {
-      return Math.min(offset, file.length);
+      const line = marked.slice(0, offset).split("\n").length - 1;
+
+      const start = file
+        .split("\n")
+        .slice(0, line)
+        .reduce((total, text) => total + text.length + 1, 0);
+
+      return Math.min(start, file.length);
     }
 
     // A block that cannot keep the file's text with the sentinel in it is

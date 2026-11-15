@@ -914,6 +914,11 @@ function written(block: RenderedBlock) {
 
 /** What sat between two blocks in the file, shared by the pair it joined. */
 interface Gap {
+  /**
+   * The blank paragraphs its blank lines parsed to, which it writes as long
+   * as the run between its blocks has as many.
+   */
+  blanks: number;
   text: string;
 }
 
@@ -922,7 +927,7 @@ interface Source {
   follows: Gap | undefined;
   gap: Gap;
   /** What preceded the first block of the file. */
-  lead: string;
+  lead: Gap;
   text: string;
 }
 
@@ -948,11 +953,16 @@ interface Ending {
  */
 const endings = new WeakMap<Node, Ending | undefined>();
 
-/** The blank paragraphs past the note's last block. */
+/** The blank paragraphs past the note's last block, or all of them when it has none. */
 function closingBlanks(nodes: readonly Node[]) {
-  const final = nodes.findLast((node) => !isBlankParagraph(node));
+  return (
+    nodes.length - 1 - nodes.findLastIndex((node) => !isBlankParagraph(node))
+  );
+}
 
-  return final === undefined ? 0 : nodes.length - 1 - nodes.lastIndexOf(final);
+/** A blank paragraph with no text of its own, which a run's gap or lead may write. */
+function isRunBlank(node: Node) {
+  return isBlankParagraph(node) && !sources.has(node);
 }
 
 function isDefinition(node: Node) {
@@ -1125,8 +1135,7 @@ export function rememberSources(
   markdown: string
 ) {
   let index = 0;
-  let lead = "";
-  let last: { at: number; source: Source } | undefined;
+  let last: Source | undefined;
   const parse = blockParser(manager, doc);
 
   // The parser splits a block's trailing blank lines off this way before it
@@ -1154,13 +1163,14 @@ export function rememberSources(
 
   for (const [position, token] of tokens.entries()) {
     if (token.type === "space") {
-      if (last === undefined) {
-        lead += token.raw;
-      } else {
-        last.source.gap.text += token.raw;
+      const blanks = blanksIn(token.raw, position > first && position < final);
+
+      if (last !== undefined) {
+        last.gap.text += token.raw;
+        last.gap.blanks += blanks;
       }
 
-      index += blanksIn(token.raw, position > first && position < final);
+      index += blanks;
       continue;
     }
 
@@ -1189,19 +1199,27 @@ export function rememberSources(
       (token.type === "code" && token.codeBlockStyle === "indented")
     ) {
       last = undefined;
-      lead = "";
       continue;
     }
 
     const source: Source = {
-      follows: last?.at === at - 1 ? last.source.gap : undefined,
-      gap: { text: token.raw.slice(text.length) },
-      lead: at === 0 ? lead : "",
+      follows: last?.gap,
+      gap: { blanks: 0, text: token.raw.slice(text.length) },
+      lead:
+        position === first
+          ? {
+              blanks: at,
+              text: tokens
+                .slice(0, first)
+                .map((space) => space.raw)
+                .join(""),
+            }
+          : { blanks: 0, text: "" },
       text,
     };
 
     sources.set(doc.child(at), source);
-    last = { at, source };
+    last = source;
   }
 
   const closing = tokens[closingAt];
@@ -1332,8 +1350,13 @@ function carrySource(manager: MarkdownConverter, before: Node, after: Node) {
     return;
   }
 
-  const above = now[at - 1];
-  const below = now[at + 1];
+  // A gap reaches its neighbor across the run of blank lines it writes.
+  const aboveAt = now.findLastIndex(
+    (block, index) => index < at && !isRunBlank(block)
+  );
+
+  const above = now[aboveAt];
+  const below = now.find((block, index) => index > at && !isRunBlank(block));
   const previous = above === undefined ? undefined : sources.get(above);
   const next = below === undefined ? undefined : sources.get(below);
 
@@ -1347,7 +1370,7 @@ function carrySource(manager: MarkdownConverter, before: Node, after: Node) {
         same,
         source.follows,
         previous.text + source.follows.text + text,
-        at - 1,
+        aboveAt,
         [above, node]
       )
         ? source.follows
@@ -1364,7 +1387,7 @@ function carrySource(manager: MarkdownConverter, before: Node, after: Node) {
         [node, below]
       )
         ? source.gap
-        : { text: "\n\n" },
+        : { blanks: 0, text: "\n\n" },
     lead: source.lead,
     text,
   });
@@ -1449,6 +1472,32 @@ function keepRereadSources(before: Node, after: Node) {
 }
 
 /**
+ * The runs of blank lines the file's text writes, from the block before each
+ * run, -1 for the note's start, to the block after it. A gap or lead writes
+ * its run while the run has as many blank paragraphs as its blank lines
+ * parsed to, so an edit into the run leaves it to the serializer.
+ */
+function spannedRuns(nodes: readonly Node[]) {
+  const blocks = nodes.flatMap((node, index) =>
+    isRunBlank(node) ? [] : [{ index, source: sources.get(node) }]
+  );
+
+  return new Map<number, number>(
+    blocks.flatMap(({ index, source }, order) => {
+      const above = blocks[order - 1];
+      const from = above?.index ?? -1;
+      const gap = above === undefined ? source?.lead : source?.follows;
+
+      return gap !== undefined &&
+        (above === undefined || above.source?.gap === gap) &&
+        gap.blanks === index - from - 1
+        ? [[from, index]]
+        : [];
+    })
+  );
+}
+
+/**
  * The form that goes to the file. Upstream escapes ``\ ` * _ [ ] ~`` and
  * encodes `& < >` in every text node, and escapes a `!` before any `[`, with
  * no regard for context. Re-parsing
@@ -1473,8 +1522,8 @@ export function fileMarkdown(manager: MarkdownConverter, doc: Node) {
   );
 
   const final = nodes.findLast((node) => !isBlankParagraph(node));
-  const blocks = final === undefined ? 0 : nodes.lastIndexOf(final) + 1;
   const blanks = closingBlanks(nodes);
+  const blocks = nodes.length - blanks;
   const ending = endings.get(doc);
   // The file's closing text stands for the blank paragraphs it had. Blank
   // paragraphs added at the end are not written, while removing one the file
@@ -1489,22 +1538,31 @@ export function fileMarkdown(manager: MarkdownConverter, doc: Node) {
   const withBlanks =
     blanks === 1 && final?.type.name !== "paragraph" ? blocks : blocks + blanks;
 
-  const markdown = pieces
-    .slice(0, closes ? blocks : withBlanks)
-    .map((piece, index, kept) => {
-      const next = kept[index + 1];
-      const end = next === undefined ? closing : "\n\n";
+  const shown = pieces.slice(0, closes ? blocks : withBlanks);
+  const runs = spannedRuns(nodes.slice(0, shown.length));
+
+  const spanned = new Set(
+    [...runs].flatMap(([from, to]) =>
+      Array.from({ length: to - from - 1 }, (_, offset) => from + 1 + offset)
+    )
+  );
+
+  // A spanned run ends at a block, so the last piece shown is never in one.
+  const markdown = shown
+    .map((piece, index) => {
+      const end = index === shown.length - 1 ? closing : "\n\n";
+
+      if (spanned.has(index)) {
+        return "";
+      }
 
       if (!("gap" in piece)) {
         return written(piece) + end;
       }
 
-      const lead = index === 0 ? piece.lead : "";
+      const lead = runs.get(-1) === index ? piece.lead.text : "";
 
-      const follows =
-        next !== undefined && "gap" in next && next.follows === piece.gap;
-
-      return lead + piece.text + (follows ? piece.gap.text : end);
+      return lead + piece.text + (runs.has(index) ? piece.gap.text : end);
     })
     .join("");
 
