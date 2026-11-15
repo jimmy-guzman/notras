@@ -701,10 +701,17 @@ mod tests {
         })
         .unwrap();
 
-        assert_eq!(
-            changes.recv_timeout(Duration::from_secs(5)).unwrap(),
-            json!({"paths": []})
-        );
+        // The watcher can publish a path change after installation but before
+        // the switch announces the whole library.
+        let deadline = Instant::now() + Duration::from_secs(5);
+        loop {
+            let change = changes
+                .recv_timeout(deadline.saturating_duration_since(Instant::now()))
+                .expect("the switch must announce a change to the whole library");
+            if change == json!({"paths": []}) {
+                break;
+            }
+        }
         let mut paths: Vec<_> = app
             .state::<AppState>()
             .library
