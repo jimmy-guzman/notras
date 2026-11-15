@@ -1,7 +1,7 @@
+import { detectPlatform, useFormatForDisplay } from "@tanstack/react-hotkeys";
 import type { HotkeyChord } from "@tanstack/react-hotkeys";
 
 import { Kbd } from "@/components/ui/kbd";
-import { chordGlyph } from "@/lib/ui/shortcuts";
 
 interface ChordProps {
   /** A registered hotkey, e.g. `Mod+Shift+Y`, drawn for the running platform. */
@@ -10,5 +10,15 @@ interface ChordProps {
 
 /** One chord, one box. */
 export function Chord({ hotkey }: ChordProps) {
-  return <Kbd>{chordGlyph(hotkey)}</Kbd>;
+  const formatForDisplay = useFormatForDisplay();
+  const platform = detectPlatform();
+
+  return (
+    <Kbd>
+      {formatForDisplay(hotkey, {
+        platform,
+        separatorToken: platform === "mac" ? "" : "+",
+      }).toLowerCase()}
+    </Kbd>
+  );
 }

@@ -8,7 +8,6 @@ import { object, parse, string } from "valibot";
 import { describe, expect, it, vi } from "vitest";
 
 import { SENTINEL } from "@/components/editor/sentinel";
-import { chordGlyph } from "@/lib/ui/shortcuts";
 
 import { CaptureWindow } from "./capture-window";
 
@@ -773,7 +772,7 @@ describe("capture window", () => {
       const footer = document.querySelector("footer")?.textContent;
 
       expect(footer).toContain("continues in notras");
-      expect(footer).toContain(chordGlyph("Mod+O"));
+      expect(footer).toContain("ctrl+o");
     });
   });
 

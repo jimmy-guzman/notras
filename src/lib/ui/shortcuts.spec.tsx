@@ -4,12 +4,7 @@ import { createElement, Fragment, Suspense, startTransition } from "react";
 import type { PropsWithChildren } from "react";
 import { describe, expect, it, vi } from "vitest";
 
-import {
-  chordGlyph,
-  useChordsByName,
-  useHotkey,
-  useHotkeys,
-} from "./shortcuts";
+import { useChordsByName, useHotkey, useHotkeys } from "./shortcuts";
 
 const NOOP = () => {};
 
@@ -67,17 +62,6 @@ function ChordReader() {
       .join("; ")
   );
 }
-
-describe("chord glyph", () => {
-  it("should separate the segments the platform needs a separator for", () => {
-    // happy-dom does not report macOS, so this exercises the word-label branch.
-    expect(chordGlyph("Mod+Shift+K")).toBe("ctrl+shift+k");
-  });
-
-  it("should print a single key with no separator", () => {
-    expect(chordGlyph("Escape")).toBe("esc");
-  });
-});
 
 describe("chords by name", () => {
   it("should collect every chord registered under one name", () => {
