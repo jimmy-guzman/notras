@@ -12,6 +12,8 @@ const projectFile = (...segments: string[]) =>
 
 const source = projectFile("src", "styles.css");
 
+const inki = projectFile("src", "themes", "inki.css");
+
 const LIGHT_MARKER = "@media (prefers-color-scheme: light)";
 
 const TOKEN = /--(?<name>[\w-]+):\s*(?<value>#[\da-f]{6})\b/gu;
@@ -31,10 +33,10 @@ const readTokens = (css: string) => {
   return tokens;
 };
 
-const markerAt = source.indexOf(LIGHT_MARKER);
+const markerAt = inki.indexOf(LIGHT_MARKER);
 
-const darkTokens = readTokens(source.slice(0, markerAt));
-const lightTokens = readTokens(source.slice(markerAt));
+const darkTokens = readTokens(inki.slice(0, markerAt));
+const lightTokens = readTokens(inki.slice(markerAt));
 
 const toChannel = (byte: number) => {
   const ratio = byte / 255;
@@ -449,7 +451,7 @@ describe.each([
 
 describe("paper palette", () => {
   it("should print a fence on the dark card with the dark syntax inks", () => {
-    expect(source).toContain(":root,\n.print-sheet .code-block-wrapper {");
+    expect(inki).toContain(":root,\n.print-sheet .code-block-wrapper {");
     expect(source).toContain(
       ".print-sheet .code-block-wrapper {\n    color: var(--foreground);"
     );

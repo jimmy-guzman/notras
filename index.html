@@ -7,7 +7,7 @@
       The webview paints its own canvas before styles.css exists, and without a
       color-scheme it paints white. The meta tag is read before the document is
       drawn; the CSS property alone cannot help, because honouring it waits on
-      the stylesheet. Both backgrounds restate --background from src/styles.css,
+      the stylesheet. Both backgrounds restate --background from src/themes/inki.css,
       and src/styles.spec.ts fails if the copies drift.
     -->
     <meta content="dark light" name="color-scheme" />

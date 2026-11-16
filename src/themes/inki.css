@@ -1,0 +1,90 @@
+/* Violet marks the active row; pink remains reserved for actions. The fence
+   on paper takes this palette too: paper forces light prose, not a light card. */
+:root,
+.print-sheet .code-block-wrapper {
+  --background: #191819;
+  --shell: #282729;
+  --foreground: #e6dfd6;
+  --card: #151416;
+  --card-foreground: #e6dfd6;
+  --popover: #222123;
+  --popover-foreground: #e6dfd6;
+  --primary: #e99ac2;
+  --primary-foreground: #191819;
+  --secondary: #302e31;
+  --secondary-foreground: #e6dfd6;
+  --muted: #403d42;
+  --muted-foreground: #ada7af;
+  --accent: #343138;
+  --accent-foreground: #e6dfd6;
+  --destructive: #e59a94;
+  --success: #9abb9f;
+  --warning: #d6bc89;
+  --info: #83bac7;
+  --border: #282729;
+  --input: #7b747d;
+  --band-divider: color-mix(in srgb, white 29%, var(--shell));
+  --ink-on-dark: var(--foreground);
+  --ink-on-light: var(--background);
+  --ring: #e99ac2;
+  --faint: #ada7af;
+  --selection: #363c48;
+  --syntax-comment: #ada7af;
+  --syntax-function: #8aa8d6;
+  --syntax-keyword: #e99ac2;
+  --syntax-keyword-control: #dca38b;
+  --syntax-keyword-import: #b5a0d4;
+  --syntax-member: #8aa8d6;
+  --syntax-number: #d6bc89;
+  --syntax-operator: #e6dfd6;
+  --syntax-punctuation: #ada7af;
+  --syntax-string: #9abb9f;
+  --syntax-tag: #b5a0d4;
+  --syntax-type: #83bac7;
+}
+
+/* Paper takes the light palette whatever the system is set to, stated here
+   rather than left to WebKit answering "light" for print media on its own. */
+@media (prefers-color-scheme: light), print {
+  :root {
+    --background: #faf7f2;
+    --shell: #dedbd9;
+    --foreground: #29272c;
+    --card: #fffdfa;
+    --card-foreground: #29272c;
+    --popover: #fffdfa;
+    --popover-foreground: #29272c;
+    --primary: #ae286f;
+    --primary-foreground: #faf7f2;
+    --secondary: #ebe7e4;
+    --secondary-foreground: #29272c;
+    --muted: #e0dcda;
+    --muted-foreground: #635f69;
+    --accent: #eae3f0;
+    --accent-foreground: #29272c;
+    --destructive: #b43b36;
+    --success: #397447;
+    --warning: #79631e;
+    --info: #196f85;
+    --border: #dedbd9;
+    --input: #aaa4ad;
+    --band-divider: color-mix(in srgb, black 38%, var(--shell));
+    --ink-on-dark: var(--background);
+    --ink-on-light: var(--foreground);
+    --ring: #ae286f;
+    --faint: #635f69;
+    --selection: #bdcce1;
+    --syntax-comment: #635f69;
+    --syntax-function: #285dad;
+    --syntax-keyword: #ae286f;
+    --syntax-keyword-control: #a54828;
+    --syntax-keyword-import: #7145ab;
+    --syntax-member: #285dad;
+    --syntax-number: #79631e;
+    --syntax-operator: #29272c;
+    --syntax-punctuation: #635f69;
+    --syntax-string: #397447;
+    --syntax-tag: #7145ab;
+    --syntax-type: #196f85;
+  }
+}
