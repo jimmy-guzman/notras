@@ -365,11 +365,19 @@ describe("README screenshots", () => {
           path.join(artifacts, "visibility.json"),
           JSON.stringify(state, null, 2)
         );
-        await browser.saveScreenshot(path.join(artifacts, "failure.png"));
       } catch (diagnosticError) {
         await appendFile(
           path.join(artifacts, "failure.txt"),
           `\nFailure diagnostics failed: ${String(diagnosticError)}`
+        );
+      }
+
+      try {
+        await browser.saveScreenshot(path.join(artifacts, "failure.png"));
+      } catch (screenshotError) {
+        await appendFile(
+          path.join(artifacts, "failure.txt"),
+          `\nScreenshot failed: ${String(screenshotError)}`
         );
       }
 
