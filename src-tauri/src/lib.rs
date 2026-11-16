@@ -30,7 +30,7 @@ use crate::state::{AppState, Ending, QuitHandshake};
 use notras_core::Library;
 use tauri_specta::Event;
 
-/// `--background` from `src/styles.css`, restated because the window layer is
+/// `--background` from `src/themes/inki.css`, restated because the window layer is
 /// painted by the OS before any stylesheet exists. `src/styles.spec.ts` fails if
 /// these drift from the tokens.
 const BG_DARK: Color = Color(0x19, 0x18, 0x19, 255);

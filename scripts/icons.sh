@@ -48,7 +48,7 @@ palette() {
         exit 1
       }
     }
-  ' src/styles.css
+  ' src/themes/inki.css
 }
 
 write_mark() {
