@@ -1,5 +1,12 @@
 import { execFile } from "node:child_process";
-import { cp, readFile, rm, stat, writeFile } from "node:fs/promises";
+import {
+  appendFile,
+  cp,
+  readFile,
+  rm,
+  stat,
+  writeFile,
+} from "node:fs/promises";
 import path from "node:path";
 import { promisify } from "node:util";
 
@@ -17,6 +24,25 @@ interface Modifiers {
   shift?: boolean;
 }
 
+/** Focuses the session's native window and waits for its WebView to become visible. */
+async function focusWindow(browser: Browser) {
+  await browser.tauri.execute(
+    async ({ core }) => await core.invoke("plugin:window|set_focus")
+  );
+
+  // A hidden WebView can suspend its entrance animations at opacity zero.
+  await browser.waitUntil(
+    async () =>
+      await browser.execute(
+        () => document.visibilityState === "visible" && document.hasFocus()
+      ),
+    {
+      timeout: 10_000,
+      timeoutMsg: "The WebView stayed hidden or unfocused after native focus.",
+    }
+  );
+}
+
 /** Fires a shortcut at the document, past any focused input, the way the hotkey manager sees a real one. */
 async function press(
   browser: Browser,
@@ -24,6 +50,7 @@ async function press(
   code: string,
   modifiers: Modifiers
 ) {
+  await focusWindow(browser);
   await browser.execute(
     (eventKey, eventCode, held) => {
       for (const type of ["keydown", "keyup"]) {
@@ -48,6 +75,7 @@ async function press(
 
 /** Clicks the browser row whose title leads its text, since a snippet can name another note; ⌘ opens it in a new tab. */
 async function openRow(browser: Browser, title: string, inNewTab: boolean) {
+  await focusWindow(browser);
   await browser
     .$('[aria-label^="notes in"] li:first-child button')
     .waitForDisplayed({ timeout: 30_000 });
@@ -82,17 +110,6 @@ async function processId(binary: string) {
   const { stdout } = await exec("pgrep", ["-f", binary]);
 
   return Number(stdout.trim().split("\n")[0]);
-}
-
-/** Brings the app to the front so the traffic lights draw in colour; the session leaves it behind whatever was in front. */
-async function activate(pid: number) {
-  const script = `
-    ObjC.import("AppKit");
-    const app = $.NSRunningApplication.runningApplicationWithProcessIdentifier(${pid});
-    app.activateWithOptions($.NSApplicationActivateIgnoringOtherApps);
-  `;
-
-  await exec("osascript", ["-l", "JavaScript", "-e", script]);
 }
 
 /** Clicks the palette action with this name, which reaches what the harness has no shortcut for. */
@@ -147,6 +164,7 @@ async function windowNumber(pid: number, title: string) {
 
 /** Captures the native window, corners transparent and no shadow, into assets/. */
 async function capture(browser: Browser, window: number, name: string) {
+  await focusWindow(browser);
   // Lets the surface it just opened finish its transition.
   await browser.pause(500);
   await exec("screencapture", [
@@ -179,11 +197,11 @@ describe("README screenshots", () => {
     });
 
     try {
+      await focusWindow(browser);
+      const pid = await processId(binary);
       await browser
         .$('[aria-label="recent notes"] li:first-child button')
         .waitForDisplayed({ timeout: 30_000 });
-      const pid = await processId(binary);
-      await activate(pid);
       const window = await windowNumber(pid, "notras");
 
       // A first launch opens with the browser showing.
@@ -302,17 +320,8 @@ describe("README screenshots", () => {
         })
         .toBeGreaterThan(0);
       await browser.tauri.switchWindow("capture");
-      // The switch takes key status from the window, which greys its traffic lights, and
-      // WebKit reports no focused element until the window is key again, so the blur waits.
-      await browser.tauri.execute(
-        async ({ core }) =>
-          await core.invoke("plugin:window|set_focus", { label: "capture" })
-      );
-      await expect
-        .poll(async () => await browser.execute(() => document.hasFocus()), {
-          timeout: 10_000,
-        })
-        .toBe(true);
+      // WebKit reports no focused element until the switched window is key again.
+      await focusWindow(browser);
       await browser.execute(() => {
         if (document.activeElement instanceof HTMLElement) {
           document.activeElement.blur();
@@ -325,7 +334,44 @@ describe("README screenshots", () => {
       );
       await browser.tauri.switchWindow("main");
     } catch (error) {
-      await browser.saveScreenshot(path.join(artifacts, "failure.png"));
+      await writeFile(path.join(artifacts, "failure.txt"), String(error));
+
+      try {
+        const state = await browser.execute(() => ({
+          animations: document.getAnimations().map((animation) => {
+            const target =
+              animation.effect instanceof KeyframeEffect
+                ? animation.effect.target
+                : null;
+
+            return {
+              currentTime: animation.currentTime,
+              opacity:
+                target instanceof Element
+                  ? getComputedStyle(target).opacity
+                  : null,
+              pending: animation.pending,
+              playState: animation.playState,
+              startTime: animation.startTime,
+              target:
+                target instanceof Element ? target.getAttribute("class") : null,
+            };
+          }),
+          hasFocus: document.hasFocus(),
+          visibilityState: document.visibilityState,
+        }));
+
+        await writeFile(
+          path.join(artifacts, "visibility.json"),
+          JSON.stringify(state, null, 2)
+        );
+        await browser.saveScreenshot(path.join(artifacts, "failure.png"));
+      } catch (diagnosticError) {
+        await appendFile(
+          path.join(artifacts, "failure.txt"),
+          `\nFailure diagnostics failed: ${String(diagnosticError)}`
+        );
+      }
 
       throw error;
     } finally {
