@@ -9,6 +9,7 @@
    palette with nothing to repoint. */
 @import "./typeset.css";
 @import "@/themes/inki.css";
+@import "@/themes/catppuccin.css";
 
 @custom-variant dark (@media (prefers-color-scheme: dark));
 

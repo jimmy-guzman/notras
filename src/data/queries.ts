@@ -22,6 +22,7 @@ import { readCsvIfMoved, readCsvRows } from "./read-csv";
 import { readEmbedded } from "./read-embedded";
 import { readSessionFile } from "./read-session-file";
 import { searchNotes } from "./search-notes";
+import { getTheme } from "./theme";
 
 declare module "@tanstack/react-query" {
   interface Register {
@@ -247,6 +248,12 @@ export const appearanceQuery = queryOptions({
   meta: { what: "could not read the appearance" },
   queryFn: getAppearance,
   queryKey: ["appearance"],
+});
+
+export const themeQuery = queryOptions({
+  meta: { what: "could not read the theme" },
+  queryFn: getTheme,
+  queryKey: ["theme"],
 });
 
 /** Settings rather than index: no write to a note can move it. */

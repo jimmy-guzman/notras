@@ -328,4 +328,99 @@ describe(SettingsDialog, () => {
       screen.queryByRole("group", { name: "appearance" })
     ).not.toBeInTheDocument();
   });
+
+  it("should save the theme the user picks", async () => {
+    const saved: unknown[] = [];
+    let stored = "inki";
+    mockIPC((command, payload) => {
+      if (command === "get_theme") {
+        return stored;
+      }
+
+      if (command === "set_theme") {
+        saved.push(payload);
+        stored = "catppuccin";
+
+        return null;
+      }
+
+      if (command.startsWith("plugin:")) {
+        return false;
+      }
+
+      throw new Error(`unexpected command: ${command}`);
+    });
+
+    const client = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+
+    onTestFinished(() => {
+      client.clear();
+      clearMocks();
+    });
+    render(
+      <QueryClientProvider client={client}>
+        <SettingsDialog notesDir="/notes" onOpenChange={() => {}} open />
+      </QueryClientProvider>
+    );
+    const user = userEvent.setup();
+
+    await user.click(await screen.findByRole("button", { name: "catppuccin" }));
+
+    expect(saved).toStrictEqual([{ theme: "catppuccin" }]);
+    expect(screen.getByRole("button", { name: "catppuccin" })).toHaveAttribute(
+      "aria-pressed",
+      "true"
+    );
+  });
+
+  it("should keep the saved theme when a change cannot be saved", async () => {
+    mockIPC((command) => {
+      if (command === "get_theme") {
+        return "inki";
+      }
+
+      if (command === "set_theme") {
+        throw Object.assign(new Error("The theme could not be saved"), {
+          kind: "failed",
+        });
+      }
+
+      if (command.startsWith("plugin:")) {
+        return false;
+      }
+
+      throw new Error(`unexpected command: ${command}`);
+    });
+
+    const client = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+
+    onTestFinished(() => {
+      client.clear();
+      clearMocks();
+    });
+    render(
+      <QueryClientProvider client={client}>
+        <Toaster />
+        <SettingsDialog notesDir="/notes" onOpenChange={() => {}} open />
+      </QueryClientProvider>
+    );
+    const user = userEvent.setup();
+
+    await user.click(await screen.findByRole("button", { name: "catppuccin" }));
+
+    expect(
+      await screen.findByText("could not change theme")
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("The theme could not be saved")
+    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "inki" })).toHaveAttribute(
+      "aria-pressed",
+      "true"
+    );
+  });
 });

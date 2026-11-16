@@ -1,0 +1,90 @@
+/* Mocha and Latte from catppuccin/palette, by the roles in DESIGN.md. Latte
+   inks that miss a contrast floor in styles.spec.ts are darkened in OKLCH
+   lightness alone, keeping their chroma and hue. The selection is Overlay 2 at
+   25% over the base. */
+:root[data-theme="catppuccin"],
+:root[data-theme="catppuccin"] .print-sheet .code-block-wrapper {
+  --background: #1e1e2e;
+  --shell: #181825;
+  --foreground: #cdd6f4;
+  --card: #11111b;
+  --card-foreground: #cdd6f4;
+  --popover: #1e1e2e;
+  --popover-foreground: #cdd6f4;
+  --primary: #cba6f7;
+  --primary-foreground: #1e1e2e;
+  --secondary: #313244;
+  --secondary-foreground: #cdd6f4;
+  --muted: #313244;
+  --muted-foreground: #a6adc8;
+  --accent: #45475a;
+  --accent-foreground: #cdd6f4;
+  --destructive: #f38ba8;
+  --success: #a6e3a1;
+  --warning: #f9e2af;
+  --info: #74c7ec;
+  --border: #181825;
+  --input: #6c7086;
+  --band-divider: color-mix(in srgb, white 29%, var(--shell));
+  --ink-on-dark: var(--foreground);
+  --ink-on-light: var(--background);
+  --ring: #cba6f7;
+  --faint: #a6adc8;
+  --selection: #3b3d4f;
+  --syntax-comment: #9399b2;
+  --syntax-function: #89b4fa;
+  --syntax-keyword: #cba6f7;
+  --syntax-keyword-control: #eba0ac;
+  --syntax-keyword-import: #f5c2e7;
+  --syntax-member: #89b4fa;
+  --syntax-number: #fab387;
+  --syntax-operator: #89dceb;
+  --syntax-punctuation: #9399b2;
+  --syntax-string: #a6e3a1;
+  --syntax-tag: #f5c2e7;
+  --syntax-type: #f9e2af;
+}
+
+@media (prefers-color-scheme: light), print {
+  :root[data-theme="catppuccin"] {
+    --background: #eff1f5;
+    --shell: #dce0e8;
+    --foreground: #484b64;
+    --card: #e6e9ef;
+    --card-foreground: #484b64;
+    --popover: #eff1f5;
+    --popover-foreground: #484b64;
+    --primary: #8230e7;
+    --primary-foreground: #eff1f5;
+    --secondary: #e6e9ef;
+    --secondary-foreground: #484b64;
+    --muted: #dce0e8;
+    --muted-foreground: #606278;
+    --accent: #ccd0da;
+    --accent-foreground: #484b64;
+    --destructive: #d10d38;
+    --success: #1f7901;
+    --warning: #965c03;
+    --info: #209fb5;
+    --border: #dce0e8;
+    --input: #9ca0b0;
+    --band-divider: color-mix(in srgb, black 38%, var(--shell));
+    --ink-on-dark: var(--background);
+    --ink-on-light: var(--foreground);
+    --ring: #8230e7;
+    --faint: #606278;
+    --selection: #d2d4dc;
+    --syntax-comment: #65687c;
+    --syntax-function: #155dec;
+    --syntax-keyword: #8230e7;
+    --syntax-keyword-control: #c9253c;
+    --syntax-keyword-import: #ac3d91;
+    --syntax-member: #155dec;
+    --syntax-number: #b64401;
+    --syntax-operator: #03709d;
+    --syntax-punctuation: #65687c;
+    --syntax-string: #1f7901;
+    --syntax-tag: #ac3d91;
+    --syntax-type: #965c03;
+  }
+}

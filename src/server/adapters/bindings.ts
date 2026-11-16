@@ -72,6 +72,7 @@ export const commands = {
 	/**  Bring up the main window, and open the jot there when one was saved. */
 	continueJot: (jot: JotContinued | null) => __TAURI_INVOKE<null>("continue_jot", { jot }),
 	getAppearance: () => __TAURI_INVOKE<Appearance>("get_appearance"),
+	getTheme: () => __TAURI_INVOKE<Theme>("get_theme"),
 	/**
 	 *  Save the appearance, then paint it. A choice the next launch would forget
 	 *  is not applied. macOS only: on Linux tao rewrites GTK's "prefer dark" for
@@ -79,6 +80,11 @@ export const commands = {
 	 *  forced appearance does not hold there.
 	 */
 	setAppearance: (appearance: Appearance) => __TAURI_INVOKE<null>("set_appearance", { appearance }),
+	/**
+	 *  Save the theme, then repaint every window with it. A choice the next launch
+	 *  would forget is not applied.
+	 */
+	setTheme: (theme: Theme) => __TAURI_INVOKE<null>("set_theme", { theme }),
 	/**  Open quick capture, or focus its existing window. */
 	showCapture: () => __TAURI_INVOKE<void>("show_capture"),
 };
@@ -410,6 +416,12 @@ export type SaveName = { kind: "content" } | { kind: "filename"; value: string }
 export type SaveOutcome = { kind: "committed"; receipt: MutationReceipt } | { kind: "conflict"; file: NoteFile };
 
 export type SearchFilter = { kind: "folder"; value: string } | { kind: "from"; value: string } | { kind: "link"; value: string } | { kind: "mention"; value: string } | { kind: "tag"; value: string } | { kind: "to"; value: string };
+
+/**
+ *  The palette the app paints with. Each theme has a dark and a light scheme,
+ *  and the appearance picks between them.
+ */
+export type Theme = "inki" | "catppuccin";
 
 /**  Binding metadata for a Unix timestamp carried as numeric milliseconds. */
 export type UnixMillis = Date;

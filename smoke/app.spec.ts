@@ -663,4 +663,147 @@ describe("native smoke", () => {
       await cleanupWdioSession(session);
     }
   });
+
+  it("should paint a chosen theme at once and after restarting the app", async () => {
+    const { artifacts, binary } = inject("smoke");
+
+    const launch = async () =>
+      await startWdioSession({
+        browserName: "tauri",
+        "tauri:options": { application: binary },
+        "wdio:tauriServiceOptions": {
+          captureBackendLogs: true,
+          captureFrontendLogs: true,
+          driverProvider: "embedded",
+          logDir: artifacts,
+          startTimeout: 30_000,
+        },
+      });
+
+    const first = await launch();
+
+    try {
+      await first
+        .$('html[data-theme="inki"]')
+        .waitForExist({ timeout: 30_000 });
+
+      const main = await first.getWindowHandle();
+      await first.tauri.execute(
+        async ({ core }) => await core.invoke("show_capture")
+      );
+      await expect
+        .poll(
+          async () => {
+            const handles = await first.getWindowHandles();
+
+            return handles.length;
+          },
+          { timeout: 15_000 }
+        )
+        .toBeGreaterThan(1);
+
+      const handles = await first.getWindowHandles();
+      const capture = handles.find((handle) => handle !== main);
+
+      if (capture === undefined) {
+        throw new Error("The capture window has no handle.");
+      }
+
+      await first.switchToWindow(capture);
+      await first
+        .$('html[data-theme="inki"]')
+        .waitForExist({ timeout: 15_000 });
+      await first.switchToWindow(main);
+      await first.tauri.execute(
+        async ({ core }) =>
+          await core.invoke("set_theme", { theme: "catppuccin" })
+      );
+
+      // A script sent to a page that is still loading never answers, so the
+      // reload is read through element lookups.
+      const reloadWindow = async (handle: string) => {
+        await first.switchToWindow(handle);
+        await first
+          .$('html[data-theme="catppuccin"]')
+          .waitForExist({ timeout: 10_000 });
+        await first.execute(() => {
+          document.documentElement.dataset.beforeReload = "true";
+        });
+        await first
+          .$("html[data-before-reload]")
+          .waitForExist({ timeout: 10_000 });
+        await first.execute(() => {
+          // Late enough that the driver hears back before the page goes.
+          setTimeout(() => {
+            location.reload();
+          }, 500);
+        });
+        await first
+          .$("html[data-before-reload]")
+          .waitForExist({ reverse: true, timeout: 10_000 });
+      };
+
+      await reloadWindow(main);
+      await first
+        .$('html[data-theme="catppuccin"]')
+        .waitForExist({ timeout: 10_000 });
+      await reloadWindow(capture);
+      await first
+        .$('html[data-theme="catppuccin"]')
+        .waitForExist({ timeout: 10_000 });
+    } catch (error) {
+      await writeFile(
+        path.join(artifacts, "failure.txt"),
+        `Choosing a theme: ${String(error)}`
+      );
+
+      throw error;
+    } finally {
+      await cleanupWdioSession(first);
+    }
+
+    const second = await launch();
+
+    try {
+      await second
+        .$('html[data-theme="catppuccin"]')
+        .waitForExist({ timeout: 30_000 });
+
+      const main = await second.getWindowHandle();
+      await second.tauri.execute(
+        async ({ core }) => await core.invoke("show_capture")
+      );
+      await expect
+        .poll(
+          async () => {
+            const handles = await second.getWindowHandles();
+
+            return handles.length;
+          },
+          { timeout: 15_000 }
+        )
+        .toBeGreaterThan(1);
+
+      const handles = await second.getWindowHandles();
+      const capture = handles.find((handle) => handle !== main);
+
+      if (capture === undefined) {
+        throw new Error("The capture window has no handle.");
+      }
+
+      await second.switchToWindow(capture);
+      await second
+        .$('html[data-theme="catppuccin"]')
+        .waitForExist({ timeout: 15_000 });
+    } catch (error) {
+      await writeFile(
+        path.join(artifacts, "failure.txt"),
+        `Theme after restart: ${String(error)}`
+      );
+
+      throw error;
+    } finally {
+      await cleanupWdioSession(second);
+    }
+  });
 });

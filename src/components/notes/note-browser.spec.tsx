@@ -37,6 +37,10 @@ function mount(
       return { state: "ready" };
     }
 
+    if (command === "get_theme") {
+      return "inki";
+    }
+
     if (command === "list_notes") {
       const { filters } = parse(
         object({ filters: object({ query: nullish(string()) }) }),

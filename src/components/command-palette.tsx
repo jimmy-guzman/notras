@@ -17,6 +17,7 @@ import {
   ListXIcon,
   MoonIcon,
   NotebookPenIcon,
+  PaletteIcon,
   PanelLeftIcon,
   PencilIcon,
   PinIcon,
@@ -51,8 +52,9 @@ import { createNote } from "@/data/create-note";
 import { deleteNote } from "@/data/delete-note";
 import { openCode } from "@/data/open-code";
 import { openCsv } from "@/data/open-csv";
-import { appearanceQuery } from "@/data/queries";
+import { appearanceQuery, themeQuery } from "@/data/queries";
 import { reindexAll } from "@/data/reindex";
+import { setTheme } from "@/data/theme";
 import { readRecentActions } from "@/lib/recent-actions";
 import { forgetNote } from "@/lib/recent-notes";
 import { copyTabPath } from "@/lib/tabs/copy-path";
@@ -78,7 +80,7 @@ import { setTabListOpen } from "@/lib/ui/tab-list";
 import { pressView, useTabView } from "@/lib/ui/view";
 import { findUpdate, offerUpdate, updatesSupported } from "@/lib/updater";
 import { commands } from "@/server/adapters/bindings";
-import type { Appearance } from "@/server/adapters/bindings";
+import type { Appearance, Theme } from "@/server/adapters/bindings";
 
 import { ActionsView } from "./palette-actions";
 import type { PaletteAction, PaletteScope } from "./palette-actions";
@@ -97,6 +99,8 @@ const APPEARANCES = [
   { Icon: SunIcon, appearance: "light" },
   { Icon: MoonIcon, appearance: "dark" },
 ] satisfies { Icon: LucideIcon; appearance: Appearance }[];
+
+const THEMES = ["inki", "catppuccin"] satisfies Theme[];
 
 const DARK_SCHEME = "(prefers-color-scheme: dark)";
 
@@ -202,6 +206,8 @@ export function CommandPalette({
     ...appearanceQuery,
     enabled: detectPlatform() === "mac",
   });
+
+  const { data: theme } = useQuery(themeQuery);
 
   // The webview's media query follows the forced appearance, so this is the
   // scheme on screen in every mode.
@@ -713,6 +719,27 @@ export function CommandPalette({
               ]
         )
       : []),
+    ...THEMES.flatMap((choice) =>
+      choice === theme
+        ? []
+        : [
+            {
+              Icon: PaletteIcon,
+              label: `${choice} theme`,
+              needs: "none",
+              onSelect: () => {
+                void runAction("could not change theme", async () => {
+                  await setTheme(choice);
+                  await queryClient.invalidateQueries({
+                    queryKey: themeQuery.queryKey,
+                  });
+                });
+              },
+              text: `${choice} theme`,
+              value: `theme-${choice}`,
+            } satisfies PaletteAction,
+          ]
+    ),
     {
       Icon: RefreshCwIcon,
       label: "reindex library",

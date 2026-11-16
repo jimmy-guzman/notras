@@ -20,7 +20,7 @@ A theme in `src/themes/` owns the palette: every color token, in a dark and a li
 
 Color carries a role. The primary color identifies actions and the current item in a set, such as the outline heading being read or a lit toggle in the note panel. The selection color identifies text selection, and the accent identifies active command rows. Use semantic tokens and derive tints from them so every theme and scheme stays consistent. Contrast tests cover declared pairs; inspect rendered interaction states too.
 
-Inki is the app's theme. Its dark scheme pairs warm near-black backgrounds with ivory text, and its light scheme uses ivory paper and dark ink. Its primary is pink, its selection blue, and its accent violet.
+Inki is the default theme. Its dark scheme pairs warm near-black backgrounds with ivory text, and its light scheme uses ivory paper and dark ink. Its primary is pink, its selection blue, and its accent violet. Catppuccin takes Mocha for dark and Latte for light, with mauve as its primary and a surface gray as its accent, and a tint of Overlay 2 as its selection. A Latte ink that misses a contrast floor is darkened, keeping its hue. Paper prints in the active theme's light scheme.
 
 Use the existing radius ladder and spacing conventions. Nested radii account for the parent's padding. A new surface should have a clear relationship to the surrounding editor, shell, or floating controls. Avoid adding borders, shadows, and fills that express the same boundary more than once.
 

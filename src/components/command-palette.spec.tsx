@@ -20,7 +20,7 @@ import { Workspace } from "@/components/workspace/workspace";
 import { SNIPPET_END, SNIPPET_START } from "@/core/fts-markers";
 import type { NoteMeta } from "@/core/notes";
 import { parseSearch } from "@/core/search";
-import { appearanceQuery, noteQueries } from "@/data/queries";
+import { appearanceQuery, noteQueries, themeQuery } from "@/data/queries";
 import { createQueryClient } from "@/lib/query-client";
 import { readRecentNotes, rememberNote } from "@/lib/recent-notes";
 import type { TabSnapshot } from "@/lib/tabs/store";
@@ -59,6 +59,7 @@ function mount(mode: "actions" | "find", notes: NoteMeta[]) {
   ]);
   client.setQueryData(noteQueries.tags().queryKey, [{ count: 1, tag: "work" }]);
   client.setQueryData(appearanceQuery.queryKey, "auto");
+  client.setQueryData(themeQuery.queryKey, "inki");
   const closed: boolean[] = [];
   onTestFinished(() => {
     client.clear();
@@ -597,6 +598,7 @@ describe("command palette actions", () => {
     client.setQueryData(noteQueries.folders().queryKey, []);
     client.setQueryData(noteQueries.tags().queryKey, []);
     client.setQueryData(appearanceQuery.queryKey, "auto");
+    client.setQueryData(themeQuery.queryKey, "inki");
     onTestFinished(() => {
       closeTab(tab);
       client.clear();
@@ -681,6 +683,7 @@ describe("recent commands", () => {
         "reopen last closed tab",
         "quick capture",
         "settings",
+        "catppuccin theme",
         "reindex library",
         "check for updates...",
       ]);
@@ -780,6 +783,44 @@ describe("recent commands", () => {
 
     expect(document.body.textContent).not.toContain("appearance ");
     expect(document.body.textContent).toContain("nothing found");
+  });
+
+  it("should switch to the chosen theme and stop offering it", async () => {
+    const saved: unknown[] = [];
+    mockIPC((command, payload) => {
+      if (command === "set_theme") {
+        saved.push(payload);
+
+        return null;
+      }
+
+      if (command === "get_theme") {
+        return "catppuccin";
+      }
+
+      throw new Error(`unexpected command: ${command}`);
+    });
+    onTestFinished(() => {
+      clearMocks();
+    });
+    const palette = mount("actions", []);
+
+    expect(
+      screen.queryByRole("option", { name: "inki theme" })
+    ).not.toBeInTheDocument();
+
+    await palette.user.click(
+      screen.getByRole("option", { name: "catppuccin theme" })
+    );
+
+    expect(saved).toStrictEqual([{ theme: "catppuccin" }]);
+    expect(palette.closed).toStrictEqual([false]);
+    expect(
+      await screen.findByRole("option", { name: "inki theme" })
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("option", { name: "catppuccin theme" })
+    ).not.toBeInTheDocument();
   });
 
   it("should offer and run commands when recent history cannot be read", async () => {

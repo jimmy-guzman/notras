@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 
 import { describe, expect, it } from "vitest";
@@ -11,8 +11,6 @@ const projectFile = (...segments: string[]) =>
   readFileSync(path.join(process.cwd(), ...segments), "utf-8");
 
 const source = projectFile("src", "styles.css");
-
-const inki = projectFile("src", "themes", "inki.css");
 
 const LIGHT_MARKER = "@media (prefers-color-scheme: light)";
 
@@ -33,10 +31,43 @@ const readTokens = (css: string) => {
   return tokens;
 };
 
-const markerAt = inki.indexOf(LIGHT_MARKER);
+/** The selector a theme's dark rule opens on: bare `:root` for the default. */
+const THEME_SELECTOR = /^(?<value>:root[^,{]*)/mu;
 
-const darkTokens = readTokens(inki.slice(0, markerAt));
-const lightTokens = readTokens(inki.slice(markerAt));
+/**
+ * Every theme in `src/themes/`, split at its light scheme. A theme added there
+ * is held to every palette test below without being listed.
+ */
+const themes = readdirSync(path.join(process.cwd(), "src", "themes")).map(
+  (file) => {
+    const css = projectFile("src", "themes", file);
+    const markerAt = css.indexOf(LIGHT_MARKER);
+    const selector = THEME_SELECTOR.exec(css)?.groups?.value?.trim();
+
+    if (markerAt === -1 || selector === undefined) {
+      throw new Error(`could not read the schemes of src/themes/${file}`);
+    }
+
+    return {
+      css,
+      dark: readTokens(css.slice(0, markerAt)),
+      light: readTokens(css.slice(markerAt)),
+      name: path.basename(file, ".css"),
+      selector,
+    };
+  }
+);
+
+const palettes = themes.flatMap(({ dark, light, name }) => [
+  { other: light, scheme: `${name} dark`, tokens: dark },
+  { other: dark, scheme: `${name} light`, tokens: light },
+]);
+
+const defaultTheme = themes.find(({ selector }) => selector === ":root");
+
+if (defaultTheme === undefined) {
+  throw new Error("no theme in src/themes/ is on bare :root");
+}
 
 const toChannel = (byte: number) => {
   const ratio = byte / 255;
@@ -145,10 +176,7 @@ const AA = 4.5;
 
 const PLACEHOLDER_FLOOR = 2;
 
-describe.each([
-  ["dark", darkTokens, lightTokens],
-  ["light", lightTokens, darkTokens],
-])("%s palette", (scheme, tokens, other) => {
+describe.each(palettes)("$scheme palette", ({ other, scheme, tokens }) => {
   it.each(PAIRS)("should clear WCAG AA for %s on %s", (text, surface) => {
     const ratio = contrast(
       tokenValue(scheme, tokens, text),
@@ -176,6 +204,12 @@ describe.each([
   it("should match the shell to the scrollbar thumb color", () => {
     expect(tokenValue(scheme, tokens, "shell")).toBe(
       tokenValue(scheme, tokens, "border")
+    );
+  });
+
+  it("should define the same token names as the default theme", () => {
+    expect([...tokens.keys()].toSorted()).toStrictEqual(
+      [...defaultTheme.dark.keys()].toSorted()
     );
   });
 });
@@ -420,10 +454,7 @@ describe("the note preset", () => {
   });
 });
 
-describe.each([
-  ["dark", darkTokens],
-  ["light", lightTokens],
-])("%s reading contrast", (scheme, tokens) => {
+describe.each(palettes)("$scheme reading contrast", ({ scheme, tokens }) => {
   it.each(["background", "card", "muted"])(
     "should keep placeholder text above AA on %s",
     (surface) => {
@@ -447,11 +478,33 @@ describe.each([
       ).toBeGreaterThanOrEqual(7);
     }
   );
+
+  it.each(themes)(
+    "should keep the $name muted fill apart from the popover it marks a pressed control on",
+    ({ dark, light, name }) => {
+      expect(tokenValue(`${name} dark`, dark, "muted")).not.toBe(
+        tokenValue(`${name} dark`, dark, "popover")
+      );
+      expect(tokenValue(`${name} light`, light, "muted")).not.toBe(
+        tokenValue(`${name} light`, light, "popover")
+      );
+    }
+  );
 });
 
 describe("paper palette", () => {
-  it("should print a fence on the dark card with the dark syntax inks", () => {
-    expect(inki).toContain(":root,\n.print-sheet .code-block-wrapper {");
+  it.each(themes)(
+    "should print a $name fence on the dark card with the dark syntax inks",
+    ({ css, selector }) => {
+      const scope = selector === ":root" ? "" : `${selector} `;
+
+      expect(css).toContain(
+        `${selector},\n${scope}.print-sheet .code-block-wrapper {`
+      );
+    }
+  );
+
+  it("should keep the fence's ink on the dark card", () => {
     expect(source).toContain(
       ".print-sheet .code-block-wrapper {\n    color: var(--foreground);"
     );
@@ -713,9 +766,21 @@ const COLOR_SCHEME_META =
   /<meta(?=[^>]*name="color-scheme")[^>]*content="(?<value>[^"]+)"/u;
 
 const html = projectFile("index.html");
-const htmlMarkerAt = html.indexOf(LIGHT_MARKER);
+
+const launchStyle = html.slice(
+  html.indexOf("<style>") + "<style>".length,
+  html.indexOf("</style>")
+);
+
+const launchMarkerAt = launchStyle.indexOf(LIGHT_MARKER);
 const rust = projectFile("src-tauri", "src", "lib.rs");
 const tauriConfig = projectFile("src-tauri", "tauri.conf.json");
+
+const htmlBackground = (css: string, selector: string, what: string) => {
+  const rule = rulesOf(css).find(({ prelude }) => prelude === selector);
+
+  return firstMatch(BACKGROUND, rule?.body ?? "", what);
+};
 
 /**
  * The launch background is restated outside the stylesheet, because the window
@@ -723,25 +788,31 @@ const tauriConfig = projectFile("src-tauri", "tauri.conf.json");
  * `--background`, so they are asserted against it instead.
  */
 describe("launch background", () => {
-  it("should paint the dark canvas from index.html before styles.css loads", () => {
-    expect(
-      firstMatch(
-        BACKGROUND,
-        html.slice(0, htmlMarkerAt),
-        "the dark background in index.html"
-      )
-    ).toBe(tokenValue("dark", darkTokens, "background"));
-  });
+  it.each(themes)(
+    "should paint the $name dark canvas from index.html before styles.css loads",
+    ({ dark, name, selector }) => {
+      expect(
+        htmlBackground(
+          launchStyle.slice(0, launchMarkerAt),
+          selector,
+          `the ${name} dark background in index.html`
+        )
+      ).toBe(tokenValue(`${name} dark`, dark, "background"));
+    }
+  );
 
-  it("should paint the light canvas from index.html before styles.css loads", () => {
-    expect(
-      firstMatch(
-        BACKGROUND,
-        html.slice(htmlMarkerAt),
-        "the light background in index.html"
-      )
-    ).toBe(tokenValue("light", lightTokens, "background"));
-  });
+  it.each(themes)(
+    "should paint the $name light canvas from index.html before styles.css loads",
+    ({ light, name, selector }) => {
+      expect(
+        htmlBackground(
+          launchStyle.slice(launchMarkerAt),
+          selector,
+          `the ${name} light background in index.html`
+        )
+      ).toBe(tokenValue(`${name} light`, light, "background"));
+    }
+  );
 
   it("should declare a color-scheme so the canvas is never painted white", () => {
     expect(
@@ -750,24 +821,31 @@ describe("launch background", () => {
     expect(source).toContain("color-scheme: dark light;");
   });
 
-  it("should give the tauri window the dark background at creation", () => {
+  it("should give the tauri window the default theme's dark background at creation", () => {
     expect(
       firstMatch(
         TAURI_BACKGROUND,
         tauriConfig,
         "backgroundColor in tauri.conf.json"
       )
-    ).toBe(tokenValue("dark", darkTokens, "background"));
+    ).toBe(
+      tokenValue(`${defaultTheme.name} dark`, defaultTheme.dark, "background")
+    );
   });
 
-  it("should carry both scheme backgrounds into the rust window layer", () => {
-    expect(rustBackground(rust, "BG_DARK")).toBe(
-      tokenValue("dark", darkTokens, "background")
-    );
-    expect(rustBackground(rust, "BG_LIGHT")).toBe(
-      tokenValue("light", lightTokens, "background")
-    );
-  });
+  it.each(themes)(
+    "should carry both $name scheme backgrounds into the rust window layer",
+    ({ dark, light, name }) => {
+      const constant = name.toUpperCase();
+
+      expect(rustBackground(rust, `${constant}_DARK`)).toBe(
+        tokenValue(`${name} dark`, dark, "background")
+      );
+      expect(rustBackground(rust, `${constant}_LIGHT`)).toBe(
+        tokenValue(`${name} light`, light, "background")
+      );
+    }
+  );
 });
 
 /**
