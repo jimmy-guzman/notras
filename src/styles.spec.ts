@@ -479,17 +479,11 @@ describe.each(palettes)("$scheme reading contrast", ({ scheme, tokens }) => {
     }
   );
 
-  it.each(themes)(
-    "should keep the $name muted fill apart from the popover it marks a pressed control on",
-    ({ dark, light, name }) => {
-      expect(tokenValue(`${name} dark`, dark, "muted")).not.toBe(
-        tokenValue(`${name} dark`, dark, "popover")
-      );
-      expect(tokenValue(`${name} light`, light, "muted")).not.toBe(
-        tokenValue(`${name} light`, light, "popover")
-      );
-    }
-  );
+  it("should keep the muted fill apart from the popover it marks a pressed control on", () => {
+    expect(tokenValue(scheme, tokens, "muted")).not.toBe(
+      tokenValue(scheme, tokens, "popover")
+    );
+  });
 });
 
 describe("paper palette", () => {

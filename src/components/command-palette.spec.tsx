@@ -823,6 +823,41 @@ describe("recent commands", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("should report a theme that cannot be saved and keep offering it", async () => {
+    mockIPC((command) => {
+      if (command === "set_theme") {
+        throw Object.assign(new Error("The theme could not be saved"), {
+          kind: "failed",
+        });
+      }
+
+      if (command === "get_theme") {
+        return "inki";
+      }
+
+      throw new Error(`unexpected command: ${command}`);
+    });
+    onTestFinished(() => {
+      clearMocks();
+    });
+    render(<Toaster />);
+    const palette = mount("actions", []);
+
+    await palette.user.click(
+      screen.getByRole("option", { name: "catppuccin theme" })
+    );
+
+    expect(
+      await screen.findByText("could not change theme")
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("The theme could not be saved")
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("option", { name: "catppuccin theme" })
+    ).toBeInTheDocument();
+  });
+
   it("should offer and run commands when recent history cannot be read", async () => {
     const getItem = localStorage.getItem.bind(localStorage);
 

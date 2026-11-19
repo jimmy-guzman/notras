@@ -423,4 +423,103 @@ describe(SettingsDialog, () => {
       "true"
     );
   });
+
+  it("should report a theme that cannot be read", async () => {
+    mockIPC((command) => {
+      if (command === "get_theme") {
+        throw Object.assign(new Error("The settings file is unreadable"), {
+          kind: "failed",
+        });
+      }
+
+      if (command.startsWith("plugin:")) {
+        return false;
+      }
+
+      throw new Error(`unexpected command: ${command}`);
+    });
+
+    const client = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+
+    onTestFinished(() => {
+      client.clear();
+      clearMocks();
+    });
+    render(
+      <QueryClientProvider client={client}>
+        <Toaster />
+        <SettingsDialog notesDir="/notes" onOpenChange={() => {}} open />
+      </QueryClientProvider>
+    );
+
+    expect(
+      await screen.findByText("could not read the theme")
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("The settings file is unreadable")
+    ).toBeInTheDocument();
+  });
+
+  it("should keep a later theme pick on screen while an earlier one fails", async () => {
+    const firstSave = Promise.withResolvers<null>();
+    const laterSave = Promise.withResolvers<null>();
+    const calls: unknown[] = [];
+
+    mockIPC(async (command, payload) => {
+      if (command === "get_theme") {
+        return "catppuccin";
+      }
+
+      if (command === "set_theme") {
+        calls.push(payload);
+
+        return await (calls.length === 1 ? firstSave : laterSave).promise;
+      }
+
+      if (command.startsWith("plugin:")) {
+        return false;
+      }
+
+      throw new Error(`unexpected command: ${command}`);
+    });
+
+    const client = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+
+    onTestFinished(() => {
+      client.clear();
+      clearMocks();
+    });
+    render(
+      <QueryClientProvider client={client}>
+        <Toaster />
+        <SettingsDialog notesDir="/notes" onOpenChange={() => {}} open />
+      </QueryClientProvider>
+    );
+    const user = userEvent.setup();
+
+    await user.click(await screen.findByRole("button", { name: "inki" }));
+    await user.click(screen.getByRole("button", { name: "catppuccin" }));
+    await user.click(screen.getByRole("button", { name: "inki" }));
+    firstSave.reject(
+      Object.assign(new Error("The theme could not be saved"), {
+        kind: "failed",
+      })
+    );
+
+    await waitFor(() => {
+      expect(calls).toStrictEqual([{ theme: "inki" }, { theme: "catppuccin" }]);
+    });
+    expect(screen.getByRole("button", { name: "inki" })).toHaveAttribute(
+      "aria-pressed",
+      "true"
+    );
+    laterSave.resolve(null);
+    await waitFor(() => {
+      expect(calls).toHaveLength(3);
+    });
+  });
 });
