@@ -165,6 +165,9 @@ const PAIRS: [text: string, surface: string][] = [
   ["success", "card"],
   ["warning", "background"],
   ["warning", "card"],
+  ["info", "popover"],
+  ["success", "popover"],
+  ["warning", "popover"],
   ["foreground", "selection"],
   ...SYNTAX.flatMap((role): [string, string][] => [
     [role, "background"],

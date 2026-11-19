@@ -1,7 +1,7 @@
 /* Mocha and Latte from catppuccin/palette, by the roles in DESIGN.md. Latte
    inks that miss a contrast floor in styles.spec.ts are darkened in OKLCH
-   lightness, keeping their hue; green, yellow, peach and sky also lose the
-   chroma sRGB cannot hold at that lightness. The selection is Overlay 2 at
+   lightness, keeping their hue; green, yellow, peach, sky and sapphire also
+   lose the chroma sRGB cannot hold at that lightness. The selection is Overlay 2 at
    25% over the base. */
 :root[data-theme="catppuccin"],
 :root[data-theme="catppuccin"] .print-sheet .code-block-wrapper {
@@ -66,7 +66,7 @@
     --destructive: #d10d38;
     --success: #1f7901;
     --warning: #965c03;
-    --info: #209fb5;
+    --info: #007284;
     --border: #dce0e8;
     --input: #9ca0b0;
     --band-divider: color-mix(in srgb, black 38%, var(--shell));
