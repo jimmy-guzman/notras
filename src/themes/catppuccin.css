@@ -63,9 +63,9 @@
     --muted-foreground: #606278;
     --accent: #ccd0da;
     --accent-foreground: #484b64;
-    --destructive: #d10d38;
-    --success: #1f7901;
-    --warning: #965c03;
+    --destructive: #cf0737;
+    --success: #1e7800;
+    --warning: #945b01;
     --info: #007284;
     --border: #dce0e8;
     --input: #9ca0b0;
@@ -84,8 +84,8 @@
     --syntax-number: #b64401;
     --syntax-operator: #03709d;
     --syntax-punctuation: #65687c;
-    --syntax-string: #1f7901;
+    --syntax-string: #1e7800;
     --syntax-tag: #ac3d91;
-    --syntax-type: #965c03;
+    --syntax-type: #945b01;
   }
 }
