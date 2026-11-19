@@ -1365,7 +1365,9 @@ mod tests {
 
         assert_eq!(
             invoke(&window, "set_theme", json!({"theme": "inki"})),
-            Err(json!({"kind": "failed", "message": "That path is a folder"}))
+            Err(json!({
+                "kind": "failed", "message": if cfg!(windows) { "Permission denied" } else { "That path is a folder" }
+            }))
         );
         assert_eq!(
             invoke(&window, "get_theme", json!({})),
