@@ -54,29 +54,57 @@ async function pressCommandQ(processId: number) {
   ]);
 }
 
+async function launchApp(binary: string, artifacts: string) {
+  return await startWdioSession({
+    browserName: "tauri",
+    "tauri:options": { application: binary },
+    "wdio:tauriServiceOptions": {
+      captureBackendLogs: true,
+      captureFrontendLogs: true,
+      driverProvider: "embedded",
+      logDir: artifacts,
+      startTimeout: 30_000,
+    },
+  });
+}
+
+/** Opens quick capture and switches the session to its window. */
+async function openCapture(session: WebdriverIO.Browser) {
+  const main = await session.getWindowHandle();
+  await session.tauri.execute(
+    async ({ core }) => await core.invoke("show_capture")
+  );
+  await expect
+    .poll(
+      async () => {
+        const handles = await session.getWindowHandles();
+
+        return handles.length;
+      },
+      { timeout: 15_000 }
+    )
+    .toBeGreaterThan(1);
+
+  const handles = await session.getWindowHandles();
+  const capture = handles.find((handle) => handle !== main);
+
+  if (capture === undefined) {
+    throw new Error("The capture window has no handle.");
+  }
+
+  await session.switchToWindow(capture);
+}
+
 describe("native smoke", () => {
   it("should save an edit to disk and display it after restarting the app", async () => {
     const { artifacts, binary, note } = inject("smoke");
     const marker = `saved-${Date.now()}`;
 
-    const launch = async () =>
-      await startWdioSession({
-        browserName: "tauri",
-        "tauri:options": { application: binary },
-        "wdio:tauriServiceOptions": {
-          captureBackendLogs: true,
-          captureFrontendLogs: true,
-          driverProvider: "embedded",
-          logDir: artifacts,
-          startTimeout: 30_000,
-        },
-      });
-
     await writeFile(
       path.join(artifacts, "stage.txt"),
       "Launching the first process"
     );
-    const first = await launch();
+    const first = await launchApp(binary, artifacts);
 
     try {
       await writeFile(
@@ -141,7 +169,7 @@ describe("native smoke", () => {
       path.join(artifacts, "stage.txt"),
       "Launching a new process after stopping the first"
     );
-    const second = await launch();
+    const second = await launchApp(binary, artifacts);
 
     try {
       await writeFile(
@@ -179,17 +207,7 @@ describe("native smoke", () => {
     const marker = `quit-${Date.now()}`;
     const jot = `jot-${Date.now()}`;
 
-    const session = await startWdioSession({
-      browserName: "tauri",
-      "tauri:options": { application: binary },
-      "wdio:tauriServiceOptions": {
-        captureBackendLogs: true,
-        captureFrontendLogs: true,
-        driverProvider: "embedded",
-        logDir: artifacts,
-        startTimeout: 30_000,
-      },
-    });
+    const session = await launchApp(binary, artifacts);
 
     try {
       await writeFile(
@@ -200,25 +218,7 @@ describe("native smoke", () => {
       const editor = session.$('[contenteditable="true"]');
       await editor.waitForDisplayed({ timeout: 30_000 });
       const main = await session.getWindowHandle();
-      await session.execute(async () => {
-        await window.__TAURI__?.core?.invoke?.("show_capture");
-      });
-      await expect
-        .poll(
-          async () => {
-            const handles = await session.getWindowHandles();
-
-            return handles.length;
-          },
-          { timeout: 15_000 }
-        )
-        .toBeGreaterThan(1);
-
-      const handles = await session.getWindowHandles();
-
-      await session.switchToWindow(
-        handles.find((handle) => handle !== main) ?? main
-      );
+      await openCapture(session);
 
       const capture = session.$('[contenteditable="true"]');
 
@@ -283,17 +283,7 @@ describe("native smoke", () => {
     const jot = `command-q-${Date.now()}`;
     const library = path.dirname(note);
 
-    const session = await startWdioSession({
-      browserName: "tauri",
-      "tauri:options": { application: binary },
-      "wdio:tauriServiceOptions": {
-        captureBackendLogs: true,
-        captureFrontendLogs: true,
-        driverProvider: "embedded",
-        logDir: artifacts,
-        startTimeout: 30_000,
-      },
-    });
+    const session = await launchApp(binary, artifacts);
 
     try {
       await writeFile(
@@ -304,26 +294,7 @@ describe("native smoke", () => {
       await session
         .$('[contenteditable="true"]')
         .waitForDisplayed({ timeout: 30_000 });
-      const main = await session.getWindowHandle();
-      await session.execute(async () => {
-        await window.__TAURI__?.core?.invoke?.("show_capture");
-      });
-      await expect
-        .poll(
-          async () => {
-            const handles = await session.getWindowHandles();
-
-            return handles.length;
-          },
-          { timeout: 15_000 }
-        )
-        .toBeGreaterThan(1);
-
-      const handles = await session.getWindowHandles();
-
-      await session.switchToWindow(
-        handles.find((handle) => handle !== main) ?? main
-      );
+      await openCapture(session);
 
       const capture = session.$('[contenteditable="true"]');
 
@@ -365,17 +336,7 @@ describe("native smoke", () => {
     const jot = `refused-${Date.now()}`;
     const library = path.dirname(note);
 
-    const session = await startWdioSession({
-      browserName: "tauri",
-      "tauri:options": { application: binary },
-      "wdio:tauriServiceOptions": {
-        captureBackendLogs: true,
-        captureFrontendLogs: true,
-        driverProvider: "embedded",
-        logDir: artifacts,
-        startTimeout: 30_000,
-      },
-    });
+    const session = await launchApp(binary, artifacts);
 
     try {
       await writeFile(
@@ -386,26 +347,7 @@ describe("native smoke", () => {
       await session
         .$('[contenteditable="true"]')
         .waitForDisplayed({ timeout: 30_000 });
-      const main = await session.getWindowHandle();
-      await session.execute(async () => {
-        await window.__TAURI__?.core?.invoke?.("show_capture");
-      });
-      await expect
-        .poll(
-          async () => {
-            const handles = await session.getWindowHandles();
-
-            return handles.length;
-          },
-          { timeout: 15_000 }
-        )
-        .toBeGreaterThan(1);
-
-      const handles = await session.getWindowHandles();
-
-      await session.switchToWindow(
-        handles.find((handle) => handle !== main) ?? main
-      );
+      await openCapture(session);
 
       const capture = session.$('[contenteditable="true"]');
 
@@ -457,17 +399,7 @@ describe("native smoke", () => {
     const marker = `hidden-${Date.now()}`;
     const library = path.dirname(note);
 
-    const session = await startWdioSession({
-      browserName: "tauri",
-      "tauri:options": { application: binary },
-      "wdio:tauriServiceOptions": {
-        captureBackendLogs: true,
-        captureFrontendLogs: true,
-        driverProvider: "embedded",
-        logDir: artifacts,
-        startTimeout: 30_000,
-      },
-    });
+    const session = await launchApp(binary, artifacts);
 
     const mainIsVisible = async () =>
       await session.execute(
@@ -542,17 +474,7 @@ describe("native smoke", () => {
   it("should let a quit macOS holds end a waiting restart", async () => {
     const { artifacts, binary } = inject("smoke");
 
-    const session = await startWdioSession({
-      browserName: "tauri",
-      "tauri:options": { application: binary },
-      "wdio:tauriServiceOptions": {
-        captureBackendLogs: true,
-        captureFrontendLogs: true,
-        driverProvider: "embedded",
-        logDir: artifacts,
-        startTimeout: 30_000,
-      },
-    });
+    const session = await launchApp(binary, artifacts);
 
     try {
       // The first test left the seeded note open, and this launch restores it.
@@ -560,25 +482,7 @@ describe("native smoke", () => {
         .$('[contenteditable="true"]')
         .waitForDisplayed({ timeout: 30_000 });
       const main = await session.getWindowHandle();
-      await session.execute(async () => {
-        await window.__TAURI__?.core?.invoke?.("show_capture");
-      });
-      await expect
-        .poll(
-          async () => {
-            const handles = await session.getWindowHandles();
-
-            return handles.length;
-          },
-          { timeout: 15_000 }
-        )
-        .toBeGreaterThan(1);
-
-      const handles = await session.getWindowHandles();
-
-      await session.switchToWindow(
-        handles.find((handle) => handle !== main) ?? main
-      );
+      await openCapture(session);
       await session.$('[contenteditable="true"]').waitForDisplayed({
         timeout: 15_000,
       });
@@ -620,17 +524,7 @@ describe("native smoke", () => {
   it("should end a quit a frozen window never answers", async () => {
     const { artifacts, binary } = inject("smoke");
 
-    const session = await startWdioSession({
-      browserName: "tauri",
-      "tauri:options": { application: binary },
-      "wdio:tauriServiceOptions": {
-        captureBackendLogs: true,
-        captureFrontendLogs: true,
-        driverProvider: "embedded",
-        logDir: artifacts,
-        startTimeout: 30_000,
-      },
-    });
+    const session = await launchApp(binary, artifacts);
 
     try {
       // The first test left the seeded note open, and this launch restores it.
@@ -667,20 +561,7 @@ describe("native smoke", () => {
   it("should paint a chosen theme at once and after restarting the app", async () => {
     const { artifacts, binary } = inject("smoke");
 
-    const launch = async () =>
-      await startWdioSession({
-        browserName: "tauri",
-        "tauri:options": { application: binary },
-        "wdio:tauriServiceOptions": {
-          captureBackendLogs: true,
-          captureFrontendLogs: true,
-          driverProvider: "embedded",
-          logDir: artifacts,
-          startTimeout: 30_000,
-        },
-      });
-
-    const first = await launch();
+    const first = await launchApp(binary, artifacts);
 
     try {
       await first
@@ -688,28 +569,8 @@ describe("native smoke", () => {
         .waitForExist({ timeout: 30_000 });
 
       const main = await first.getWindowHandle();
-      await first.tauri.execute(
-        async ({ core }) => await core.invoke("show_capture")
-      );
-      await expect
-        .poll(
-          async () => {
-            const handles = await first.getWindowHandles();
-
-            return handles.length;
-          },
-          { timeout: 15_000 }
-        )
-        .toBeGreaterThan(1);
-
-      const handles = await first.getWindowHandles();
-      const capture = handles.find((handle) => handle !== main);
-
-      if (capture === undefined) {
-        throw new Error("The capture window has no handle.");
-      }
-
-      await first.switchToWindow(capture);
+      await openCapture(first);
+      const capture = await first.getWindowHandle();
       await first
         .$('html[data-theme="inki"]')
         .waitForExist({ timeout: 15_000 });
@@ -762,39 +623,19 @@ describe("native smoke", () => {
       await cleanupWdioSession(first);
     }
 
-    const second = await launch();
+    const second = await launchApp(binary, artifacts);
 
     try {
       await second
         .$('html[data-theme="catppuccin"]')
         .waitForExist({ timeout: 30_000 });
 
-      const main = await second.getWindowHandle();
-      await second.tauri.execute(
-        async ({ core }) => await core.invoke("show_capture")
-      );
-      await expect
-        .poll(
-          async () => {
-            const handles = await second.getWindowHandles();
-
-            return handles.length;
-          },
-          { timeout: 15_000 }
-        )
-        .toBeGreaterThan(1);
-
-      const handles = await second.getWindowHandles();
-      const capture = handles.find((handle) => handle !== main);
-
-      if (capture === undefined) {
-        throw new Error("The capture window has no handle.");
-      }
-
-      await second.switchToWindow(capture);
-      await second
-        .$('html[data-theme="catppuccin"]')
-        .waitForExist({ timeout: 15_000 });
+      await openCapture(second);
+      expect(
+        await second
+          .$('html[data-theme="catppuccin"]')
+          .waitForExist({ timeout: 15_000 })
+      ).toBeTruthy();
     } catch (error) {
       await writeFile(
         path.join(artifacts, "failure.txt"),
