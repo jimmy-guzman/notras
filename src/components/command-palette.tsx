@@ -1,5 +1,5 @@
 import { detectPlatform } from "@tanstack/react-hotkeys";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { revealItemInDir } from "@tauri-apps/plugin-opener";
 import { cn } from "cn";
 import {
@@ -208,6 +208,28 @@ export function CommandPalette({
   });
 
   const { data: theme } = useQuery(themeQuery);
+
+  // Shares the settings dialog's key and scope, so a pick here waits behind a
+  // settings pick still saving instead of landing first and being overwritten.
+  const { mutate: writeTheme } = useMutation({
+    mutationFn: setTheme,
+    mutationKey: ["theme"],
+    onError: (error) => {
+      toast.add({
+        description: reasonOf(error),
+        title: "could not change theme",
+        type: "error",
+      });
+    },
+    onSettled: async () => {
+      if (queryClient.isMutating({ mutationKey: ["theme"] }) > 1) {
+        return;
+      }
+
+      await queryClient.invalidateQueries({ queryKey: themeQuery.queryKey });
+    },
+    scope: { id: "theme" },
+  });
 
   // The webview's media query follows the forced appearance, so this is the
   // scheme on screen in every mode.
@@ -728,12 +750,8 @@ export function CommandPalette({
               label: `${choice} theme`,
               needs: "none",
               onSelect: () => {
-                void runAction("could not change theme", async () => {
-                  await setTheme(choice);
-                  await queryClient.invalidateQueries({
-                    queryKey: themeQuery.queryKey,
-                  });
-                });
+                close();
+                writeTheme(choice);
               },
               text: `${choice} theme`,
               value: `theme-${choice}`,

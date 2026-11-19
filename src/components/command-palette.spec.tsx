@@ -36,6 +36,7 @@ import { noteFind } from "@/lib/ui/find";
 import { closeNoteBrowser } from "@/lib/ui/note-browser";
 
 import { CommandPalette } from "./command-palette";
+import { SettingsDialog } from "./settings-dialog";
 
 const FOUND_NOTE = /Found/u;
 const CREATE_NOTE = /create/u;
@@ -821,6 +822,71 @@ describe("recent commands", () => {
     expect(
       screen.queryByRole("option", { name: "catppuccin theme" })
     ).not.toBeInTheDocument();
+  });
+
+  it("should send a palette theme pick after a settings pick still saving", async () => {
+    const firstSave = Promise.withResolvers<null>();
+    const calls: unknown[] = [];
+    mockIPC(async (command, payload) => {
+      if (command === "set_theme") {
+        calls.push(payload);
+
+        return calls.length === 1 ? await firstSave.promise : null;
+      }
+
+      if (command === "get_theme") {
+        return "inki";
+      }
+
+      if (command.startsWith("plugin:")) {
+        return false;
+      }
+
+      throw new Error(`unexpected command: ${command}`);
+    });
+    const client = createQueryClient();
+    client.setQueryData(noteQueries.list().queryKey, []);
+    client.setQueryData(noteQueries.folders().queryKey, []);
+    client.setQueryData(noteQueries.tags().queryKey, []);
+    client.setQueryData(appearanceQuery.queryKey, "auto");
+    client.setQueryData(themeQuery.queryKey, "inki");
+    onTestFinished(() => {
+      client.clear();
+      clearMocks();
+    });
+
+    const screenWith = (dialog: "palette" | "settings") => (
+      <QueryClientProvider client={client}>
+        <SettingsDialog
+          notesDir="/notes"
+          onOpenChange={() => {}}
+          open={dialog === "settings"}
+        />
+        <CommandPalette
+          mode="actions"
+          notesDir="/notes"
+          onOpenChange={() => {}}
+          onOpenSettings={() => {}}
+          open={dialog === "palette"}
+        />
+      </QueryClientProvider>
+    );
+
+    const { rerender } = render(screenWith("settings"));
+    const user = userEvent.setup();
+
+    await user.click(await screen.findByRole("button", { name: "catppuccin" }));
+    rerender(screenWith("palette"));
+    await user.click(await screen.findByRole("option", { name: "inki theme" }));
+    await sleep(50);
+
+    expect(calls).toStrictEqual([{ theme: "catppuccin" }]);
+
+    firstSave.resolve(null);
+
+    await waitFor(() => {
+      expect(calls).toStrictEqual([{ theme: "catppuccin" }, { theme: "inki" }]);
+    });
   });
 
   it("should report a theme that cannot be saved and keep offering it", async () => {
