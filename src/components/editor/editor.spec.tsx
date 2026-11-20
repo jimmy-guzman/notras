@@ -1085,6 +1085,46 @@ describe("embeds", () => {
     expect(embeddedSyntax()).not.toContain("2999");
   });
 
+  it("should color the whole of an embed's long code block when it refreshes during a print", async () => {
+    const code = Array.from(
+      { length: 3000 },
+      (_, i) => `const v${i} = ${i};`
+    ).join("\n");
+
+    const refreshes: (() => void)[] = [];
+
+    const { handle } = await mount({
+      initialContent: "see ![[Atlas]]",
+      watchEmbed: (_title, show) => {
+        const draw = () => {
+          show({
+            body: `\`\`\`ts\n${code}\n\`\`\``,
+            resolveImageSrc: (src) => ({ failure: "", src }),
+          });
+        };
+
+        draw();
+        refreshes.push(draw);
+
+        return () => {};
+      },
+    });
+
+    const windowAgain = handle.revealSyntax();
+    act(() => {
+      for (const refresh of refreshes) {
+        refresh();
+      }
+    });
+
+    await waitFor(() => {
+      expect(embeddedSyntax()).toContain("2999");
+    });
+
+    windowAgain();
+    expect(embeddedSyntax()).not.toContain("2999");
+  });
+
   it("should show an embedded image in the viewer from its open button", async () => {
     await mount({
       initialContent: "![[Atlas]]",

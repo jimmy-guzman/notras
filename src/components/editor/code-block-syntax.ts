@@ -230,6 +230,13 @@ const revealed = new WeakSet<EditorView>();
 /** Every view the plugin draws: an embedded note has a view of its own inside its note's. */
 const drawn = new Set<EditorView>();
 
+/**
+ * Each view a print is revealing, with how to window again every view revealed
+ * inside it. An embed that loads or refreshes during the print's dialog draws a
+ * view after the reveal began, which joins it on its first frame on the DOM.
+ */
+const reveals = new Map<EditorView, (() => void)[]>();
+
 function revealView(view: EditorView) {
   const { viewport } = syntaxState(view.state);
   revealed.add(view);
@@ -237,6 +244,12 @@ function revealView(view: EditorView) {
 
   return () => {
     revealed.delete(view);
+
+    // A refreshed embed destroyed this view while the print was open.
+    if (!drawn.has(view)) {
+      return;
+    }
+
     const seen = measureViewport(view);
     setViewport(view, seen === undefined ? viewport : padded(seen));
   };
@@ -251,7 +264,11 @@ export function revealSyntax(view: EditorView): () => void {
     view.dom.contains(each.dom) ? [revealView(each)] : []
   );
 
+  reveals.set(view, restores);
+
   return () => {
+    reveals.delete(view);
+
     for (const restore of restores) {
       restore();
     }
@@ -285,6 +302,16 @@ function syntaxPlugin() {
         frame = 0;
 
         if (revealed.has(view)) {
+          return;
+        }
+
+        const reveal = [...reveals].find(([root]) =>
+          root.dom.contains(view.dom)
+        );
+
+        if (reveal !== undefined) {
+          reveal[1].push(revealView(view));
+
           return;
         }
 
