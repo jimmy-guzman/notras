@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.12.9](https://github.com/jimmy-guzman/notras/compare/v0.12.8...v0.12.9) (2026-11-20)
+
+
+### Features
+
+* **editor:** ✨ read aliases, headings & sizes in wikilinks ([#571](https://github.com/jimmy-guzman/notras/issues/571)) ([202d132](https://github.com/jimmy-guzman/notras/commit/202d132ad9fa7b27431a976bb11656d27423e42d))
+* **ui:** ✨ choose a theme, inki or catppuccin ([#569](https://github.com/jimmy-guzman/notras/issues/569)) ([97957ad](https://github.com/jimmy-guzman/notras/commit/97957adc0af71b6c42102d0b4c97fc0217d28eed))
+
 ## [0.12.8](https://github.com/jimmy-guzman/notras/compare/v0.12.7...v0.12.8) (2026-11-16)
 
 
