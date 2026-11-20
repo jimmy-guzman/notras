@@ -114,7 +114,9 @@ function markdownTokens(markdown: string, lang: Lang, shift: number) {
 /** A leading `---` over a line the YAML lexer opens with a key: frontmatter being typed. */
 function opensWithKey(code: string) {
   const second = /^---\r?\n(?<line>.*)/u.exec(code)?.groups?.line;
-  const [first] = second === undefined ? [] : styledTokens(second, "yaml", 0);
+
+  const [first] =
+    second === undefined ? [] : styledTokens(second.trimStart(), "yaml", 0);
 
   return first?.offset === 0 && first.color === "var(--syntax-member)";
 }
