@@ -237,8 +237,7 @@ const drawn = new Set<EditorView>();
  */
 const reveals = new Map<EditorView, (() => void)[]>();
 
-function revealView(view: EditorView) {
-  const { viewport } = syntaxState(view.state);
+function revealView(view: EditorView, windowed: Range) {
   revealed.add(view);
   setViewport(view, { from: 0, to: view.state.doc.content.size });
 
@@ -251,7 +250,7 @@ function revealView(view: EditorView) {
     }
 
     const seen = measureViewport(view);
-    setViewport(view, seen === undefined ? viewport : padded(seen));
+    setViewport(view, seen === undefined ? windowed : padded(seen));
   };
 }
 
@@ -261,7 +260,9 @@ function revealView(view: EditorView) {
  */
 export function revealSyntax(view: EditorView): () => void {
   const restores = [...drawn].flatMap((each) =>
-    view.dom.contains(each.dom) ? [revealView(each)] : []
+    view.dom.contains(each.dom)
+      ? [revealView(each, syntaxState(each.state).viewport)]
+      : []
   );
 
   reveals.set(view, restores);
@@ -285,8 +286,13 @@ function syntaxPlugin() {
       apply: (transaction, state, previous) =>
         applyTransaction(transaction, state, previous.doc),
       init: (_, state) => {
-        // A fresh editor opens at the top.
-        const viewport = { from: 0, to: WINDOW };
+        // A fresh editor opens at the top. One drawn during a print opens
+        // whole, since the print can copy it before a frame joins it to the
+        // reveal; outside the reveal, its first measure windows it again.
+        const viewport =
+          reveals.size > 0
+            ? { from: 0, to: state.doc.content.size }
+            : { from: 0, to: WINDOW };
 
         return {
           decorations: buildDecorations(state.doc, viewport),
@@ -310,7 +316,7 @@ function syntaxPlugin() {
         );
 
         if (reveal !== undefined) {
-          reveal[1].push(revealView(view));
+          reveal[1].push(revealView(view, { from: 0, to: WINDOW }));
 
           return;
         }
