@@ -8,7 +8,7 @@ import { Decoration, DecorationSet } from "@tiptap/pm/view";
 
 import { hasString } from "./attrs";
 import { calloutOf } from "./callout";
-import { measureViewport } from "./code-block-shiki";
+import { measureViewport } from "./code-block-syntax";
 
 interface Match {
   /** The callout whose drawn label holds the match; the match itself is the caret at its body's start. */

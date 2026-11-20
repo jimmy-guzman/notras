@@ -790,6 +790,13 @@ describe("link clicks", () => {
   });
 });
 
+/** The colored runs of every embedded note's code, as text. */
+function embeddedSyntax() {
+  return [...document.querySelectorAll(".embed-body .syntax-token")].map(
+    (span) => span.textContent
+  );
+}
+
 describe("embeds", () => {
   it.each([
     { attrs: {}, mark: "bold" },
@@ -960,6 +967,33 @@ describe("embeds", () => {
     });
 
     expect(screen.getByText('No note is named "atlas"')).toBeInTheDocument();
+  });
+
+  it("should color the whole of an embedded note's long code block for a print", async () => {
+    const code = Array.from(
+      { length: 3000 },
+      (_, i) => `const v${i} = ${i};`
+    ).join("\n");
+
+    const { handle } = await mount({
+      initialContent: "see ![[Atlas]]",
+      watchEmbed: (_title, show) => {
+        show({
+          body: `\`\`\`ts\n${code}\n\`\`\``,
+          resolveImageSrc: (src) => ({ failure: "", src }),
+        });
+
+        return () => {};
+      },
+    });
+
+    expect(embeddedSyntax()).not.toContain("2999");
+
+    const windowAgain = handle.revealSyntax();
+    expect(embeddedSyntax()).toContain("2999");
+
+    windowAgain();
+    expect(embeddedSyntax()).not.toContain("2999");
   });
 
   it("should show an embedded image in the viewer from its open button", async () => {
@@ -4193,12 +4227,6 @@ describe("caret on mount", () => {
     ).join("\n");
 
     const initialContent = `\`\`\`ts\n${code}\n\`\`\``;
-    // A first mount leaves the block's tokens cached for the second.
-    const first = await mount({ initialContent });
-    await waitFor(() => {
-      expect(coloredText(first.editor, "syntax-keyword")).toContain("const");
-    });
-    cleanup();
     vi.useFakeTimers({
       toFake: ["requestAnimationFrame", "cancelAnimationFrame"],
     });
@@ -4236,7 +4264,7 @@ describe("caret on mount", () => {
 
     expect(coloredText(editor, "syntax-number")).toContain(String(lines - 1));
     expect(
-      coloredText(editor, "syntax-keyword").length / "const".length
+      coloredText(editor, "syntax-keyword").length / "const ".length
     ).toBeLessThan(lines);
   });
 

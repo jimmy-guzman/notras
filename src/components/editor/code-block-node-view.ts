@@ -14,7 +14,7 @@ import { hasString } from "./attrs";
 import { codeBlockScrollbar } from "./code-block-scrollbar";
 import { drawMermaid, mermaidSettled } from "./mermaid-diagram";
 import { nodeViewIcons } from "./node-view-icons";
-import { codeLanguages } from "./syntax-highlighter";
+import { codeLanguages } from "./syntax-languages";
 
 const icon = nodeViewIcons({
   copied: CheckIcon,
