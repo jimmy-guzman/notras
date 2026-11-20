@@ -8,6 +8,8 @@ allowBuilds:
 autoInstallPeers: false
 color: always
 engineStrict: true
+minimumReleaseAgeExclude:
+  - "@pierre/highlights@0.5.2"
 patchedDependencies:
   "@tiptap/markdown": patches/@tiptap__markdown.patch
   "@tiptap/react": patches/@tiptap__react.patch
