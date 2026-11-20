@@ -5,9 +5,11 @@ import { parseNote } from "@/core/frontmatter";
 
 import { syntaxTheme } from "./syntax-theme";
 
-/** One colored run of code; `offset` counts from the start of the code. */
+/** One styled run of code; `offset` counts from the start of the code. */
 export interface SyntaxToken {
   color: string;
+  /** CSS for an italic, bold or struck run, such as Markdown emphasis. */
+  font?: string;
   length: number;
   offset: number;
 }
@@ -35,17 +37,36 @@ const ALIASES = new Map([
   ["mbti", "moonbit"],
 ]);
 
-/** The runs that are not in the text color, which needs no decoration. */
-function coloredTokens(code: string, lang: Lang, shift: number) {
-  const { fg, tokens } = codeToTokens(code, { lang, theme: syntaxTheme });
+/**
+ * The runs that are not plain text, which needs no decoration. As the default
+ * of a theme set, the theme comes back as each run's inline CSS, font included.
+ */
+function styledTokens(code: string, lang: Lang, shift: number) {
+  const { fg, tokens } = codeToTokens(code, {
+    defaultColor: "notras",
+    lang,
+    themes: { notras: syntaxTheme },
+  });
 
-  return tokens
-    .flat()
-    .flatMap(({ color, content, offset }) =>
-      color === undefined || color === fg
-        ? []
-        : [{ color, length: content.length, offset: offset + shift }]
+  return tokens.flat().flatMap(({ content, htmlStyle = {}, offset }) => {
+    const { color, ...font } = htmlStyle;
+
+    const run = {
+      color: color === undefined || color === fg ? "inherit" : color,
+      length: content.length,
+      offset: offset + shift,
+    };
+
+    const declarations = Object.entries(font).map(
+      ([property, value]) => `${property}: ${value}`
     );
+
+    if (declarations.length === 0) {
+      return run.color === "inherit" ? [] : [run];
+    }
+
+    return [{ ...run, font: declarations.join("; ") }];
+  });
 }
 
 /**
@@ -87,13 +108,13 @@ function diffTokens(code: string) {
  * keeps it out of text the app reads as Markdown.
  */
 function markdownTokens(markdown: string, lang: Lang, shift: number) {
-  return coloredTokens(`\n${markdown}`, lang, shift - 1);
+  return styledTokens(`\n${markdown}`, lang, shift - 1);
 }
 
 /** A leading `---` over a line the YAML lexer opens with a key: frontmatter being typed. */
 function opensWithKey(code: string) {
   const second = /^---\r?\n(?<line>.*)/u.exec(code)?.groups?.line;
-  const [first] = second === undefined ? [] : coloredTokens(second, "yaml", 0);
+  const [first] = second === undefined ? [] : styledTokens(second, "yaml", 0);
 
   return first?.offset === 0 && first.color === "var(--syntax-member)";
 }
@@ -125,21 +146,21 @@ export function highlightCode(code: string, language: Lang): SyntaxToken[] {
   }
 
   if (!MARKDOWN.has(language)) {
-    return coloredTokens(code, language, 0);
+    return styledTokens(code, language, 0);
   }
 
   const { body, raw } = parseNote(code);
 
   if (raw === undefined) {
     return opensWithKey(code)
-      ? coloredTokens(code, language, 0)
+      ? styledTokens(code, language, 0)
       : markdownTokens(code, language, 0);
   }
 
   const head = code.slice(0, code.length - body.length);
 
   return [
-    ...coloredTokens(head, "yaml", 0),
+    ...styledTokens(head, "yaml", 0),
     ...markdownTokens(body, language, head.length),
   ];
 }

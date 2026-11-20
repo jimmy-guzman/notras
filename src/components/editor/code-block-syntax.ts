@@ -99,7 +99,7 @@ function buildDecorations(doc: Node, viewport: Range) {
       }
 
       return blockTokens(found.node, language).flatMap(
-        ({ color, length, offset }) => {
+        ({ color, font, length, offset }) => {
           const from = found.pos + 1 + offset;
           const to = from + length;
 
@@ -108,7 +108,10 @@ function buildDecorations(doc: Node, viewport: Range) {
             : [
                 Decoration.inline(from, to, {
                   class: "syntax-token",
-                  style: `color: ${color}`,
+                  style:
+                    font === undefined
+                      ? `color: ${color}`
+                      : `color: ${color}; ${font}`,
                 }),
               ];
         }

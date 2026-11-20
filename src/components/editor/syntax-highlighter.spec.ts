@@ -127,4 +127,39 @@ describe("syntax highlighter", () => {
       }))
     ).toContainEqual({ color: "var(--syntax-type)", content: "Just " });
   });
+
+  it("should set Markdown emphasis in italic, bold and strikethrough", () => {
+    const code = "*it* **bold** ***both*** ~~gone~~";
+
+    expect(
+      highlightCode(code, "markdown").map(
+        ({ color, font, length, offset }) => ({
+          color,
+          content: code.slice(offset, offset + length),
+          font,
+        })
+      )
+    ).toStrictEqual([
+      {
+        color: "var(--syntax-keyword)",
+        content: "*it*",
+        font: "font-style: italic",
+      },
+      {
+        color: "var(--syntax-keyword)",
+        content: "**bold**",
+        font: "font-weight: 700",
+      },
+      {
+        color: "var(--syntax-keyword)",
+        content: "***both***",
+        font: "font-style: italic; font-weight: 700",
+      },
+      {
+        color: "inherit",
+        content: "~~gone~~",
+        font: "text-decoration: line-through",
+      },
+    ]);
+  });
 });
