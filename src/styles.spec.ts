@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 
 import { describe, expect, it } from "vitest";
@@ -11,8 +11,6 @@ const projectFile = (...segments: string[]) =>
   readFileSync(path.join(process.cwd(), ...segments), "utf-8");
 
 const source = projectFile("src", "styles.css");
-
-const inki = projectFile("src", "themes", "inki.css");
 
 const LIGHT_MARKER = "@media (prefers-color-scheme: light)";
 
@@ -33,10 +31,43 @@ const readTokens = (css: string) => {
   return tokens;
 };
 
-const markerAt = inki.indexOf(LIGHT_MARKER);
+/** The selector a theme's dark rule opens on: bare `:root` for the default. */
+const THEME_SELECTOR = /^(?<value>:root[^,{]*)/mu;
 
-const darkTokens = readTokens(inki.slice(0, markerAt));
-const lightTokens = readTokens(inki.slice(markerAt));
+/**
+ * Every theme in `src/themes/`, split at its light scheme. A theme added there
+ * is held to every palette test below without being listed.
+ */
+const themes = readdirSync(path.join(process.cwd(), "src", "themes")).map(
+  (file) => {
+    const css = projectFile("src", "themes", file);
+    const markerAt = css.indexOf(LIGHT_MARKER);
+    const selector = THEME_SELECTOR.exec(css)?.groups?.value?.trim();
+
+    if (markerAt === -1 || selector === undefined) {
+      throw new Error(`could not read the schemes of src/themes/${file}`);
+    }
+
+    return {
+      css,
+      dark: readTokens(css.slice(0, markerAt)),
+      light: readTokens(css.slice(markerAt)),
+      name: path.basename(file, ".css"),
+      selector,
+    };
+  }
+);
+
+const palettes = themes.flatMap(({ dark, light, name }) => [
+  { other: light, scheme: `${name} dark`, tokens: dark },
+  { other: dark, scheme: `${name} light`, tokens: light },
+]);
+
+const defaultTheme = themes.find(({ selector }) => selector === ":root");
+
+if (defaultTheme === undefined) {
+  throw new Error("no theme in src/themes/ is on bare :root");
+}
 
 const toChannel = (byte: number) => {
   const ratio = byte / 255;
@@ -143,12 +174,83 @@ const PAIRS: [text: string, surface: string][] = [
 
 const AA = 4.5;
 
+const toLinear = (channel: number) =>
+  channel <= 0.04045 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4;
+
+const toGamma = (channel: number) =>
+  channel <= 0.0031308 ? 12.92 * channel : 1.055 * channel ** (1 / 2.4) - 0.055;
+
+const toOklab = (hex: string) => {
+  const [red, green, blue] = [1, 3, 5].map((offset) =>
+    toLinear(Number.parseInt(hex.slice(offset, offset + 2), 16) / 255)
+  );
+
+  if (red === undefined || green === undefined || blue === undefined) {
+    throw new Error(`${hex} is not a six-digit hex colour`);
+  }
+
+  const long = Math.cbrt(
+    0.4122214708 * red + 0.5363325363 * green + 0.0514459929 * blue
+  );
+
+  const medium = Math.cbrt(
+    0.2119034982 * red + 0.6806995451 * green + 0.1073969566 * blue
+  );
+
+  const short = Math.cbrt(
+    0.0883024619 * red + 0.2817188376 * green + 0.6299787005 * blue
+  );
+
+  return [
+    0.2104542553 * long + 0.793617785 * medium - 0.0040720468 * short,
+    1.9779984951 * long - 2.428592205 * medium + 0.4505937099 * short,
+    0.0259040371 * long + 0.7827717662 * medium - 0.808675766 * short,
+  ];
+};
+
+const fromOklab = ([lightness, a, b]: number[]) => {
+  if (lightness === undefined || a === undefined || b === undefined) {
+    throw new Error("an Oklab colour needs three channels");
+  }
+
+  const long = (lightness + 0.3963377774 * a + 0.2158037573 * b) ** 3;
+  const medium = (lightness - 0.1055613458 * a - 0.0638541728 * b) ** 3;
+  const short = (lightness - 0.0894841775 * a - 1.291485548 * b) ** 3;
+
+  return `#${[
+    4.0767416621 * long - 3.3077115913 * medium + 0.2309699292 * short,
+    -1.2684380046 * long + 2.6097574011 * medium - 0.3413193965 * short,
+    -0.0041960863 * long - 0.7034186147 * medium + 1.707614701 * short,
+  ]
+    .map((channel) =>
+      Math.round(Math.min(1, Math.max(0, toGamma(channel))) * 255)
+        .toString(16)
+        .padStart(2, "0")
+    )
+    .join("")}`;
+};
+
+/** `src/components/ui/toast.tsx` paints a toast 7% of its ink over `--popover`. */
+const toastSurface = (ink: string, popover: string) => {
+  const inkLab = toOklab(ink);
+  const popoverLab = toOklab(popover);
+
+  return fromOklab(
+    popoverLab.map((channel, index) => {
+      const inkChannel = inkLab[index];
+
+      if (inkChannel === undefined) {
+        throw new Error(`${ink} has no Oklab channel ${index}`);
+      }
+
+      return channel * 0.93 + inkChannel * 0.07;
+    })
+  );
+};
+
 const PLACEHOLDER_FLOOR = 2;
 
-describe.each([
-  ["dark", darkTokens, lightTokens],
-  ["light", lightTokens, darkTokens],
-])("%s palette", (scheme, tokens, other) => {
+describe.each(palettes)("$scheme palette", ({ other, scheme, tokens }) => {
   it.each(PAIRS)("should clear WCAG AA for %s on %s", (text, surface) => {
     const ratio = contrast(
       tokenValue(scheme, tokens, text),
@@ -157,6 +259,20 @@ describe.each([
 
     expect(ratio).toBeGreaterThanOrEqual(AA);
   });
+
+  it.each(["destructive", "info", "success", "warning"])(
+    "should clear WCAG AA for a %s toast title on its tinted surface",
+    (ink) => {
+      const color = tokenValue(scheme, tokens, ink);
+
+      expect(
+        contrast(
+          color,
+          toastSurface(color, tokenValue(scheme, tokens, "popover"))
+        )
+      ).toBeGreaterThanOrEqual(AA);
+    }
+  );
 
   it("should keep the placeholder readable without competing with the caret", () => {
     const ratio = contrast(
@@ -176,6 +292,12 @@ describe.each([
   it("should match the shell to the scrollbar thumb color", () => {
     expect(tokenValue(scheme, tokens, "shell")).toBe(
       tokenValue(scheme, tokens, "border")
+    );
+  });
+
+  it("should define the same token names as the default theme", () => {
+    expect([...tokens.keys()].toSorted()).toStrictEqual(
+      [...defaultTheme.dark.keys()].toSorted()
     );
   });
 });
@@ -420,10 +542,7 @@ describe("the note preset", () => {
   });
 });
 
-describe.each([
-  ["dark", darkTokens],
-  ["light", lightTokens],
-])("%s reading contrast", (scheme, tokens) => {
+describe.each(palettes)("$scheme reading contrast", ({ scheme, tokens }) => {
   it.each(["background", "card", "muted"])(
     "should keep placeholder text above AA on %s",
     (surface) => {
@@ -447,11 +566,27 @@ describe.each([
       ).toBeGreaterThanOrEqual(7);
     }
   );
+
+  it("should keep the muted fill apart from the popover it marks a pressed control on", () => {
+    expect(tokenValue(scheme, tokens, "muted")).not.toBe(
+      tokenValue(scheme, tokens, "popover")
+    );
+  });
 });
 
 describe("paper palette", () => {
-  it("should print a fence on the dark card with the dark syntax inks", () => {
-    expect(inki).toContain(":root,\n.print-sheet .code-block-wrapper {");
+  it.each(themes)(
+    "should print a $name fence on the dark card with the dark syntax inks",
+    ({ css, selector }) => {
+      const scope = selector === ":root" ? "" : `${selector} `;
+
+      expect(css).toContain(
+        `${selector},\n${scope}.print-sheet .code-block-wrapper {`
+      );
+    }
+  );
+
+  it("should keep the fence's ink on the dark card", () => {
     expect(source).toContain(
       ".print-sheet .code-block-wrapper {\n    color: var(--foreground);"
     );
@@ -713,9 +848,21 @@ const COLOR_SCHEME_META =
   /<meta(?=[^>]*name="color-scheme")[^>]*content="(?<value>[^"]+)"/u;
 
 const html = projectFile("index.html");
-const htmlMarkerAt = html.indexOf(LIGHT_MARKER);
+
+const launchStyle = html.slice(
+  html.indexOf("<style>") + "<style>".length,
+  html.indexOf("</style>")
+);
+
+const launchMarkerAt = launchStyle.indexOf(LIGHT_MARKER);
 const rust = projectFile("src-tauri", "src", "lib.rs");
 const tauriConfig = projectFile("src-tauri", "tauri.conf.json");
+
+const htmlBackground = (css: string, selector: string, what: string) => {
+  const rule = rulesOf(css).find(({ prelude }) => prelude === selector);
+
+  return firstMatch(BACKGROUND, rule?.body ?? "", what);
+};
 
 /**
  * The launch background is restated outside the stylesheet, because the window
@@ -723,25 +870,31 @@ const tauriConfig = projectFile("src-tauri", "tauri.conf.json");
  * `--background`, so they are asserted against it instead.
  */
 describe("launch background", () => {
-  it("should paint the dark canvas from index.html before styles.css loads", () => {
-    expect(
-      firstMatch(
-        BACKGROUND,
-        html.slice(0, htmlMarkerAt),
-        "the dark background in index.html"
-      )
-    ).toBe(tokenValue("dark", darkTokens, "background"));
-  });
+  it.each(themes)(
+    "should paint the $name dark canvas from index.html before styles.css loads",
+    ({ dark, name, selector }) => {
+      expect(
+        htmlBackground(
+          launchStyle.slice(0, launchMarkerAt),
+          selector,
+          `the ${name} dark background in index.html`
+        )
+      ).toBe(tokenValue(`${name} dark`, dark, "background"));
+    }
+  );
 
-  it("should paint the light canvas from index.html before styles.css loads", () => {
-    expect(
-      firstMatch(
-        BACKGROUND,
-        html.slice(htmlMarkerAt),
-        "the light background in index.html"
-      )
-    ).toBe(tokenValue("light", lightTokens, "background"));
-  });
+  it.each(themes)(
+    "should paint the $name light canvas from index.html before styles.css loads",
+    ({ light, name, selector }) => {
+      expect(
+        htmlBackground(
+          launchStyle.slice(launchMarkerAt),
+          selector,
+          `the ${name} light background in index.html`
+        )
+      ).toBe(tokenValue(`${name} light`, light, "background"));
+    }
+  );
 
   it("should declare a color-scheme so the canvas is never painted white", () => {
     expect(
@@ -750,24 +903,31 @@ describe("launch background", () => {
     expect(source).toContain("color-scheme: dark light;");
   });
 
-  it("should give the tauri window the dark background at creation", () => {
+  it("should give the tauri window the default theme's dark background at creation", () => {
     expect(
       firstMatch(
         TAURI_BACKGROUND,
         tauriConfig,
         "backgroundColor in tauri.conf.json"
       )
-    ).toBe(tokenValue("dark", darkTokens, "background"));
+    ).toBe(
+      tokenValue(`${defaultTheme.name} dark`, defaultTheme.dark, "background")
+    );
   });
 
-  it("should carry both scheme backgrounds into the rust window layer", () => {
-    expect(rustBackground(rust, "BG_DARK")).toBe(
-      tokenValue("dark", darkTokens, "background")
-    );
-    expect(rustBackground(rust, "BG_LIGHT")).toBe(
-      tokenValue("light", lightTokens, "background")
-    );
-  });
+  it.each(themes)(
+    "should carry both $name scheme backgrounds into the rust window layer",
+    ({ dark, light, name }) => {
+      const constant = name.toUpperCase();
+
+      expect(rustBackground(rust, `${constant}_DARK`)).toBe(
+        tokenValue(`${name} dark`, dark, "background")
+      );
+      expect(rustBackground(rust, `${constant}_LIGHT`)).toBe(
+        tokenValue(`${name} light`, light, "background")
+      );
+    }
+  );
 });
 
 /**

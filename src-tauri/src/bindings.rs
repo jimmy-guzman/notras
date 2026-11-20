@@ -97,7 +97,9 @@ pub fn builder<R: Runtime>() -> tauri_specta::Builder<R> {
             pdf::pdf_layout_width,
             windows::continue_jot::<tauri::Wry>,
             windows::get_appearance::<tauri::Wry>,
+            windows::get_theme::<tauri::Wry>,
             windows::set_appearance::<tauri::Wry>,
+            windows::set_theme::<tauri::Wry>,
             windows::show_capture::<tauri::Wry>,
         ])
         .events(tauri_specta::collect_events![
@@ -1288,6 +1290,94 @@ mod tests {
                 "message": "The saved appearance \"sepia\" is not auto, light or dark"
             })
         );
+    }
+
+    #[test]
+    fn should_save_the_theme_and_refuse_one_it_does_not_know() {
+        let directory = tempfile::tempdir().unwrap();
+        let contract = builder::<tauri::test::MockRuntime>();
+        let mut context = tauri::test::mock_context(tauri::test::noop_assets());
+        context.config_mut().identifier =
+            directory.path().join("settings").to_string_lossy().into();
+        let app = tauri::test::mock_builder()
+            .manage(
+                crate::settings::Settings::load(directory.path().join("settings/settings.json"))
+                    .unwrap(),
+            )
+            .invoke_handler(contract.invoke_handler())
+            .build(context)
+            .unwrap();
+        let window = tauri::WebviewWindowBuilder::new(&app, "main", Default::default())
+            .build()
+            .unwrap();
+        let settings = directory.path().join("settings/settings.json");
+
+        let store = app.state::<crate::settings::Settings>();
+
+        assert_eq!(invoke(&window, "get_theme", json!({})), Ok(json!("inki")));
+        // The mock runtime cannot paint a theme, so the save is driven below the command.
+        store.save_theme(crate::windows::Theme::Catppuccin).unwrap();
+        let saved: Value = serde_json::from_slice(&fs::read(&settings).unwrap()).unwrap();
+        assert_eq!(saved["theme"], "catppuccin");
+        assert_eq!(
+            invoke(&window, "get_theme", json!({})),
+            Ok(json!("catppuccin"))
+        );
+
+        assert!(invoke(&window, "set_theme", json!({"theme": "solarized"})).is_err());
+        let unchanged: Value = serde_json::from_slice(&fs::read(&settings).unwrap()).unwrap();
+        assert_eq!(unchanged["theme"], "catppuccin");
+
+        fs::write(&settings, br#"{"theme":"solarized"}"#).unwrap();
+        let error = crate::settings::Settings::load(settings).err().unwrap();
+        assert_eq!(
+            serde_json::to_value(error).unwrap(),
+            json!({
+                "kind": "failed",
+                "message": "The saved theme \"solarized\" is not inki or catppuccin"
+            })
+        );
+    }
+
+    #[test]
+    fn should_keep_the_saved_theme_when_a_change_cannot_be_written() {
+        let directory = tempfile::tempdir().unwrap();
+        let contract = builder::<tauri::test::MockRuntime>();
+        let mut context = tauri::test::mock_context(tauri::test::noop_assets());
+        context.config_mut().identifier =
+            directory.path().join("settings").to_string_lossy().into();
+        let app = tauri::test::mock_builder()
+            .manage(
+                crate::settings::Settings::load(directory.path().join("settings/settings.json"))
+                    .unwrap(),
+            )
+            .invoke_handler(contract.invoke_handler())
+            .build(context)
+            .unwrap();
+        let window = tauri::WebviewWindowBuilder::new(&app, "main", Default::default())
+            .build()
+            .unwrap();
+        let store = app.state::<crate::settings::Settings>();
+        let settings = directory.path().join("settings/settings.json");
+        store.save_theme(crate::windows::Theme::Catppuccin).unwrap();
+        fs::remove_file(&settings).unwrap();
+        fs::create_dir(&settings).unwrap();
+
+        assert_eq!(
+            invoke(&window, "set_theme", json!({"theme": "inki"})),
+            Err(json!({
+                "kind": "failed", "message": if cfg!(windows) { "Permission denied" } else { "That path is a folder" }
+            }))
+        );
+        assert_eq!(
+            invoke(&window, "get_theme", json!({})),
+            Ok(json!("catppuccin"))
+        );
+
+        fs::remove_dir(&settings).unwrap();
+        store.save_notes_dir("/notes").unwrap();
+        let saved: Value = serde_json::from_slice(&fs::read(&settings).unwrap()).unwrap();
+        assert_eq!(saved["theme"], "catppuccin");
     }
 
     #[cfg(target_os = "macos")]

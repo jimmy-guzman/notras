@@ -20,7 +20,7 @@ import { Workspace } from "@/components/workspace/workspace";
 import { SNIPPET_END, SNIPPET_START } from "@/core/fts-markers";
 import type { NoteMeta } from "@/core/notes";
 import { parseSearch } from "@/core/search";
-import { appearanceQuery, noteQueries } from "@/data/queries";
+import { appearanceQuery, noteQueries, themeQuery } from "@/data/queries";
 import { createQueryClient } from "@/lib/query-client";
 import { readRecentNotes, rememberNote } from "@/lib/recent-notes";
 import type { TabSnapshot } from "@/lib/tabs/store";
@@ -36,6 +36,7 @@ import { noteFind } from "@/lib/ui/find";
 import { closeNoteBrowser } from "@/lib/ui/note-browser";
 
 import { CommandPalette } from "./command-palette";
+import { SettingsDialog } from "./settings-dialog";
 
 const FOUND_NOTE = /Found/u;
 const CREATE_NOTE = /create/u;
@@ -59,6 +60,7 @@ function mount(mode: "actions" | "find", notes: NoteMeta[]) {
   ]);
   client.setQueryData(noteQueries.tags().queryKey, [{ count: 1, tag: "work" }]);
   client.setQueryData(appearanceQuery.queryKey, "auto");
+  client.setQueryData(themeQuery.queryKey, "inki");
   const closed: boolean[] = [];
   onTestFinished(() => {
     client.clear();
@@ -597,6 +599,7 @@ describe("command palette actions", () => {
     client.setQueryData(noteQueries.folders().queryKey, []);
     client.setQueryData(noteQueries.tags().queryKey, []);
     client.setQueryData(appearanceQuery.queryKey, "auto");
+    client.setQueryData(themeQuery.queryKey, "inki");
     onTestFinished(() => {
       closeTab(tab);
       client.clear();
@@ -681,6 +684,7 @@ describe("recent commands", () => {
         "reopen last closed tab",
         "quick capture",
         "settings",
+        "catppuccin theme",
         "reindex library",
         "check for updates...",
       ]);
@@ -780,6 +784,144 @@ describe("recent commands", () => {
 
     expect(document.body.textContent).not.toContain("appearance ");
     expect(document.body.textContent).toContain("nothing found");
+  });
+
+  it("should switch to the chosen theme and stop offering it", async () => {
+    const saved: unknown[] = [];
+    mockIPC((command, payload) => {
+      if (command === "set_theme") {
+        saved.push(payload);
+
+        return null;
+      }
+
+      if (command === "get_theme") {
+        return "catppuccin";
+      }
+
+      throw new Error(`unexpected command: ${command}`);
+    });
+    onTestFinished(() => {
+      clearMocks();
+    });
+    const palette = mount("actions", []);
+
+    expect(
+      screen.queryByRole("option", { name: "inki theme" })
+    ).not.toBeInTheDocument();
+
+    await palette.user.click(
+      screen.getByRole("option", { name: "catppuccin theme" })
+    );
+
+    expect(saved).toStrictEqual([{ theme: "catppuccin" }]);
+    expect(palette.closed).toStrictEqual([false]);
+    expect(
+      await screen.findByRole("option", { name: "inki theme" })
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("option", { name: "catppuccin theme" })
+    ).not.toBeInTheDocument();
+  });
+
+  it("should send a palette theme pick after a settings pick still saving", async () => {
+    const firstSave = Promise.withResolvers<null>();
+    const calls: unknown[] = [];
+    mockIPC(async (command, payload) => {
+      if (command === "set_theme") {
+        calls.push(payload);
+
+        return calls.length === 1 ? await firstSave.promise : null;
+      }
+
+      if (command === "get_theme") {
+        return "inki";
+      }
+
+      if (command.startsWith("plugin:")) {
+        return false;
+      }
+
+      throw new Error(`unexpected command: ${command}`);
+    });
+    const client = createQueryClient();
+    client.setQueryData(noteQueries.list().queryKey, []);
+    client.setQueryData(noteQueries.folders().queryKey, []);
+    client.setQueryData(noteQueries.tags().queryKey, []);
+    client.setQueryData(appearanceQuery.queryKey, "auto");
+    client.setQueryData(themeQuery.queryKey, "inki");
+    onTestFinished(() => {
+      client.clear();
+      clearMocks();
+    });
+
+    const screenWith = (dialog: "palette" | "settings") => (
+      <QueryClientProvider client={client}>
+        <SettingsDialog
+          notesDir="/notes"
+          onOpenChange={() => {}}
+          open={dialog === "settings"}
+        />
+        <CommandPalette
+          mode="actions"
+          notesDir="/notes"
+          onOpenChange={() => {}}
+          onOpenSettings={() => {}}
+          open={dialog === "palette"}
+        />
+      </QueryClientProvider>
+    );
+
+    const { rerender } = render(screenWith("settings"));
+    const user = userEvent.setup();
+
+    await user.click(await screen.findByRole("button", { name: "catppuccin" }));
+    rerender(screenWith("palette"));
+    await user.click(await screen.findByRole("option", { name: "inki theme" }));
+    await sleep(50);
+
+    expect(calls).toStrictEqual([{ theme: "catppuccin" }]);
+
+    firstSave.resolve(null);
+
+    await waitFor(() => {
+      expect(calls).toStrictEqual([{ theme: "catppuccin" }, { theme: "inki" }]);
+    });
+  });
+
+  it("should report a theme that cannot be saved and keep offering it", async () => {
+    mockIPC((command) => {
+      if (command === "set_theme") {
+        throw Object.assign(new Error("The theme could not be saved"), {
+          kind: "failed",
+        });
+      }
+
+      if (command === "get_theme") {
+        return "inki";
+      }
+
+      throw new Error(`unexpected command: ${command}`);
+    });
+    onTestFinished(() => {
+      clearMocks();
+    });
+    render(<Toaster />);
+    const palette = mount("actions", []);
+
+    await palette.user.click(
+      screen.getByRole("option", { name: "catppuccin theme" })
+    );
+
+    expect(
+      await screen.findByText("could not change theme")
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("The theme could not be saved")
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("option", { name: "catppuccin theme" })
+    ).toBeInTheDocument();
   });
 
   it("should offer and run commands when recent history cannot be read", async () => {

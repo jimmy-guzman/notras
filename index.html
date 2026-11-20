@@ -7,8 +7,8 @@
       The webview paints its own canvas before styles.css exists, and without a
       color-scheme it paints white. The meta tag is read before the document is
       drawn; the CSS property alone cannot help, because honouring it waits on
-      the stylesheet. Both backgrounds restate --background from src/themes/inki.css,
-      and src/styles.spec.ts fails if the copies drift.
+      the stylesheet. The backgrounds restate --background from each theme in
+      src/themes/, and src/styles.spec.ts fails if the copies drift.
     -->
     <meta content="dark light" name="color-scheme" />
     <style>
@@ -16,9 +16,15 @@
         color-scheme: dark light;
         background-color: #191819;
       }
+      :root[data-theme="catppuccin"] {
+        background-color: #1e1e2e;
+      }
       @media (prefers-color-scheme: light) {
         :root {
           background-color: #faf7f2;
+        }
+        :root[data-theme="catppuccin"] {
+          background-color: #eff1f5;
         }
       }
     </style>

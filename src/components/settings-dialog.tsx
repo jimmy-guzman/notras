@@ -23,12 +23,13 @@ import { toast } from "@/components/ui/toast";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { setAppearance } from "@/data/appearance";
 import { setNotesDir } from "@/data/notes-dir";
-import { appearanceQuery, notesDirQuery } from "@/data/queries";
+import { appearanceQuery, notesDirQuery, themeQuery } from "@/data/queries";
+import { setTheme } from "@/data/theme";
 import { flushPendingWrites } from "@/lib/pending-flush";
 import { reclassifyTabs } from "@/lib/tabs/store";
 import { reasonOf } from "@/lib/ui/failure";
 import { commands } from "@/server/adapters/bindings";
-import type { Appearance } from "@/server/adapters/bindings";
+import type { Appearance, Theme } from "@/server/adapters/bindings";
 
 import { Chord } from "./chord";
 
@@ -113,6 +114,46 @@ export function SettingsDialog({
     },
     // Two quick picks must reach Rust in the order they were made.
     scope: { id: "appearance" },
+  });
+
+  const { data: theme, error: themeError } = useQuery(themeQuery);
+
+  // The palette reads it at launch, so a failure waits for the dialog to say so.
+  useEffect(() => {
+    if (open && themeError !== null) {
+      toast.add({
+        description: reasonOf(themeError),
+        title: "could not read the theme",
+        type: "error",
+      });
+    }
+  }, [themeError, open]);
+
+  const { mutate: writeTheme } = useMutation({
+    mutationFn: setTheme,
+    mutationKey: ["theme"],
+    onError: (error) => {
+      toast.add({
+        description: reasonOf(error),
+        title: "could not change theme",
+        type: "error",
+      });
+    },
+    onMutate: async (value: Theme) => {
+      await queryClient.cancelQueries({ queryKey: themeQuery.queryKey });
+      queryClient.setQueryData(themeQuery.queryKey, value);
+    },
+    // A later pick is already on screen while an earlier one settles, so only
+    // the last pick re-reads what was saved.
+    onSettled: async () => {
+      if (queryClient.isMutating({ mutationKey: ["theme"] }) > 1) {
+        return;
+      }
+
+      await queryClient.invalidateQueries({ queryKey: themeQuery.queryKey });
+    },
+    // Two quick picks must reach Rust in the order they were made.
+    scope: { id: "theme" },
   });
 
   const changeNotesDir = async () => {
@@ -270,6 +311,28 @@ export function SettingsDialog({
               </ToggleGroup>
             </div>
           )}
+          <div className="flex items-center justify-between">
+            <span className="text-sm leading-none font-medium" id="theme-label">
+              theme
+            </span>
+            <ToggleGroup
+              aria-labelledby="theme-label"
+              disabled={theme === undefined}
+              onValueChange={([value]) => {
+                // Pressing the chosen item again empties the group.
+                if (value !== undefined) {
+                  writeTheme(value);
+                }
+              }}
+              size="sm"
+              spacing={0}
+              value={theme === undefined ? [] : [theme]}
+              variant="outline"
+            >
+              <ToggleGroupItem value="inki">inki</ToggleGroupItem>
+              <ToggleGroupItem value="catppuccin">catppuccin</ToggleGroupItem>
+            </ToggleGroup>
+          </div>
           <p className="text-muted-foreground text-xs">
             quick capture from anywhere with <Chord hotkey="Mod+Shift+N" />
           </p>

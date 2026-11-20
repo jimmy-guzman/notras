@@ -20,32 +20,76 @@ use tauri::menu::{Menu, MenuItem};
 use tauri::tray::TrayIconBuilder;
 use tauri::window::Color;
 use tauri::{
-    AppHandle, Emitter, Manager, RunEvent, Runtime, Theme, WebviewUrl, WebviewWindowBuilder,
-    WindowEvent,
+    AppHandle, Emitter, Manager, RunEvent, Runtime, WebviewUrl, WebviewWindowBuilder, WindowEvent,
 };
 use tauri_plugin_dialog::{DialogExt, MessageDialogKind};
 
 use crate::library::LibraryOwner;
+use crate::settings::Settings;
 use crate::state::{AppState, Ending, QuitHandshake};
+use crate::windows::Theme;
 use notras_core::Library;
 use tauri_specta::Event;
 
-/// `--background` from `src/themes/inki.css`, restated because the window layer is
-/// painted by the OS before any stylesheet exists. `src/styles.spec.ts` fails if
-/// these drift from the tokens.
-const BG_DARK: Color = Color(0x19, 0x18, 0x19, 255);
-const BG_LIGHT: Color = Color(0xfa, 0xf7, 0xf2, 255);
+/// `--background` from each theme in `src/themes/`, restated because the window
+/// layer is painted by the OS before any stylesheet exists. `src/styles.spec.ts`
+/// fails if these drift from the tokens.
+const INKI_DARK: Color = Color(0x19, 0x18, 0x19, 255);
+const INKI_LIGHT: Color = Color(0xfa, 0xf7, 0xf2, 255);
+const CATPPUCCIN_DARK: Color = Color(0x1e, 0x1e, 0x2e, 255);
+const CATPPUCCIN_LIGHT: Color = Color(0xef, 0xf1, 0xf5, 255);
 
 /// Centres the buttons in the 32px band `Titlebar` draws;
 /// `tauri.conf.json` carries the same pair for the `main` window.
 #[cfg(target_os = "macos")]
 const TRAFFIC_LIGHTS: tauri::LogicalPosition<f64> = tauri::LogicalPosition::new(16.0, 18.0);
 
-pub(crate) fn background_for(theme: Theme) -> Color {
-    match theme {
-        Theme::Light => BG_LIGHT,
-        _ => BG_DARK,
+pub(crate) fn background_for(theme: Theme, scheme: tauri::Theme) -> Color {
+    match (theme, scheme) {
+        (Theme::Inki, tauri::Theme::Light) => INKI_LIGHT,
+        (Theme::Inki, _) => INKI_DARK,
+        (Theme::Catppuccin, tauri::Theme::Light) => CATPPUCCIN_LIGHT,
+        (Theme::Catppuccin, _) => CATPPUCCIN_DARK,
     }
+}
+
+/// Mark a loading page with the saved theme. A reload reruns the creation
+/// script with the theme its window was built with, and macOS reloads a page
+/// whose content process died. The start of a load can race that script, so
+/// the end of the load marks the page again.
+fn mark_saved_theme<R: Runtime>(window: &tauri::WebviewWindow<R>) {
+    // The first page of a launch starts before settings are managed, and its
+    // creation script already carries the saved theme.
+    let Some(settings) = window.try_state::<Settings>() else {
+        return;
+    };
+    let marked = settings
+        .theme()
+        .map_err(|error| error.to_string())
+        .and_then(|theme| {
+            window
+                .eval(theme.script())
+                .map_err(|error| error.to_string())
+        });
+    if let Err(error) = marked {
+        log::error!("could not mark the {} window: {error}", window.label());
+    }
+}
+
+/// Build the main window from its config entry. The config does not create it,
+/// so the theme script is in place before the page loads.
+fn build_main(app: &tauri::App, theme: Theme) -> tauri::Result<tauri::WebviewWindow> {
+    let config = app
+        .config()
+        .app
+        .windows
+        .iter()
+        .find(|config| config.label == "main")
+        .ok_or(tauri::Error::WindowNotFound)?;
+    WebviewWindowBuilder::from_config(app, config)?
+        .initialization_script(theme.script())
+        .on_page_load(|window, _| mark_saved_theme(&window))
+        .build()
 }
 
 /// macOS 26 raised standard control metrics, so a window built against its SDK
@@ -151,6 +195,13 @@ pub(crate) fn open_capture<R: Runtime>(app: &AppHandle<R>) {
         show_and_focus(&window);
         return;
     }
+    let theme = match app.state::<Settings>().theme() {
+        Ok(theme) => theme,
+        Err(error) => {
+            log::error!("could not read the theme for quick capture: {error}");
+            return;
+        }
+    };
 
     let builder = WebviewWindowBuilder::new(
         app,
@@ -162,10 +213,13 @@ pub(crate) fn open_capture<R: Runtime>(app: &AppHandle<R>) {
     .resizable(false)
     .always_on_top(true)
     .skip_taskbar(true)
+    .initialization_script(theme.script())
+    .on_page_load(|window, _| mark_saved_theme(&window))
     .background_color(background_for(
+        theme,
         app.get_webview_window("main")
             .and_then(|window| window.theme().ok())
-            .unwrap_or(Theme::Dark),
+            .unwrap_or(tauri::Theme::Dark),
     ))
     .center();
 
@@ -212,21 +266,21 @@ fn init(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     #[cfg(target_os = "macos")]
     writing_tools::suppress_affordance_check();
 
-    let settings = settings::Settings::load(app.path().app_data_dir()?.join("settings.json"))?;
+    let settings = Settings::load(app.path().app_data_dir()?.join("settings.json"))?;
+    let theme = settings.theme()?;
     // The appearance setting is macOS only, so elsewhere the system's scheme
     // stands whatever settings.json says.
     #[cfg(target_os = "macos")]
     app.set_theme(settings.appearance()?.theme());
 
-    // The config paints the window dark at creation, which is earlier than this
-    // runs. Correcting it here is what keeps a light-mode launch from flashing
-    // dark instead of white.
-    if let Some(window) = app.get_webview_window("main") {
-        if let Ok(theme) = window.theme() {
-            let _ = window.set_background_color(Some(background_for(theme)));
-        }
-        use_compact_window_controls(&window);
+    // The config paints the window Inki's dark at creation, before the scheme
+    // is known. Correcting it here is what keeps a light-mode launch from
+    // flashing dark instead of white.
+    let window = build_main(app, theme)?;
+    if let Ok(scheme) = window.theme() {
+        let _ = window.set_background_color(Some(background_for(theme, scheme)));
     }
+    use_compact_window_controls(&window);
 
     let requested_dir = match settings.notes_dir()? {
         Some(dir) => dir,
@@ -338,11 +392,13 @@ fn setup(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
 
     log::error!("could not start: {error}");
     app.manage(StartupFailed);
-    let parent = app
-        .get_webview_window("main")
-        .ok_or(tauri::Error::WindowNotFound)?
-        .as_ref()
-        .window();
+    // A launch that failed before the main window was built still needs a
+    // parent. Its webview closes below, so the theme it carries never shows.
+    let main = match app.get_webview_window("main") {
+        Some(window) => window,
+        None => build_main(app, Theme::Inki)?,
+    };
+    let parent = main.as_ref().window();
     // Retain the native parent for the dialog, without a webview that can invoke commands.
     for window in app.webview_windows().values() {
         window.as_ref().close()?;
@@ -413,8 +469,18 @@ pub fn run() {
             }
             // Switching appearance while notras runs would otherwise leave the
             // window layer painted for the scheme the app started in.
-            WindowEvent::ThemeChanged(theme) => {
-                let _ = window.set_background_color(Some(background_for(*theme)));
+            WindowEvent::ThemeChanged(scheme) => {
+                // A launch that failed before settings were managed has none,
+                // and its remaining window shows only the error dialog.
+                if let Some(settings) = window.try_state::<Settings>() {
+                    match settings.theme() {
+                        Ok(theme) => {
+                            let _ =
+                                window.set_background_color(Some(background_for(theme, *scheme)));
+                        }
+                        Err(error) => log::error!("could not read the theme to paint: {error}"),
+                    }
+                }
             }
             _ => {}
         })
@@ -492,4 +558,23 @@ pub fn run() {
             _ => {}
         }
     });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn should_paint_each_theme_and_scheme_with_its_own_background() {
+        assert_eq!(background_for(Theme::Inki, tauri::Theme::Dark), INKI_DARK);
+        assert_eq!(background_for(Theme::Inki, tauri::Theme::Light), INKI_LIGHT);
+        assert_eq!(
+            background_for(Theme::Catppuccin, tauri::Theme::Dark),
+            CATPPUCCIN_DARK
+        );
+        assert_eq!(
+            background_for(Theme::Catppuccin, tauri::Theme::Light),
+            CATPPUCCIN_LIGHT
+        );
+    }
 }

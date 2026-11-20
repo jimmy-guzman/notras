@@ -27,6 +27,36 @@ impl Appearance {
     }
 }
 
+/// The palette the app paints with. Each theme has a dark and a light scheme,
+/// and the appearance picks between them.
+#[derive(Clone, Copy, Debug, Deserialize, PartialEq, Serialize, specta::Type)]
+#[serde(rename_all = "lowercase")]
+pub enum Theme {
+    Inki,
+    Catppuccin,
+}
+
+impl Theme {
+    /// A script that marks the document with this theme. WebView2 can run a
+    /// creation script before the parser has made `<html>`, so the script
+    /// waits for the element when it is not there yet.
+    pub(crate) fn script(self) -> String {
+        let name = match self {
+            Self::Inki => "inki",
+            Self::Catppuccin => "catppuccin",
+        };
+        format!(
+            r#"(() => {{
+  const apply = () => {{ document.documentElement.dataset.theme = "{name}"; }};
+  if (document.documentElement) {{ apply(); return; }}
+  new MutationObserver((_, observer) => {{
+    if (document.documentElement) {{ observer.disconnect(); apply(); }}
+  }}).observe(document, {{ childList: true }});
+}})();"#
+        )
+    }
+}
+
 /// Convert shell failures without giving a missing resource the meaning of a deleted note.
 pub(crate) fn tauri_error(error: tauri::Error) -> CommandError {
     let reason = match &error {
@@ -91,9 +121,16 @@ pub async fn set_appearance<R: Runtime>(
         let handle = app.clone();
         app.run_on_main_thread(move || {
             handle.set_theme(appearance.theme());
+            let theme = match handle.state::<Settings>().theme() {
+                Ok(theme) => theme,
+                Err(error) => {
+                    log::error!("could not read the theme to paint: {error}");
+                    return;
+                }
+            };
             for window in handle.webview_windows().values() {
-                let painted = window.theme().and_then(|theme| {
-                    window.set_background_color(Some(crate::background_for(theme)))
+                let painted = window.theme().and_then(|scheme| {
+                    window.set_background_color(Some(crate::background_for(theme, scheme)))
                 });
                 if let Err(error) = painted {
                     log::error!("could not paint the {} window: {error}", window.label());
@@ -107,6 +144,35 @@ pub async fn set_appearance<R: Runtime>(
         let _ = (app, appearance);
         Err("Changing the appearance is only available on macOS".into())
     }
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn get_theme<R: Runtime>(app: AppHandle<R>) -> Result<Theme, CommandError> {
+    app.state::<Settings>().theme()
+}
+
+/// Save the theme, then repaint every window with it. A choice the next launch
+/// would forget is not applied.
+#[tauri::command]
+#[specta::specta]
+pub async fn set_theme<R: Runtime>(app: AppHandle<R>, theme: Theme) -> Result<(), CommandError> {
+    let store_app = app.clone();
+    crate::notes::run_blocking(move || store_app.state::<Settings>().save_theme(theme)).await?;
+    let handle = app.clone();
+    app.run_on_main_thread(move || {
+        for window in handle.webview_windows().values() {
+            let painted = window.eval(theme.script()).and_then(|()| {
+                window.theme().and_then(|scheme| {
+                    window.set_background_color(Some(crate::background_for(theme, scheme)))
+                })
+            });
+            if let Err(error) = painted {
+                log::error!("could not paint the {} window: {error}", window.label());
+            }
+        }
+    })
+    .map_err(tauri_error)
 }
 
 #[cfg(test)]

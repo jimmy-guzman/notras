@@ -7,7 +7,7 @@ use notras_core::CommandError;
 use serde_json::{Map, Value};
 use tempfile::NamedTempFile;
 
-use crate::windows::Appearance;
+use crate::windows::{Appearance, Theme};
 
 fn io_error(error: io::Error) -> CommandError {
     CommandError::with_source(CommandError::io_reason(&error), error)
@@ -24,6 +24,17 @@ fn appearance(values: &Map<String, Value>) -> Result<Appearance, CommandError> {
                 )
             })
         })
+}
+
+fn theme(values: &Map<String, Value>) -> Result<Theme, CommandError> {
+    values.get("theme").map_or(Ok(Theme::Inki), |value| {
+        serde_json::from_value(value.clone()).map_err(|error| {
+            CommandError::with_source(
+                format!("The saved theme {value} is not inki or catppuccin"),
+                error,
+            )
+        })
+    })
 }
 
 fn notes_dir(values: &Map<String, Value>) -> Result<Option<PathBuf>, CommandError> {
@@ -68,6 +79,7 @@ impl Settings {
         let mut proposed = values.clone();
         proposed.insert(key.into(), value);
         appearance(&proposed)?;
+        theme(&proposed)?;
         notes_dir(&proposed)?;
         let bytes = serde_json::to_vec_pretty(&proposed)
             .map_err(|error| CommandError::with_source("The settings data is invalid", error))?;
@@ -112,6 +124,7 @@ impl Settings {
             Err(error) => return Err(io_error(error)),
         };
         appearance(&values)?;
+        theme(&values)?;
         notes_dir(&values)?;
         Ok(Self {
             path,
@@ -123,6 +136,10 @@ impl Settings {
         appearance(&self.values())
     }
 
+    pub(crate) fn theme(&self) -> Result<Theme, CommandError> {
+        theme(&self.values())
+    }
+
     pub(crate) fn notes_dir(&self) -> Result<Option<PathBuf>, CommandError> {
         notes_dir(&self.values())
     }
@@ -130,6 +147,10 @@ impl Settings {
     #[cfg(any(target_os = "macos", test))]
     pub(crate) fn save_appearance(&self, value: Appearance) -> Result<(), CommandError> {
         self.save("appearance", serde_json::json!(value))
+    }
+
+    pub(crate) fn save_theme(&self, value: Theme) -> Result<(), CommandError> {
+        self.save("theme", serde_json::json!(value))
     }
 
     pub(crate) fn save_notes_dir(&self, path: &str) -> Result<(), CommandError> {
@@ -152,13 +173,14 @@ mod tests {
         let path = directory.path().join("absent/settings.json");
         let settings = Settings::load(path.clone()).unwrap();
         assert_eq!(settings.appearance().unwrap(), Appearance::Auto);
+        assert_eq!(settings.theme().unwrap(), Theme::Inki);
         assert_eq!(settings.notes_dir().unwrap(), None);
         drop(settings);
         assert!(!path.parent().unwrap().exists());
     }
 
     #[test]
-    fn should_save_and_reload_both_settings_without_losing_unknown_keys() {
+    fn should_save_and_reload_every_setting_without_losing_unknown_keys() {
         let directory = tempfile::tempdir().unwrap();
         let path = directory.path().join("settings.json");
         let original = br#"{ "future": {"nested": [true, null, 42]}, "appearance": "auto" }"#;
@@ -166,10 +188,12 @@ mod tests {
         let settings = Settings::load(path.clone()).unwrap();
         assert_eq!(fs::read(&path).unwrap(), original);
         settings.save_appearance(Appearance::Dark).unwrap();
+        settings.save_theme(Theme::Catppuccin).unwrap();
         settings.save_notes_dir("/notes/chosen").unwrap();
         drop(settings);
         let loaded = Settings::load(path.clone()).unwrap();
         assert_eq!(loaded.appearance().unwrap(), Appearance::Dark);
+        assert_eq!(loaded.theme().unwrap(), Theme::Catppuccin);
         assert_eq!(
             loaded.notes_dir().unwrap(),
             Some(PathBuf::from("/notes/chosen"))
@@ -177,7 +201,10 @@ mod tests {
         assert_eq!(
             serde_json::from_slice::<Value>(&fs::read(path).unwrap()).unwrap(),
             json!({
-                "appearance": "dark", "future": {"nested": [true, null, 42]}, "notesDir": "/notes/chosen"
+                "appearance": "dark",
+                "future": {"nested": [true, null, 42]},
+                "notesDir": "/notes/chosen",
+                "theme": "catppuccin"
             })
         );
     }
@@ -295,6 +322,8 @@ mod tests {
             json!({"appearance": "sepia"}),
             json!({"appearance": null}),
             json!({"appearance": 1}),
+            json!({"theme": "solarized"}),
+            json!({"theme": null}),
             json!({"notesDir": null}),
             json!({"notesDir": []}),
             json!({"notesDir": ""}),
