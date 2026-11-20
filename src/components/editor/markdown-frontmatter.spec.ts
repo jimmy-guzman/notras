@@ -105,7 +105,6 @@ describe("markdown with frontmatter", () => {
     "> Quote: from someone",
     "* item: detail",
     '"Hi", she said: hello',
-    "  key: value",
   ])(
     "should read an unclosed opening rule followed by the Markdown line %s as Markdown",
     (line) => {
@@ -123,6 +122,15 @@ describe("markdown with frontmatter", () => {
     expect(lines[1]).toContainEqual({
       color: "var(--syntax-member)",
       content: "tags",
+    });
+  });
+
+  it("should color frontmatter being typed whose first key is indented", () => {
+    const lines = coloredLines("---\n  title: x");
+
+    expect(lines[1]).toContainEqual({
+      color: "var(--syntax-member)",
+      content: "title",
     });
   });
 
