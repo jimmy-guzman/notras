@@ -456,6 +456,57 @@ describe("code block highlighting", () => {
     expect(coloredText(editor, "syntax-keyword")).toContain("const");
   });
 
+  it("should stop measuring an editor scrolled out of sight until a scroll brings it back", ({
+    onTestFinished,
+  }) => {
+    vi.useFakeTimers({ toFake: ["requestAnimationFrame"] });
+    onTestFinished(() => {
+      vi.useRealTimers();
+    });
+
+    const editor = createEditor("ts", "const a = 1;");
+    onTestFinished(() => {
+      editor.destroy();
+    });
+
+    const scroller = document.createElement("div");
+    scroller.dataset.slot = "scroll-area-viewport";
+    scroller.append(editor.view.dom);
+    document.body.append(scroller);
+    onTestFinished(() => {
+      scroller.remove();
+    });
+
+    Object.defineProperty(scroller, "getBoundingClientRect", {
+      value: () => ({ bottom: 800, left: 0, right: 600, top: 0 }),
+    });
+    let top = -500;
+
+    const measure = vi.fn<() => Partial<DOMRect>>(() => ({
+      bottom: top + 300,
+      left: 0,
+      right: 600,
+      top,
+    }));
+
+    Object.defineProperty(editor.view.dom, "getBoundingClientRect", {
+      value: measure,
+    });
+
+    for (let frame = 0; frame < 20; frame += 1) {
+      vi.advanceTimersToNextFrame();
+    }
+
+    const idle = measure.mock.calls.length;
+    expect(idle).toBeLessThan(3);
+
+    top = 100;
+    scroller.dispatchEvent(new Event("scroll"));
+    vi.advanceTimersToNextFrame();
+
+    expect(measure.mock.calls.length).toBeGreaterThan(idle);
+  });
+
   it("should keep a revealed block whole through a scroll and window the screen after", ({
     onTestFinished,
   }) => {
