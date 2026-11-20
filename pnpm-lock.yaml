@@ -196,8 +196,8 @@ importers:
         specifier: 1.8.0
         version: 1.8.0
       '@pierre/highlights':
-        specifier: 0.5.0
-        version: 0.5.0
+        specifier: 0.5.2
+        version: 0.5.2
       '@tanstack/react-hotkeys':
         specifier: 0.27.2
         version: 0.27.2(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
@@ -1697,8 +1697,8 @@ packages:
     resolution: {integrity: sha512-HhD8kd3r6XpelZkhxhRty/po8V6yK1VV63Eq4kSsOS2IoHUywG3DV2EX+z/ZHw46aLI74Y6aA604NRiAqLKW9w==}
     engines: {node: ^12.22.0 || ^14.17.0 || >=16.0.0}
 
-  '@pierre/highlights@0.5.0':
-    resolution: {integrity: sha512-G8gscrHrik3YjKd+tPTcmivJ/W0zRrtg4adVxnfX7+415+0Qplo6qUWuEX5R0UkA1fMhmE2sOSuLBMNGDtLhIw==}
+  '@pierre/highlights@0.5.2':
+    resolution: {integrity: sha512-CV+yFa8dodaU3w7U42FR+AfoavrsfcH0/n3rckDu1A/UXan1Dzo6OdM/MPOAAsGM/EbKhDxD6k+qMcNUtnLfsg==}
 
   '@promptbook/utils@0.69.5':
     resolution: {integrity: sha512-xm5Ti/Hp3o4xHrsK9Yy3MS6KbDxYbq485hDsFvxqaNA7equHLPdo8H8faTitTeb14QCDfLW4iwCxdVYu5sn6YQ==}
@@ -5854,7 +5854,7 @@ snapshots:
 
   '@oxlint/plugins@1.81.0': {}
 
-  '@pierre/highlights@0.5.0': {}
+  '@pierre/highlights@0.5.2': {}
 
   '@promptbook/utils@0.69.5':
     dependencies:
