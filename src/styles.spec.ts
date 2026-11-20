@@ -449,7 +449,7 @@ const blockOf = (css: string, selector: string) => {
 const notePreset = blockOf(source, ".typeset-note");
 
 describe("shared surface colors", () => {
-  it("should keep code at regular weight without syntax italics", () => {
+  it("should set code at regular weight and upright unless a token shapes it", () => {
     const code = blockOf(source, ".ProseMirror pre");
 
     expect(code).toContain("font-weight: 400;");

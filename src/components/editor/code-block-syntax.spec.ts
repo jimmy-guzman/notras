@@ -264,6 +264,28 @@ describe("code block highlighting", () => {
     expect(editor.state.doc.textContent).toBe(source);
   });
 
+  it("should render emphasis in source mode as italic, bold and struck through", ({
+    onTestFinished,
+  }) => {
+    const editor = createEditor("markdown", "*it* **bold** ~~gone~~");
+    onTestFinished(() => {
+      editor.destroy();
+    });
+
+    const styles = Object.fromEntries(
+      [...editor.view.dom.querySelectorAll(".syntax-token")].map((span) => [
+        span.textContent,
+        span.getAttribute("style"),
+      ])
+    );
+
+    expect(styles).toStrictEqual({
+      "**bold**": "color: var(--syntax-keyword); font-weight: 700;",
+      "*it*": "color: var(--syntax-keyword); font-style: italic;",
+      "~~gone~~": "color: inherit; text-decoration: line-through;",
+    });
+  });
+
   it("should keep decorations aligned after inserting a block before the fence", ({
     onTestFinished,
   }) => {
