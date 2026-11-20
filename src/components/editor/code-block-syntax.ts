@@ -227,8 +227,10 @@ export function windowSyntaxToScreen(view: EditorView): void {
 /** Views a print holds whole while it awaits its dialog, which a scroll or resize must not narrow. */
 const revealed = new WeakSet<EditorView>();
 
-/** Decorate every block whole, for a print; the returned function windows what is on screen again. */
-export function revealSyntax(view: EditorView): () => void {
+/** Every view the plugin draws: an embedded note has a view of its own inside its note's. */
+const drawn = new Set<EditorView>();
+
+function revealView(view: EditorView) {
   const { viewport } = syntaxState(view.state);
   revealed.add(view);
   setViewport(view, { from: 0, to: view.state.doc.content.size });
@@ -237,6 +239,22 @@ export function revealSyntax(view: EditorView): () => void {
     revealed.delete(view);
     const seen = measureViewport(view);
     setViewport(view, seen === undefined ? viewport : padded(seen));
+  };
+}
+
+/**
+ * Decorate every block whole, in the view and the notes embedded in it, for a
+ * print; the returned function windows what is on screen again.
+ */
+export function revealSyntax(view: EditorView): () => void {
+  const restores = [...drawn].flatMap((each) =>
+    view.dom.contains(each.dom) ? [revealView(each)] : []
+  );
+
+  return () => {
+    for (const restore of restores) {
+      restore();
+    }
   };
 }
 
@@ -274,8 +292,10 @@ function syntaxPlugin() {
 
         if (seen === undefined) {
           // Off the DOM, as a React editor is during its first render, nothing
-          // measures, and the next frame tries again.
-          if (codeBlocks(view.state.doc).length > 0) {
+          // measures, and the next frame tries again. On the DOM but out of
+          // sight, as an embed scrolled past is, the scroll or resize that
+          // brings it back measures it.
+          if (!view.dom.isConnected && codeBlocks(view.state.doc).length > 0) {
             frame = requestAnimationFrame(tick);
           }
 
@@ -311,6 +331,7 @@ function syntaxPlugin() {
       // the same scroll offset and reports no scroll.
       const resized = new ResizeObserver(schedule);
 
+      drawn.add(view);
       schedule();
       resized.observe(view.dom);
       document.addEventListener("scroll", onScroll, {
@@ -320,6 +341,7 @@ function syntaxPlugin() {
 
       return {
         destroy() {
+          drawn.delete(view);
           cancelAnimationFrame(frame);
           resized.disconnect();
           document.removeEventListener("scroll", onScroll, { capture: true });
