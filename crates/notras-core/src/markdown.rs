@@ -96,8 +96,8 @@ pub(crate) fn title_of(rel_path: &str) -> String {
         .to_string()
 }
 
-/// `line` is 1-based, `target` is the text between the brackets as written,
-/// and `at` is the byte in `context` where the target starts.
+/// `line` is 1-based, `target` is the link before any `|alias`, and `at`
+/// is the byte in `context` where the link's shown text starts.
 pub(crate) struct Wikilink<'a> {
     pub(crate) at: usize,
     pub(crate) context: String,
@@ -204,9 +204,11 @@ pub(crate) fn is_image_tag(html: &str) -> bool {
             "src" => has_src = true,
             "alt" | "title" => {}
             "width" => {
+                // Six digits at most, the ceiling `WIDTH` in image-tag.ts sets.
                 let whole = value.is_some_and(|value| {
                     !value.starts_with('0')
                         && !value.is_empty()
+                        && value.len() <= 6
                         && value.bytes().all(|b| b.is_ascii_digit())
                 });
                 if !whole {
@@ -454,7 +456,7 @@ fn scan(body: &str) -> Scan<'_> {
         .iter()
         .map(|link| Shown {
             span: link.span.clone(),
-            text: link.target,
+            text: link.shown,
         })
         .chain(
             links
@@ -855,11 +857,30 @@ fn wikilink_targets(body: &str) -> Vec<(usize, &str)> {
 }
 
 /// A `[[target]]`, or an `![[target]]` embed when `embed` is set, whose bytes
-/// `span` holds, the embed's `!` included.
+/// `span` holds, the embed's `!` included. `target` is the link before any
+/// alias and `shown` the text the editor draws for it.
 struct DrawnWikilink<'a> {
     embed: bool,
+    shown: &'a str,
     span: Range<usize>,
     target: &'a str,
+}
+
+/// `note#heading|alias` as the link before the alias and the text a pill
+/// shows: the alias, or the link without one. An embed shows no alias, since an
+/// image embed's `|400` is its width. Kept in parity with `wikilinkParts` in
+/// `src/core/notes.ts`.
+fn split_wikilink(raw: &str, embed: bool) -> (&str, &str) {
+    let (link, alias) = raw.split_once('|').unwrap_or((raw, ""));
+
+    (
+        link,
+        if embed || alias.is_empty() {
+            link
+        } else {
+            alias
+        },
+    )
 }
 
 /// Every wikilink and embed the editor's grammar reads, before CommonMark has
@@ -879,10 +900,13 @@ fn wikilink_candidates(body: &str) -> Vec<DrawnWikilink<'_>> {
                     == 0
             });
 
+            let (link, shown) = split_wikilink(target, embed);
+
             DrawnWikilink {
                 embed,
+                shown,
                 span: open - usize::from(embed)..open + target.len() + 4,
-                target,
+                target: link,
             }
         })
         .collect()
@@ -1021,7 +1045,7 @@ pub(crate) struct BodyTitle {
     pub line: usize,
 }
 
-/// `text[range]` with each wikilink inside it read as its target, as written,
+/// `text[range]` with each wikilink inside it read as the text its pill shows,
 /// and each embed as nothing.
 fn titled(text: &str, range: Range<usize>, wikilinks: &[DrawnWikilink<'_>]) -> String {
     let mut titled = String::new();
@@ -1033,7 +1057,7 @@ fn titled(text: &str, range: Range<usize>, wikilinks: &[DrawnWikilink<'_>]) -> S
     {
         titled.push_str(&text[at..link.span.start]);
         if !link.embed {
-            titled.push_str(link.target);
+            titled.push_str(link.shown);
         }
         at = link.span.end;
     }
@@ -1285,6 +1309,7 @@ pub(crate) fn wikilinks(body: &str) -> Vec<Wikilink<'_>> {
 
     wikilinks
         .iter()
+        .filter(|link| !link.target.is_empty())
         .map(|link| {
             let open = link.span.start + usize::from(link.embed);
             let (line, context, at) = line_at(body, &starts, &shown, open);
@@ -1703,6 +1728,23 @@ mod tests {
     }
 
     #[test]
+    fn should_read_a_wikilink_as_the_alias_its_pill_shows() {
+        let found = wikilinks("see [[a#h|b]] here");
+
+        assert_eq!(
+            found
+                .iter()
+                .map(|link| (link.target, link.context.as_str(), link.at))
+                .collect::<Vec<_>>(),
+            [("a#h", "see b here", 4)]
+        );
+        assert_eq!(
+            body_title("[[a|b]] c").map(|title| title.text),
+            Some("b c".to_owned())
+        );
+    }
+
+    #[test]
     fn should_find_the_wikilinks_the_editor_renders() {
         // Held one-per-line against rustfmt so this table stays diffable by eye
         // against its twin in `src/components/editor/wikilink.spec.ts`.
@@ -1714,9 +1756,13 @@ mod tests {
             ("[[a]]\nnext line [[b]]", &["a", "b"]),
             ("[[a]]\n\n[[b]]", &["a", "b"]),
             ("a [[b]]  \nc", &["b"]),
-            // The target is the text between the brackets, as written.
-            ("[[a|alias]]", &["a|alias"]),
+            // The target is the link before an alias.
+            ("[[a|alias]]", &["a"]),
             ("[[a#h]]", &["a#h"]),
+            ("[[a#h|b]]", &["a#h"]),
+            ("[[a|b|c]]", &["a"]),
+            ("[[#h]]", &["#h"]),
+            ("![[x.png|400]]", &["x.png"]),
             ("[[ spaced ]]", &[" spaced "]),
             // A space keeps a destination invalid, so the wikilink inside it is drawn.
             ("*[a]([[b c]])*", &["b c"]),

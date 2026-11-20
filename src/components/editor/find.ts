@@ -6,9 +6,9 @@ import type { EditorState, SelectionBookmark } from "@tiptap/pm/state";
 import type { EditorView } from "@tiptap/pm/view";
 import { Decoration, DecorationSet } from "@tiptap/pm/view";
 
-import { hasString } from "./attrs";
 import { calloutOf } from "./callout";
 import { measureViewport } from "./code-block-shiki";
+import { pillText } from "./wikilink";
 
 interface Match {
   /** The callout whose drawn label holds the match; the match itself is the caret at its body's start. */
@@ -82,9 +82,8 @@ function hasClearance(state: EditorState) {
 }
 
 function textOf(node: Node) {
-  return (node.type.name === "wikilink" || node.type.name === "embed") &&
-    hasString(node.attrs, "title")
-    ? node.attrs.title
+  return node.type.name === "wikilink" || node.type.name === "embed"
+    ? pillText(node)
     : node.textContent;
 }
 

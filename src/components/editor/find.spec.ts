@@ -59,6 +59,16 @@ describe("find", () => {
       expect(find.snapshot().total).toBe(1);
     });
 
+    it("should match the alias a wikilink's pill shows, not its raw title", () => {
+      const { find } = mount("visit [[a|shown]] today");
+
+      find.setQuery("shown");
+      expect(find.snapshot().total).toBe(1);
+
+      find.setQuery("a|");
+      expect(find.snapshot().total).toBe(0);
+    });
+
     it("should match an embed's title", () => {
       const { find } = mount("visit ![[Atlas]] today");
       find.setQuery("atlas");

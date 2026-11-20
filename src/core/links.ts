@@ -55,6 +55,13 @@ const CSV_EXTENSION = /\.(?:csv|tsv)$/iu;
 
 const FRAGMENT_OR_QUERY = /[#?]/u;
 
+const IMAGE_EXTENSION = /\.(?:gif|jpe?g|png|svg|webp)$/u;
+
+/** Lowered first: an `i` flag would fold a long s into `svg`, which Rust refuses. */
+export function isImageName(name: string) {
+  return IMAGE_EXTENSION.test(name.toLowerCase());
+}
+
 /** A destination without the fragment or query it carries. */
 export function bareDestination(destination: string) {
   return destination.split(FRAGMENT_OR_QUERY, 1)[0] ?? "";
@@ -224,8 +231,8 @@ export function linkResolver(notes: NoteMeta[]): LinkResolver {
     notes.map((meta) => [meta.path.toLowerCase(), meta])
   );
 
-  const title: LinkResolver["title"] = (target, from) => {
-    const wanted = target.trim().toLowerCase();
+  const named = (name: string, from: string) => {
+    const wanted = name.trim().toLowerCase();
     const fromFolder = noteFolder(from);
 
     return (byName.get(wanted) ?? [])
@@ -242,6 +249,20 @@ export function linkResolver(notes: NoteMeta[]): LinkResolver {
         return byTitle || byFolder || comparePaths(left.path, right.path);
       })
       .at(0);
+  };
+
+  // The whole name first, so a title holding `#` keeps its links, then the
+  // note before a `#heading`. An image's name is never cut: `shot #1.png`
+  // is the image, not a heading in a note named `shot`.
+  const title: LinkResolver["title"] = (target, from) => {
+    const hash = target.indexOf("#");
+
+    return (
+      named(target, from) ??
+      (hash === -1 || isImageName(target.trim())
+        ? undefined
+        : named(target.slice(0, hash), from))
+    );
   };
 
   const path: LinkResolver["path"] = (destination, from) => {

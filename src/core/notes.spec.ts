@@ -9,10 +9,32 @@ import {
   noteTitle,
   resolveTitle,
   titleSource,
+  wikilinkParts,
 } from "./notes";
 
 const VALID_FILENAME = /^(?!\.)[^/\\:]+$/u;
 const CR_ENDING = /\r\n?/gu;
+
+describe(wikilinkParts, () => {
+  it.each([
+    ["a", { alias: "", heading: "", label: "a", link: "a", note: "a" }],
+    ["a|b", { alias: "b", heading: "", label: "b", link: "a", note: "a" }],
+    ["a#h", { alias: "", heading: "h", label: "a#h", link: "a#h", note: "a" }],
+    ["a#h|b", { alias: "b", heading: "h", label: "b", link: "a#h", note: "a" }],
+    ["a|", { alias: "", heading: "", label: "a", link: "a", note: "a" }],
+    [
+      "a|b|c",
+      { alias: "b|c", heading: "", label: "b|c", link: "a", note: "a" },
+    ],
+    ["#h", { alias: "", heading: "h", label: "#h", link: "#h", note: "" }],
+    [
+      "x.png|400",
+      { alias: "400", heading: "", label: "400", link: "x.png", note: "x.png" },
+    ],
+  ])("should read %j as its note, heading and label", (title, expected) => {
+    expect(wikilinkParts(title)).toStrictEqual(expected);
+  });
+});
 
 describe(noteTitle, () => {
   it.each([

@@ -58,14 +58,15 @@ pub fn open(index_dir: &Path) -> Result<Connection, IndexError> {
 
 /// Bump when a row's derivation changes. The mtime skip would otherwise leave
 /// every unedited note on the old derivation until someone ran "reindex".
-pub(crate) const SCHEMA_VERSION: i64 = 19;
+pub(crate) const SCHEMA_VERSION: i64 = 21;
 
 /// The derived, disposable search index. Files are the source of truth; this
 /// database can be deleted at any time and rebuilt from the notes directory.
 /// Rust owns both reads and writes.
 ///
 /// `note_link` holds one row per wikilink occurrence rather than one per pair
-/// of notes, and `target` is the text as written rather than a resolved path:
+/// of notes, and `target` is the link before any `|alias` rather than a
+/// resolved path:
 /// native queries resolve it on read, so a note created or retitled later is
 /// found by links written before it existed.
 ///

@@ -15,7 +15,7 @@ export type RingMember =
   | { kind: "note"; note: NoteMeta };
 
 export interface Graph {
-  /** Targets this note links to that name no note, as written, each once. */
+  /** Targets this note links to that name no note, as written before any alias, each once. */
   dangling: string[];
   hubs: HubPill[];
   incoming: Mention[];

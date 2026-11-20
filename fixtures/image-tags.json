@@ -23,6 +23,16 @@
   },
   { "name": "no source", "html": "<img alt=\"no source\">", "image": false },
   {
+    "name": "six-digit width",
+    "html": "<img src=\"a.png\" width=\"999999\">",
+    "image": true
+  },
+  {
+    "name": "width past six digits",
+    "html": "<img src=\"a.png\" width=\"1000000\">",
+    "image": false
+  },
+  {
     "name": "height",
     "html": "<img src=\"a.png\" height=\"200\">",
     "image": false

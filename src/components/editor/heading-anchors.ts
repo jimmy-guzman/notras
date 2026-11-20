@@ -2,15 +2,13 @@ import type { Fragment, Node } from "@tiptap/pm/model";
 import GithubSlugger from "github-slugger";
 
 import { hasString } from "./attrs";
+import { pillText } from "./wikilink";
 
-/** A link to a note reads as its title, an image as its alt. */
+/** A link to a note reads as its pill's label, an embed as its link, an image as its alt. */
 export function headingText(heading: Node) {
   return heading.textBetween(0, heading.content.size, "", (leaf) => {
-    if (
-      (leaf.type.name === "wikilink" || leaf.type.name === "embed") &&
-      hasString(leaf.attrs, "title")
-    ) {
-      return leaf.attrs.title;
+    if (leaf.type.name === "wikilink" || leaf.type.name === "embed") {
+      return pillText(leaf);
     }
 
     if (leaf.type.name === "image" && hasString(leaf.attrs, "alt")) {

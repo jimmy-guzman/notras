@@ -691,6 +691,62 @@ describe("link clicks", () => {
     expect(onWikilinkClick).toHaveBeenCalledExactlyOnceWith("other");
   });
 
+  it("should leave out of wikilink completion a title that would read back as an alias", async () => {
+    const { editor } = await mount({
+      initialContent: "",
+      titles: () => ["C# tips", "a|b", "Plain"],
+    });
+
+    act(() => {
+      editor.chain().focus().insertContent("[[").run();
+    });
+
+    const options = await screen.findAllByRole("option");
+
+    expect(options.map((option) => option.textContent)).toStrictEqual([
+      "C# tips",
+      "Plain",
+    ]);
+  });
+
+  it("should open the note an aliased wikilink's link names", async () => {
+    const onWikilinkClick = vi.fn<(link: string) => void>();
+
+    const { editor } = await mount({
+      initialContent: "[[other#part|shown]]",
+      onWikilinkClick,
+    });
+
+    expect(clickAt(editor, screen.getByText("shown"), 1, 1)).toBeTruthy();
+    expect(onWikilinkClick).toHaveBeenCalledExactlyOnceWith("other#part");
+  });
+
+  it("should open a note whose title starts with # before reading it as a heading", async () => {
+    const onWikilinkClick = vi.fn<(link: string) => void>();
+
+    const { editor } = await mount({
+      initialContent: "[[#1 priority]]",
+      onWikilinkClick,
+      resolveWikilink: (link) => (link === "#1 priority" ? "p.md" : undefined),
+    });
+
+    expect(clickAt(editor, screen.getByText("#1 priority"), 1, 1)).toBeTruthy();
+    expect(onWikilinkClick).toHaveBeenCalledExactlyOnceWith("#1 priority");
+  });
+
+  it("should move to the heading a wikilink names in its own note", async () => {
+    const onWikilinkClick = vi.fn<(note: string) => void>();
+
+    const { editor } = await mount({
+      initialContent: "[[#My Part]]\n\n## My Part",
+      onWikilinkClick,
+    });
+
+    expect(clickAt(editor, screen.getByText("#My Part"), 1, 1)).toBeTruthy();
+    expect(onWikilinkClick).not.toHaveBeenCalled();
+    expect(editor.state.selection.$from.parent.textContent).toBe("My Part");
+  });
+
   it("should open a clicked embed's note", async () => {
     const onWikilinkClick = vi.fn<(title: string) => void>();
 
@@ -1976,6 +2032,32 @@ describe("link hover", () => {
         "A link's title cannot hold [ or ]"
       );
       expect(handle.getContent()).toBe(initialContent);
+    }
+  );
+
+  it.each([
+    ["[[#My Part]]", "#My Part", "#My Part"],
+    ["[[missing#h|x]]", "x", 'no note named "missing#h"'],
+  ])(
+    "should say where %s goes in the preview",
+    async (initialContent, pill, destination) => {
+      await mount({
+        initialContent,
+        resolveWikilink: vi.fn<(link: string) => string | undefined>(),
+      });
+      vi.useFakeTimers();
+      onTestFinished(() => {
+        vi.useRealTimers();
+      });
+
+      fireEvent.mouseOver(screen.getByText(pill, { selector: ".wikilink" }));
+      act(() => {
+        vi.advanceTimersByTime(300);
+      });
+
+      expect(
+        screen.getByText(destination, { selector: ":not(.wikilink)" })
+      ).toBeVisible();
     }
   );
 

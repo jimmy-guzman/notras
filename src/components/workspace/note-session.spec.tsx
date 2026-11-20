@@ -2588,6 +2588,144 @@ describe(NoteSession, () => {
     ).toBeInTheDocument();
   });
 
+  it("should draw an image embed at the width its `|400` asks for", async () => {
+    mockConvertFileSrc("macos");
+    mockIPC(
+      withDisk((command) => {
+        if (command === "list_images") {
+          return { paths: ["attachments/photo.png"], unreadable: [] };
+        }
+
+        throw new Error(`unexpected command: ${command}`);
+      })
+    );
+
+    const client = new QueryClient({
+      defaultOptions: {
+        queries: { retry: false, staleTime: Number.POSITIVE_INFINITY },
+      },
+    });
+
+    client.setQueryData(notesDirQuery.queryKey, "/notes");
+    client.setQueryData(noteQueries.list().queryKey, []);
+    client.setQueryData(tabOpeningQuery("t15", "note", "host.md").queryKey, {
+      file: {
+        content: "![[photo.png|400x300]]",
+        revision: "r0",
+        updatedAt: new Date(1),
+      },
+      stash: null,
+    });
+    onTestFinished(() => {
+      client.clear();
+    });
+    render(
+      <QueryClientProvider client={client}>
+        <NoteSession
+          active
+          tab={{ id: "t15", kind: "note", path: "host.md" }}
+        />
+      </QueryClientProvider>
+    );
+    await editor("t15");
+
+    expect(
+      await screen.findByRole("img", { name: "photo.png" })
+    ).toHaveAttribute("width", "400");
+  });
+
+  it("should draw an image embed whose name holds a `#`", async () => {
+    mockConvertFileSrc("macos");
+    mockIPC(
+      withDisk((command) => {
+        if (command === "list_images") {
+          return { paths: ["attachments/shot #1.png"], unreadable: [] };
+        }
+
+        throw new Error(`unexpected command: ${command}`);
+      })
+    );
+
+    const client = new QueryClient({
+      defaultOptions: {
+        queries: { retry: false, staleTime: Number.POSITIVE_INFINITY },
+      },
+    });
+
+    client.setQueryData(notesDirQuery.queryKey, "/notes");
+    client.setQueryData(noteQueries.list().queryKey, []);
+    client.setQueryData(tabOpeningQuery("t15", "note", "host.md").queryKey, {
+      file: {
+        content: "![[shot #1.png]]",
+        revision: "r0",
+        updatedAt: new Date(1),
+      },
+      stash: null,
+    });
+    onTestFinished(() => {
+      client.clear();
+    });
+    render(
+      <QueryClientProvider client={client}>
+        <NoteSession
+          active
+          tab={{ id: "t15", kind: "note", path: "host.md" }}
+        />
+      </QueryClientProvider>
+    );
+    await editor("t15");
+
+    expect(
+      await screen.findByRole("img", { name: "shot #1.png" })
+    ).toBeInTheDocument();
+  });
+
+  it("should draw an image embed with a size too long to read at its own width", async () => {
+    mockConvertFileSrc("macos");
+    mockIPC(
+      withDisk((command) => {
+        if (command === "list_images") {
+          return { paths: ["attachments/photo.png"], unreadable: [] };
+        }
+
+        throw new Error(`unexpected command: ${command}`);
+      })
+    );
+
+    const client = new QueryClient({
+      defaultOptions: {
+        queries: { retry: false, staleTime: Number.POSITIVE_INFINITY },
+      },
+    });
+
+    client.setQueryData(notesDirQuery.queryKey, "/notes");
+    client.setQueryData(noteQueries.list().queryKey, []);
+    client.setQueryData(tabOpeningQuery("t15", "note", "host.md").queryKey, {
+      file: {
+        content: "![[photo.png|1000000000000000000000]]",
+        revision: "r0",
+        updatedAt: new Date(1),
+      },
+      stash: null,
+    });
+    onTestFinished(() => {
+      client.clear();
+    });
+    render(
+      <QueryClientProvider client={client}>
+        <NoteSession
+          active
+          tab={{ id: "t15", kind: "note", path: "host.md" }}
+        />
+      </QueryClientProvider>
+    );
+    await editor("t15");
+
+    expect(
+      await screen.findByRole("img", { name: "photo.png" })
+    ).not.toHaveAttribute("width");
+  });
+
   it("should open no note from an image embed the library could not list, and still open a note whose read failed", async () => {
     const listed = {
       createdAt: 1,

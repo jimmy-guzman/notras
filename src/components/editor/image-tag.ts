@@ -2,7 +2,11 @@ import { Lexer } from "marked";
 
 const TAG = Lexer.rules.inline.gfm.tag;
 const ALLOWED_ATTRIBUTES = new Set(["alt", "src", "title", "width"]);
-const WIDTH = /^[1-9]\d*$/u;
+
+// Six digits at most, a ceiling well inside what `Number` writes back digit
+// for digit: past 16 digits a width loses its low digits, and from 22 it
+// prints as `1e+21`. Kept in parity with `is_image_tag`.
+const WIDTH = /^[1-9]\d{0,5}$/u;
 
 export interface ImageTag {
   alt: string;

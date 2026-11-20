@@ -24,6 +24,7 @@ describe(headingAnchors, () => {
       ["strong-code-label-alt-note"],
     ],
     ["## see ![[Atlas]]", ["see-atlas"]],
+    ["## See [[a|b]]", ["see-b"]],
     [
       "not a heading\n\n```markdown\n# code heading\n```\n\n> ## Quoted heading",
       ["quoted-heading"],
