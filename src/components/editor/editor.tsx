@@ -1154,7 +1154,11 @@ export function Editor(mountProps: EditorProps) {
 
           const heading = headingPillAt(event.target);
 
-          if (event.button === 0 && heading !== null) {
+          if (
+            event.button === 0 &&
+            heading !== null &&
+            config.onWikilinkClick
+          ) {
             // A `[[#heading]]` can be a heading lookup too, so it keeps the
             // selection the same way.
             event.preventDefault();

@@ -749,6 +749,14 @@ describe("link clicks", () => {
     expect(editor.state.selection.$from.parent.textContent).toBe("My Part");
   });
 
+  it("should leave a [[#heading]] press to ProseMirror in an editor that follows no wikilinks", async () => {
+    await mount({ initialContent: "[[#missing]] after" });
+
+    expect(
+      fireEvent.mouseDown(screen.getByText("#missing"), { button: 0 })
+    ).toBeTruthy();
+  });
+
   it("should keep the selection when a [[#heading]] press names no heading", async () => {
     render(<Toaster />);
 
