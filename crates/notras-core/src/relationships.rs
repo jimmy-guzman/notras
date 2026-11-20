@@ -214,25 +214,37 @@ impl<'a> Resolver<'a> {
         }
     }
 
+    /// The note titled or named `name`, preferring a title, then a note in
+    /// `from`'s folder, then path order.
+    fn named(&self, name: &str, from: &str) -> Option<&'a NoteMeta> {
+        let wanted = name.trim_matches(frontmatter::is_space).to_lowercase();
+        self.by_name
+            .get(&wanted)?
+            .iter()
+            .copied()
+            .min_by_key(|note| {
+                (
+                    note.title.to_lowercase() != wanted,
+                    folder(&note.path) != folder(from),
+                    &note.path,
+                )
+            })
+    }
+
     pub fn resolve(&self, link: &NoteLink) -> Option<&'a NoteMeta> {
         match link.kind.as_str() {
-            "wikilink" => {
-                let wanted = link
-                    .target
-                    .trim_matches(frontmatter::is_space)
-                    .to_lowercase();
-                self.by_name
-                    .get(&wanted)?
-                    .iter()
-                    .copied()
-                    .min_by_key(|note| {
-                        (
-                            note.title.to_lowercase() != wanted,
-                            folder(&note.path) != folder(&link.path),
-                            &note.path,
-                        )
-                    })
-            }
+            // The whole name first, so a title holding `#` keeps its links,
+            // then the name before each `#` from the last, so
+            // `C# tips#Overview` finds `C# tips`. An image's name is never
+            // cut: `shot #1.png` is the image, not a heading in `shot`.
+            "wikilink" => self.named(&link.target, &link.path).or_else(|| {
+                if is_image_path(link.target.trim_matches(frontmatter::is_space)) {
+                    return None;
+                }
+                link.target
+                    .rmatch_indices('#')
+                    .find_map(|(at, _)| self.named(&link.target[..at], &link.path))
+            }),
             "link" => {
                 let joined = resolve_path(&link.target, &link.path)?;
                 self.by_path
@@ -363,9 +375,11 @@ pub fn graph(
     let mut dangling = Vec::new();
     for link in links.iter().filter(|link| link.path == path) {
         let Some(note) = resolver.resolve(link) else {
-            // An image is a file the link shows, not a note waiting to be written.
+            // An image is a file the link shows, and `[[#heading]]` points into
+            // this note: neither is a note waiting to be written.
             let image = is_image_path(link.target.trim_matches(frontmatter::is_space));
-            if !image && !dangling.contains(&link.target) {
+            let heading = link.target.starts_with('#');
+            if !image && !heading && !dangling.contains(&link.target) {
                 dangling.push(link.target.clone());
             }
             continue;
@@ -504,7 +518,7 @@ mod tests {
     }
 
     #[test]
-    fn should_leave_an_image_out_of_the_links_with_no_note() {
+    fn should_leave_an_image_and_a_heading_out_of_the_links_with_no_note() {
         let link = |target: &str| NoteLink {
             at: 0,
             context: String::new(),
@@ -516,7 +530,12 @@ mod tests {
 
         let picture = graph(
             "a.md",
-            &[link("photo.png"), link(" Cover.JPG "), link("Nowhere")],
+            &[
+                link("photo.png"),
+                link(" Cover.JPG "),
+                link("#Part"),
+                link("Nowhere"),
+            ],
             &[],
             &[],
         );

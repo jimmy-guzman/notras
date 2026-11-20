@@ -1,5 +1,7 @@
 import { Editor } from "@tiptap/core";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, onTestFinished } from "vitest";
+
+import { wikilinkParts } from "@/core/notes";
 
 import { createEditorExtensions } from "./extensions";
 
@@ -16,9 +18,13 @@ const cases: [markdown: string, targets: string[]][] = [
   ["[[a]]\nnext line [[b]]", ["a", "b"]],
   ["[[a]]\n\n[[b]]", ["a", "b"]],
   ["a [[b]]  \nc", ["b"]],
-  // The target is the text between the brackets, as written.
-  ["[[a|alias]]", ["a|alias"]],
+  // The target is the link before an alias.
+  ["[[a|alias]]", ["a"]],
   ["[[a#h]]", ["a#h"]],
+  ["[[a#h|b]]", ["a#h"]],
+  ["[[a|b|c]]", ["a"]],
+  ["[[#h]]", ["#h"]],
+  ["![[x.png|400]]", ["x.png"]],
   ["[[ spaced ]]", [" spaced "]],
   // A space keeps a destination invalid, so the wikilink inside it is drawn.
   ["*[a]([[b c]])*", ["b c"]],
@@ -132,7 +138,7 @@ const cases: [markdown: string, targets: string[]][] = [
   ["<em>x</em>[[a]]", ["a"]],
 ];
 
-/** The target of every wikilink and embed a markdown string parses into, in order. */
+/** The link before the alias of each wikilink and embed a markdown string parses into, in order. */
 function wikilinkTargets(markdown: string) {
   const editor = new Editor({
     content: markdown,
@@ -145,7 +151,7 @@ function wikilinkTargets(markdown: string) {
 
   editor.state.doc.descendants((node) => {
     if (node.type.name === "wikilink" || node.type.name === "embed") {
-      targets.push(String(node.attrs.title));
+      targets.push(wikilinkParts(String(node.attrs.title)).link);
     }
 
     return true;
@@ -163,4 +169,25 @@ describe("wikilink", () => {
       expect(wikilinkTargets(markdown)).toStrictEqual(expected);
     }
   );
+
+  it("should show the alias on the pill and save the link as written", () => {
+    const element = document.createElement("div");
+
+    const editor = new Editor({
+      content: "see [[a#h|b]] and ![[x.png|400]]",
+      contentType: "markdown",
+      element,
+      extensions: createEditorExtensions({}),
+    });
+
+    onTestFinished(() => {
+      editor.destroy();
+    });
+
+    expect(
+      [...element.querySelectorAll(".wikilink")].map((pill) => pill.textContent)
+    ).toStrictEqual(["b", "x.png"]);
+
+    expect(editor.getMarkdown()).toBe("see [[a#h|b]] and ![[x.png|400]]");
+  });
 });

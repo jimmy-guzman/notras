@@ -691,6 +691,95 @@ describe("link clicks", () => {
     expect(onWikilinkClick).toHaveBeenCalledExactlyOnceWith("other");
   });
 
+  it("should leave out of wikilink completion a title that would read back as an alias", async () => {
+    const { editor } = await mount({
+      initialContent: "",
+      titles: () => ["C# tips", "a|b", "Plain"],
+    });
+
+    act(() => {
+      editor.chain().focus().insertContent("[[").run();
+    });
+
+    const options = await screen.findAllByRole("option");
+
+    expect(options.map((option) => option.textContent)).toStrictEqual([
+      "C# tips",
+      "Plain",
+    ]);
+  });
+
+  it("should open the note an aliased wikilink's link names", async () => {
+    const onWikilinkClick = vi.fn<(link: string) => void>();
+
+    const { editor } = await mount({
+      initialContent: "[[other#part|shown]]",
+      onWikilinkClick,
+    });
+
+    expect(clickAt(editor, screen.getByText("shown"), 1, 1)).toBeTruthy();
+    expect(onWikilinkClick).toHaveBeenCalledExactlyOnceWith("other#part");
+  });
+
+  it("should hand a [[#name]] link to the session with the heading as its fallback", async () => {
+    const onWikilinkClick =
+      vi.fn<(link: string, onMissing?: () => void) => void>();
+
+    const { editor } = await mount({
+      initialContent: "[[#1 priority]]",
+      onWikilinkClick,
+    });
+
+    expect(clickAt(editor, screen.getByText("#1 priority"), 1, 1)).toBeTruthy();
+    expect(onWikilinkClick).toHaveBeenCalledExactlyOnceWith(
+      "#1 priority",
+      expect.any(Function)
+    );
+  });
+
+  it("should move to the heading a wikilink names in its own note when no note has that name", async () => {
+    const { editor } = await mount({
+      initialContent: "[[#My Part]]\n\n## My Part",
+      onWikilinkClick: (_link, onMissing) => {
+        onMissing?.();
+      },
+    });
+
+    expect(clickAt(editor, screen.getByText("#My Part"), 1, 1)).toBeTruthy();
+    expect(editor.state.selection.$from.parent.textContent).toBe("My Part");
+  });
+
+  it("should leave a [[#heading]] press to ProseMirror in an editor that follows no wikilinks", async () => {
+    await mount({ initialContent: "[[#missing]] after" });
+
+    expect(
+      fireEvent.mouseDown(screen.getByText("#missing"), { button: 0 })
+    ).toBeTruthy();
+  });
+
+  it("should keep the selection when a [[#heading]] press names no heading", async () => {
+    render(<Toaster />);
+
+    const { editor } = await mount({
+      initialContent: "[[#missing]]\n\n## Present\n\nlast paragraph",
+      onWikilinkClick: (_link, onMissing) => {
+        onMissing?.();
+      },
+    });
+
+    const user = userEvent.setup();
+    act(() => {
+      editor.commands.setTextSelection(editor.state.doc.content.size - 1);
+      editor.view.focus();
+    });
+    const before = editor.state.selection.from;
+    const pill = screen.getByText("#missing");
+    expect(fireEvent.mouseDown(pill, { button: 0 })).toBeFalsy();
+    await user.click(pill);
+    expect(await screen.findByText("could not open link")).toBeVisible();
+    expect(editor.state.selection.from).toBe(before);
+  });
+
   it("should open a clicked embed's note", async () => {
     const onWikilinkClick = vi.fn<(title: string) => void>();
 
@@ -1976,6 +2065,32 @@ describe("link hover", () => {
         "A link's title cannot hold [ or ]"
       );
       expect(handle.getContent()).toBe(initialContent);
+    }
+  );
+
+  it.each([
+    ["[[#My Part]]", "#My Part", "#My Part"],
+    ["[[missing#h|x]]", "x", 'no note named "missing#h"'],
+  ])(
+    "should say where %s goes in the preview",
+    async (initialContent, pill, destination) => {
+      await mount({
+        initialContent,
+        resolveWikilink: vi.fn<(link: string) => string | undefined>(),
+      });
+      vi.useFakeTimers();
+      onTestFinished(() => {
+        vi.useRealTimers();
+      });
+
+      fireEvent.mouseOver(screen.getByText(pill, { selector: ".wikilink" }));
+      act(() => {
+        vi.advanceTimersByTime(300);
+      });
+
+      expect(
+        screen.getByText(destination, { selector: ":not(.wikilink)" })
+      ).toBeVisible();
     }
   );
 

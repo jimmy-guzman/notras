@@ -12,6 +12,7 @@ import { EMBED_TOKEN, isWikilinkTitle } from "@/core/notes";
 import { hasString } from "./attrs";
 import type { ImageSource } from "./image-resize";
 import { nodeViewIcons } from "./node-view-icons";
+import { pillText } from "./wikilink";
 
 const icon = nodeViewIcons({ failed: FileXIcon });
 
@@ -142,7 +143,7 @@ export function embedNodeView(
     const watchTitle = () => {
       const title = titleOf(node.attrs);
 
-      pill.textContent = title;
+      pill.textContent = pillText(node);
       unwatch?.();
       unwatch = watch(title, show);
     };
@@ -188,6 +189,8 @@ export function embedNodeView(
 
 /**
  * `![[note title]]` as an inline atom that serializes back to `![[title]]`.
+ * Its pill shows the link without an alias, since an image embed's `|400` is
+ * its width.
  * It carries `data-wikilink`, so a click opens it and the link hover reads it
  * the way they do a pill. An image embed drops it in its node view, leaving a
  * click to select it as any image.
@@ -287,11 +290,11 @@ export const Embed = Node.create({
     return [
       "span",
       { class: "wikilink", "data-embed": title, "data-wikilink": title },
-      title,
+      pillText(node),
     ];
   },
 
   renderMarkdown: (node) => `![[${titleOf(node.attrs)}]]`,
 
-  renderText: ({ node }) => titleOf(node.attrs),
+  renderText: ({ node }) => pillText(node),
 });

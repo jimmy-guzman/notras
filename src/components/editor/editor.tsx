@@ -15,12 +15,14 @@ import { NodeSelection, Selection, TextSelection } from "@tiptap/pm/state";
 import { AddMarkStep, RemoveMarkStep } from "@tiptap/pm/transform";
 import type { EditorView } from "@tiptap/pm/view";
 import { EditorContent, useEditor } from "@tiptap/react";
+import { slug } from "github-slugger";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { toast } from "@/components/ui/toast";
 import { ViewerDialog } from "@/components/ui/viewer-dialog";
 import { foldPath, isNotePath, isRelativeDestination } from "@/core/links";
+import { wikilinkParts } from "@/core/notes";
 import { attachImage } from "@/data/attach-file";
 import { styleNonce } from "@/lib/style-nonce";
 import { readClipboardSource } from "@/lib/ui/clipboard-source";
@@ -89,7 +91,15 @@ function noteTitleAt(state: EditorState, head: number) {
   const before = head > 0 ? state.doc.nodeAt(head - 1) : null;
   const node = opensNote(after) ? after : before;
 
-  return opensNote(node) ? String(node?.attrs.title ?? "") : "";
+  if (node === null || !opensNote(node)) {
+    return "";
+  }
+
+  if (!hasString(node.attrs, "title")) {
+    throw new Error(`A ${node.type.name} has no title`);
+  }
+
+  return node.attrs.title;
 }
 
 /**
@@ -234,7 +244,7 @@ async function readDataUrl(file: File) {
 function hoverStateFor(
   target: HTMLElement,
   markHref: string,
-  resolveWikilink?: (title: string) => string | undefined
+  resolveWikilink?: (link: string) => string | undefined
 ) {
   // An anchor is a link whatever its href says. `renderHTML` blanks the one it
   // renders for a scheme the app will not open, and the mark still carries the
@@ -254,10 +264,15 @@ function hoverStateFor(
     return null;
   }
 
-  const path = resolveWikilink(title);
+  const { heading, link, note } = wikilinkParts(title);
+  const path = resolveWikilink(link);
+
+  if (note === "" && path === undefined) {
+    return { editable: true, missing: false, title, url: `#${heading}` };
+  }
 
   return path === undefined
-    ? { editable: true, missing: true, title, url: `no note named "${title}"` }
+    ? { editable: true, missing: true, title, url: `no note named "${link}"` }
     : { editable: true, missing: false, title, url: path };
 }
 
@@ -343,6 +358,45 @@ function followLink(
       type: "error",
     });
   });
+}
+
+/** The `[[#heading]]` pill an event landed on, with its title, or null. */
+function headingPillAt(target: EventTarget | null) {
+  const pill =
+    target instanceof Element
+      ? target.closest<HTMLElement>("span.wikilink[data-wikilink]")
+      : null;
+
+  const title = pill?.dataset.wikilink;
+
+  return pill !== null &&
+    title !== undefined &&
+    wikilinkParts(title).note === ""
+    ? { pill, title }
+    : null;
+}
+
+/**
+ * Opens the note a wikilink's link names. A `[[#heading]]` naming no note moves
+ * to that heading in this note the way a `#heading` link does, decided by the
+ * session once the note list has loaded.
+ */
+function followWikilink(
+  view: TiptapEditor["view"],
+  title: string,
+  onWikilinkClick: (link: string, onMissing?: () => void) => void
+) {
+  const { heading, link, note } = wikilinkParts(title);
+
+  if (note === "") {
+    onWikilinkClick(link, () => {
+      followLink(view, `#${encodeURIComponent(slug(heading))}`);
+    });
+
+    return;
+  }
+
+  onWikilinkClick(link);
 }
 
 /**
@@ -687,13 +741,16 @@ interface EditorProps {
   onReady?: (handle: EditorHandle) => void;
   /** Undefined once the editor is destroyed. */
   onSelect?: (read: SelectionReader | undefined) => void;
-  /** Navigate when a wikilink pill is clicked. */
-  onWikilinkClick?: (title: string) => void;
+  /**
+   * Opens the note a clicked wikilink's link names, its alias left off, or
+   * calls `onMissing`, when given, where no note has that name.
+   */
+  onWikilinkClick?: (link: string, onMissing?: () => void) => void;
   placeholderText?: string;
   /** Resolve image sources (e.g. `attachments/x.png`) to loadable URLs, with what shows when one does not load. */
   resolveImageSrc?: (src: string) => ImageSource;
   /** The note a wikilink title lands on, or undefined when it names none. */
-  resolveWikilink?: (title: string) => string | undefined;
+  resolveWikilink?: (link: string) => string | undefined;
   /** Stable getter for live note titles (wikilink completion). */
   titles?: () => string[];
   /** Where the outline draws while the note panel shows it. Read live, unlike the mount props. */
@@ -910,7 +967,7 @@ export function Editor(mountProps: EditorProps) {
           const title = noteTitleAt(instance.state, head);
 
           if (title !== "" && config.onWikilinkClick) {
-            config.onWikilinkClick(title);
+            followWikilink(instance.view, title, config.onWikilinkClick);
 
             return true;
           }
@@ -989,7 +1046,11 @@ export function Editor(mountProps: EditorProps) {
           opensNote(node) &&
           config.onWikilinkClick
         ) {
-          config.onWikilinkClick(String(node.attrs.title ?? ""));
+          if (!hasString(node.attrs, "title")) {
+            throw new Error(`A ${node.type.name} has no title`);
+          }
+
+          followWikilink(view, node.attrs.title, config.onWikilinkClick);
 
           return true;
         }
@@ -1005,6 +1066,17 @@ export function Editor(mountProps: EditorProps) {
 
           const pressed = fragmentPressRef.current;
           fragmentPressRef.current = null;
+          const heading = headingPillAt(event.target);
+
+          if (
+            heading !== null &&
+            heading.pill === pressed &&
+            config.onWikilinkClick
+          ) {
+            followWikilink(view, heading.title, config.onWikilinkClick);
+
+            return true;
+          }
 
           if (target === null) {
             return false;
@@ -1076,6 +1148,21 @@ export function Editor(mountProps: EditorProps) {
             // Fragment clicks must retain the selection when lookup fails.
             event.preventDefault();
             fragmentPressRef.current = target;
+
+            return true;
+          }
+
+          const heading = headingPillAt(event.target);
+
+          if (
+            event.button === 0 &&
+            heading !== null &&
+            config.onWikilinkClick
+          ) {
+            // A `[[#heading]]` can be a heading lookup too, so it keeps the
+            // selection the same way.
+            event.preventDefault();
+            fragmentPressRef.current = heading.pill;
 
             return true;
           }
@@ -1457,8 +1544,8 @@ export function Editor(mountProps: EditorProps) {
   };
 
   const submitLink = (rawUrl: string, text?: string) => {
-    // A wikilink has no url: its title is both what it says and where it
-    // goes, so submitting one renames the target.
+    // A wikilink has no url: its title, alias and heading included, is what
+    // it is saved as, so submitting one rewrites the whole title.
     if (linkEditor?.kind === "wikilink") {
       setLinkEditor(null);
 

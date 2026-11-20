@@ -1,10 +1,10 @@
 import { mergeAttributes, Node } from "@tiptap/core";
-import type { Attrs } from "@tiptap/pm/model";
+import type { Attrs, Node as ProseMirrorNode } from "@tiptap/pm/model";
 import { PluginKey } from "@tiptap/pm/state";
 import type { SuggestionOptions } from "@tiptap/suggestion";
 import { Suggestion } from "@tiptap/suggestion";
 
-import { isWikilinkTitle, WIKILINK_TOKEN } from "@/core/notes";
+import { isWikilinkTitle, WIKILINK_TOKEN, wikilinkParts } from "@/core/notes";
 
 import { hasString } from "./attrs";
 import type { SuggestionMenuItem } from "./suggestion-menu";
@@ -15,8 +15,29 @@ export interface WikilinkOptions {
   getTitles: () => string[];
 }
 
+/** The title a pill carries; its text is the alias label, so it cannot stand in. */
 function pillTitle(element: HTMLElement) {
-  return element.dataset.wikilink ?? element.textContent;
+  const title = element.dataset.wikilink;
+
+  if (title === undefined) {
+    throw new Error("A wikilink pill has no data-wikilink");
+  }
+
+  return title;
+}
+
+/**
+ * What a wikilink or an embed reads as in text: a wikilink its pill's label,
+ * an embed its link, since an image embed's `|400` is its width.
+ */
+export function pillText(node: ProseMirrorNode) {
+  if (!hasString(node.attrs, "title")) {
+    throw new Error(`A ${node.type.name} has no title`);
+  }
+
+  const { label, link } = wikilinkParts(node.attrs.title);
+
+  return node.type.name === "embed" ? link : label;
 }
 
 function toItems(props: {
@@ -32,9 +53,9 @@ function toItems(props: {
 }
 
 /**
- * `[[note title]]` as a first-class inline atom: renders as a pill,
- * serializes back to `[[title]]`, and parses from markdown through a
- * custom marked tokenizer.
+ * `[[note title]]` as a first-class inline atom: renders as a pill showing
+ * its alias or else its link, serializes back to `[[title]]` as written, and
+ * parses from markdown through a custom marked tokenizer.
  */
 export const Wikilink = Node.create<WikilinkOptions>({
   addAttributes() {
@@ -105,6 +126,8 @@ export const Wikilink = Node.create<WikilinkOptions>({
           .filter(
             (title) =>
               isWikilinkTitle(title) &&
+              // A title holding `|` would read back as an alias.
+              !title.includes("|") &&
               title.toLowerCase().includes(query.toLowerCase())
           )
           .slice(0, 8),
@@ -165,11 +188,17 @@ export const Wikilink = Node.create<WikilinkOptions>({
     return [
       "span",
       mergeAttributes({ class: "wikilink" }, HTMLAttributes),
-      String(node.attrs.title ?? ""),
+      pillText(node),
     ];
   },
 
-  renderMarkdown: (node) => `[[${String(node.attrs?.title ?? "")}]]`,
+  renderMarkdown: (node) => {
+    if (!hasString(node.attrs, "title")) {
+      throw new Error("A wikilink has no title");
+    }
 
-  renderText: ({ node }) => String(node.attrs.title ?? ""),
+    return `[[${node.attrs.title}]]`;
+  },
+
+  renderText: ({ node }) => pillText(node),
 });

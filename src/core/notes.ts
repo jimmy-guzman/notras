@@ -95,6 +95,27 @@ export const EMBED_TOKEN = new RegExp(
   "u"
 );
 
+/**
+ * A wikilink's `note#heading|alias` the way Obsidian writes it: the note it
+ * names, the heading inside that note, the alias, the link before the alias,
+ * and the label a pill shows, which is the alias or else the link. Kept in
+ * parity with `split_wikilink` in `crates/notras-core/src/markdown.rs`.
+ */
+export function wikilinkParts(title: string) {
+  const bar = title.indexOf("|");
+  const link = bar === -1 ? title : title.slice(0, bar);
+  const alias = bar === -1 ? "" : title.slice(bar + 1);
+  const hash = link.indexOf("#");
+
+  return {
+    alias,
+    heading: hash === -1 ? "" : link.slice(hash + 1),
+    label: alias === "" ? link : alias,
+    link,
+    note: hash === -1 ? link : link.slice(0, hash),
+  };
+}
+
 /** Whether `title` reads back as a wikilink's or an embed's title once saved. */
 export function isWikilinkTitle(title: string) {
   return WHOLE_WIKILINK_TITLE.test(title);
@@ -114,7 +135,11 @@ const titleMarkdown = new Marked({
 
         return match === null
           ? undefined
-          : { raw: match[0], text: match.groups?.title, type: "codespan" };
+          : {
+              raw: match[0],
+              text: wikilinkParts(match.groups?.title ?? "").label,
+              type: "codespan",
+            };
       },
     },
     {

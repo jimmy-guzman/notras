@@ -90,6 +90,58 @@
     {
       "notes": [
         {
+          "path": "c.md",
+          "title": "C"
+        },
+        {
+          "path": "c#-tips.md",
+          "title": "C# tips"
+        }
+      ],
+      "target": "C# tips#Overview",
+      "from": "index.md",
+      "expected": "c#-tips.md"
+    },
+    {
+      "notes": [
+        {
+          "path": "shot.md",
+          "title": "shot"
+        }
+      ],
+      "target": "shot #1.png",
+      "from": "index.md",
+      "expected": null
+    },
+    {
+      "notes": [
+        {
+          "path": "c.md",
+          "title": "C"
+        },
+        {
+          "path": "c#-tips.md",
+          "title": "C# tips"
+        }
+      ],
+      "target": "C# tips",
+      "from": "index.md",
+      "expected": "c#-tips.md"
+    },
+    {
+      "notes": [
+        {
+          "path": "c.md",
+          "title": "C"
+        }
+      ],
+      "target": "C#tips",
+      "from": "index.md",
+      "expected": "c.md"
+    },
+    {
+      "notes": [
+        {
           "path": "a.md",
           "title": "Same"
         },

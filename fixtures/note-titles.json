@@ -479,7 +479,7 @@
     "name": "wiki literal label",
     "content": "[[**note**|alias]]",
     "path": "note.md",
-    "expected": "**note**|alias",
+    "expected": "alias",
     "line": 0
   },
   {

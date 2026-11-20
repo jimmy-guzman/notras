@@ -1,3 +1,4 @@
+import imageNames from "@fixtures/image-names.json";
 import queryFixtures from "@fixtures/note-queries.json";
 import { describe, expect, it } from "vitest";
 
@@ -5,6 +6,7 @@ import {
   contextFrom,
   foldPath,
   isCsvPath,
+  isImageName,
   isNotePath,
   isRelativeDestination,
   linkResolver,
@@ -65,6 +67,15 @@ describe("linkResolver, by title", () => {
 
     expect(resolve.title("missing", "index.md")).toBeUndefined();
   });
+});
+
+describe(isImageName, () => {
+  it.each(imageNames)(
+    "should read $name as image: $image",
+    ({ image, name }) => {
+      expect(isImageName(name)).toBe(image);
+    }
+  );
 });
 
 describe(resolveImage, () => {
@@ -245,14 +256,16 @@ describe("linkResolver, by path", () => {
 describe("native resolver parity", () => {
   it("should choose duplicate titles in Unicode scalar path order", () => {
     for (const fixture of queryFixtures.titles) {
+      // The native resolver answers null where this one answers undefined.
+      const expected = fixture.expected ?? undefined;
       const notes = fixture.notes.map(({ path, title }) => meta(path, title));
       expect(
         linkResolver(notes).title(fixture.target, fixture.from)?.path
-      ).toBe(fixture.expected);
+      ).toBe(expected);
       expect(
         linkResolver(notes.toReversed()).title(fixture.target, fixture.from)
           ?.path
-      ).toBe(fixture.expected);
+      ).toBe(expected);
     }
   });
 

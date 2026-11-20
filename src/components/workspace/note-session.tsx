@@ -40,10 +40,11 @@ import {
   foldPath,
   hasScheme,
   isCsvPath,
+  isImageName,
   isRelativeDestination,
   linkResolver,
 } from "@/core/links";
-import { noteTitle } from "@/core/notes";
+import { noteTitle, wikilinkParts } from "@/core/notes";
 import { clearConflictStash, stashConflict } from "@/data/conflict-stash";
 import type { ConflictStash } from "@/data/conflict-stash";
 import { createNote } from "@/data/create-note";
@@ -89,7 +90,7 @@ import {
   useOutlineHost,
 } from "@/lib/ui/note-panel";
 import { focusGraph, hideGraph, useGraphMode } from "@/lib/ui/view";
-import { decodeAttachmentPath, isImageName } from "@/lib/utils/attachments";
+import { decodeAttachmentPath } from "@/lib/utils/attachments";
 import type { LinkTarget, OpenKind } from "@/server/adapters/bindings";
 
 import { codeLanguage } from "./code-language";
@@ -570,7 +571,11 @@ function SessionBuffer({ active, file, stash, tab }: SessionBufferProps) {
     }
   }, [active]);
 
-  const followNote = async (kind: "title" | "path", value: string) => {
+  const followNote = async (
+    kind: "title" | "path",
+    value: string,
+    onMissing?: () => void
+  ) => {
     navigation.current?.abort();
     const request = new AbortController();
     navigation.current = request;
@@ -589,6 +594,12 @@ function SessionBuffer({ active, file, stash, tab }: SessionBufferProps) {
       }
 
       const target = resolver[kind](value, live.current.path);
+
+      if (target === undefined && onMissing !== undefined) {
+        onMissing();
+
+        return;
+      }
 
       if (target === undefined) {
         toast.add({
@@ -615,16 +626,16 @@ function SessionBuffer({ active, file, stash, tab }: SessionBufferProps) {
     }
   };
 
-  const openWikilink = async (title: string) => {
-    await followNote("title", title);
+  const openWikilink = async (link: string, onMissing?: () => void) => {
+    await followNote("title", link, onMissing);
   };
 
   const openNoteLink = async (href: string) => {
     await followNote("path", href);
   };
 
-  const resolveWikilink = (title: string) =>
-    live.current.resolveLinks?.title(title, live.current.path)?.path;
+  const resolveWikilink = (link: string) =>
+    live.current.resolveLinks?.title(link, live.current.path)?.path;
 
   // An embed resolves from the note's folder, so a move has every embed
   // resolve again.
@@ -654,13 +665,14 @@ function SessionBuffer({ active, file, stash, tab }: SessionBufferProps) {
         data,
         error,
       }: ReturnType<typeof observer.getCurrentResult>) => {
-        const name = title.trim();
+        const { link } = wikilinkParts(title);
+        const name = link.trim();
         const image = isImageName(name);
 
         if (error !== null) {
           return {
             failure: error.message,
-            image: image && resolveWikilink(title) === undefined,
+            image: image && resolveWikilink(link) === undefined,
           };
         }
 

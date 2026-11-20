@@ -1,11 +1,9 @@
-import imageNames from "@fixtures/image-names.json";
 import { describe, expect, it } from "vitest";
 
 import {
   attachmentDestination,
   attachmentLink,
   decodeAttachmentPath,
-  isImageName,
 } from "./attachments";
 
 describe(attachmentLink, () => {
@@ -79,15 +77,6 @@ describe(attachmentLink, () => {
       expect(
         decodeAttachmentPath(attachmentDestination(`img/${name}`, "note.md"))
       ).toBe(`img/${name}`);
-    }
-  );
-});
-
-describe(isImageName, () => {
-  it.each(imageNames)(
-    "should read $name as image: $image",
-    ({ image, name }) => {
-      expect(isImageName(name)).toBe(image);
     }
   );
 });

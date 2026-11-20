@@ -1,13 +1,7 @@
 import { decode, encode } from "mdurl";
 
+import { isImageName } from "@/core/links";
 import { noteFolder } from "@/core/notes";
-
-const IMAGE_EXTENSION = /\.(?:gif|jpe?g|png|svg|webp)$/u;
-
-/** Lowered first: an `i` flag would fold a long s into `svg`, which Rust refuses. */
-export function isImageName(name: string) {
-  return IMAGE_EXTENSION.test(name.toLowerCase());
-}
 
 /** Undoes `attachmentDestination`'s encoding: `convertFileSrc` encodes again, so a `src` reaches it decoded. */
 export function decodeAttachmentPath(src: string) {

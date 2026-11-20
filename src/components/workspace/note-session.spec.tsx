@@ -1368,6 +1368,83 @@ describe(NoteSession, () => {
     expect(screen.queryByText("could not open file")).not.toBeInTheDocument();
   });
 
+  it("should open a note named like a [[#heading]] link pressed before the note list loads", async () => {
+    const { promise: listed, resolve: list } =
+      Promise.withResolvers<unknown[]>();
+
+    mockIPC(
+      withDisk(async (command) => {
+        if (command === "list_notes") {
+          return await listed;
+        }
+
+        if (command === "read_conflict" || command === "clear_conflict") {
+          return null;
+        }
+
+        if (command.startsWith("plugin:")) {
+          return 0;
+        }
+
+        throw new Error(`unexpected command: ${command}`);
+      })
+    );
+
+    const client = new QueryClient({
+      defaultOptions: {
+        queries: { retry: false, staleTime: Number.POSITIVE_INFINITY },
+      },
+    });
+
+    openNote("a.md");
+    const origin = getTabState().activeId;
+    client.setQueryData(notesDirQuery.queryKey, "/notes");
+    disk.set("a.md", {
+      content: "[[#1 priority]]",
+      revision: "r0",
+      updatedAt: 1,
+    });
+    client.setQueryData(tabOpeningQuery(origin, "note", "a.md").queryKey, {
+      file: {
+        content: "[[#1 priority]]",
+        revision: "r0",
+        updatedAt: new Date(1),
+      },
+      stash: null,
+    });
+    onTestFinished(() => {
+      client.clear();
+    });
+    render(
+      <QueryClientProvider client={client}>
+        <NoteSession active tab={{ id: origin, kind: "note", path: "a.md" }} />
+        <Toaster />
+      </QueryClientProvider>
+    );
+    const liveEditor = await editor(origin);
+    act(() => {
+      liveEditor.commands.setTextSelection(1);
+      liveEditor.commands.keyboardShortcut("Mod-Shift-o");
+    });
+    list([
+      {
+        createdAt: 0,
+        folder: "",
+        path: "p.md",
+        pinned: false,
+        snippet: null,
+        tags: [],
+        title: "#1 priority",
+        updatedAt: 1,
+      },
+    ]);
+
+    await waitFor(() => {
+      expect(getTabState().tabs.map((entry) => entry.path)).toContain("p.md");
+    });
+    expect(screen.queryByText("could not open link")).not.toBeInTheDocument();
+  });
+
   it("should hand a code link to the system app by the path the host resolved when it cannot show the file", async () => {
     const opened: unknown[] = [];
     mockIPC(
@@ -2586,6 +2663,144 @@ describe(NoteSession, () => {
     expect(
       await screen.findByRole("img", { name: "photo.png" })
     ).toBeInTheDocument();
+  });
+
+  it("should draw an image embed at the width its `|400` asks for", async () => {
+    mockConvertFileSrc("macos");
+    mockIPC(
+      withDisk((command) => {
+        if (command === "list_images") {
+          return { paths: ["attachments/photo.png"], unreadable: [] };
+        }
+
+        throw new Error(`unexpected command: ${command}`);
+      })
+    );
+
+    const client = new QueryClient({
+      defaultOptions: {
+        queries: { retry: false, staleTime: Number.POSITIVE_INFINITY },
+      },
+    });
+
+    client.setQueryData(notesDirQuery.queryKey, "/notes");
+    client.setQueryData(noteQueries.list().queryKey, []);
+    client.setQueryData(tabOpeningQuery("t15", "note", "host.md").queryKey, {
+      file: {
+        content: "![[photo.png|400x300]]",
+        revision: "r0",
+        updatedAt: new Date(1),
+      },
+      stash: null,
+    });
+    onTestFinished(() => {
+      client.clear();
+    });
+    render(
+      <QueryClientProvider client={client}>
+        <NoteSession
+          active
+          tab={{ id: "t15", kind: "note", path: "host.md" }}
+        />
+      </QueryClientProvider>
+    );
+    await editor("t15");
+
+    expect(
+      await screen.findByRole("img", { name: "photo.png" })
+    ).toHaveAttribute("width", "400");
+  });
+
+  it("should draw an image embed whose name holds a `#`", async () => {
+    mockConvertFileSrc("macos");
+    mockIPC(
+      withDisk((command) => {
+        if (command === "list_images") {
+          return { paths: ["attachments/shot #1.png"], unreadable: [] };
+        }
+
+        throw new Error(`unexpected command: ${command}`);
+      })
+    );
+
+    const client = new QueryClient({
+      defaultOptions: {
+        queries: { retry: false, staleTime: Number.POSITIVE_INFINITY },
+      },
+    });
+
+    client.setQueryData(notesDirQuery.queryKey, "/notes");
+    client.setQueryData(noteQueries.list().queryKey, []);
+    client.setQueryData(tabOpeningQuery("t15", "note", "host.md").queryKey, {
+      file: {
+        content: "![[shot #1.png]]",
+        revision: "r0",
+        updatedAt: new Date(1),
+      },
+      stash: null,
+    });
+    onTestFinished(() => {
+      client.clear();
+    });
+    render(
+      <QueryClientProvider client={client}>
+        <NoteSession
+          active
+          tab={{ id: "t15", kind: "note", path: "host.md" }}
+        />
+      </QueryClientProvider>
+    );
+    await editor("t15");
+
+    expect(
+      await screen.findByRole("img", { name: "shot #1.png" })
+    ).toBeInTheDocument();
+  });
+
+  it("should draw an image embed with a size too long to read at its own width", async () => {
+    mockConvertFileSrc("macos");
+    mockIPC(
+      withDisk((command) => {
+        if (command === "list_images") {
+          return { paths: ["attachments/photo.png"], unreadable: [] };
+        }
+
+        throw new Error(`unexpected command: ${command}`);
+      })
+    );
+
+    const client = new QueryClient({
+      defaultOptions: {
+        queries: { retry: false, staleTime: Number.POSITIVE_INFINITY },
+      },
+    });
+
+    client.setQueryData(notesDirQuery.queryKey, "/notes");
+    client.setQueryData(noteQueries.list().queryKey, []);
+    client.setQueryData(tabOpeningQuery("t15", "note", "host.md").queryKey, {
+      file: {
+        content: "![[photo.png|1000000000000000000000]]",
+        revision: "r0",
+        updatedAt: new Date(1),
+      },
+      stash: null,
+    });
+    onTestFinished(() => {
+      client.clear();
+    });
+    render(
+      <QueryClientProvider client={client}>
+        <NoteSession
+          active
+          tab={{ id: "t15", kind: "note", path: "host.md" }}
+        />
+      </QueryClientProvider>
+    );
+    await editor("t15");
+
+    expect(
+      await screen.findByRole("img", { name: "photo.png" })
+    ).not.toHaveAttribute("width");
   });
 
   it("should open no note from an image embed the library could not list, and still open a note whose read failed", async () => {
