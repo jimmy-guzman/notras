@@ -1368,6 +1368,83 @@ describe(NoteSession, () => {
     expect(screen.queryByText("could not open file")).not.toBeInTheDocument();
   });
 
+  it("should open a note named like a [[#heading]] link pressed before the note list loads", async () => {
+    const { promise: listed, resolve: list } =
+      Promise.withResolvers<unknown[]>();
+
+    mockIPC(
+      withDisk(async (command) => {
+        if (command === "list_notes") {
+          return await listed;
+        }
+
+        if (command === "read_conflict" || command === "clear_conflict") {
+          return null;
+        }
+
+        if (command.startsWith("plugin:")) {
+          return 0;
+        }
+
+        throw new Error(`unexpected command: ${command}`);
+      })
+    );
+
+    const client = new QueryClient({
+      defaultOptions: {
+        queries: { retry: false, staleTime: Number.POSITIVE_INFINITY },
+      },
+    });
+
+    openNote("a.md");
+    const origin = getTabState().activeId;
+    client.setQueryData(notesDirQuery.queryKey, "/notes");
+    disk.set("a.md", {
+      content: "[[#1 priority]]",
+      revision: "r0",
+      updatedAt: 1,
+    });
+    client.setQueryData(tabOpeningQuery(origin, "note", "a.md").queryKey, {
+      file: {
+        content: "[[#1 priority]]",
+        revision: "r0",
+        updatedAt: new Date(1),
+      },
+      stash: null,
+    });
+    onTestFinished(() => {
+      client.clear();
+    });
+    render(
+      <QueryClientProvider client={client}>
+        <NoteSession active tab={{ id: origin, kind: "note", path: "a.md" }} />
+        <Toaster />
+      </QueryClientProvider>
+    );
+    const liveEditor = await editor(origin);
+    act(() => {
+      liveEditor.commands.setTextSelection(1);
+      liveEditor.commands.keyboardShortcut("Mod-Shift-o");
+    });
+    list([
+      {
+        createdAt: 0,
+        folder: "",
+        path: "p.md",
+        pinned: false,
+        snippet: null,
+        tags: [],
+        title: "#1 priority",
+        updatedAt: 1,
+      },
+    ]);
+
+    await waitFor(() => {
+      expect(getTabState().tabs.map((entry) => entry.path)).toContain("p.md");
+    });
+    expect(screen.queryByText("could not open link")).not.toBeInTheDocument();
+  });
+
   it("should hand a code link to the system app by the path the host resolved when it cannot show the file", async () => {
     const opened: unknown[] = [];
     mockIPC(

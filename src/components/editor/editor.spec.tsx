@@ -721,30 +721,55 @@ describe("link clicks", () => {
     expect(onWikilinkClick).toHaveBeenCalledExactlyOnceWith("other#part");
   });
 
-  it("should open a note whose title starts with # before reading it as a heading", async () => {
-    const onWikilinkClick = vi.fn<(link: string) => void>();
+  it("should hand a [[#name]] link to the session with the heading as its fallback", async () => {
+    const onWikilinkClick =
+      vi.fn<(link: string, onMissing?: () => void) => void>();
 
     const { editor } = await mount({
       initialContent: "[[#1 priority]]",
       onWikilinkClick,
-      resolveWikilink: (link) => (link === "#1 priority" ? "p.md" : undefined),
     });
 
     expect(clickAt(editor, screen.getByText("#1 priority"), 1, 1)).toBeTruthy();
-    expect(onWikilinkClick).toHaveBeenCalledExactlyOnceWith("#1 priority");
+    expect(onWikilinkClick).toHaveBeenCalledExactlyOnceWith(
+      "#1 priority",
+      expect.any(Function)
+    );
   });
 
-  it("should move to the heading a wikilink names in its own note", async () => {
-    const onWikilinkClick = vi.fn<(note: string) => void>();
-
+  it("should move to the heading a wikilink names in its own note when no note has that name", async () => {
     const { editor } = await mount({
       initialContent: "[[#My Part]]\n\n## My Part",
-      onWikilinkClick,
+      onWikilinkClick: (_link, onMissing) => {
+        onMissing?.();
+      },
     });
 
     expect(clickAt(editor, screen.getByText("#My Part"), 1, 1)).toBeTruthy();
-    expect(onWikilinkClick).not.toHaveBeenCalled();
     expect(editor.state.selection.$from.parent.textContent).toBe("My Part");
+  });
+
+  it("should keep the selection when a [[#heading]] press names no heading", async () => {
+    render(<Toaster />);
+
+    const { editor } = await mount({
+      initialContent: "[[#missing]]\n\n## Present\n\nlast paragraph",
+      onWikilinkClick: (_link, onMissing) => {
+        onMissing?.();
+      },
+    });
+
+    const user = userEvent.setup();
+    act(() => {
+      editor.commands.setTextSelection(editor.state.doc.content.size - 1);
+      editor.view.focus();
+    });
+    const before = editor.state.selection.from;
+    const pill = screen.getByText("#missing");
+    expect(fireEvent.mouseDown(pill, { button: 0 })).toBeFalsy();
+    await user.click(pill);
+    expect(await screen.findByText("could not open link")).toBeVisible();
+    expect(editor.state.selection.from).toBe(before);
   });
 
   it("should open a clicked embed's note", async () => {

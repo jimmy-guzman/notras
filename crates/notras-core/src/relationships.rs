@@ -234,14 +234,16 @@ impl<'a> Resolver<'a> {
     pub fn resolve(&self, link: &NoteLink) -> Option<&'a NoteMeta> {
         match link.kind.as_str() {
             // The whole name first, so a title holding `#` keeps its links,
-            // then the note before a `#heading`. An image's name is never
+            // then the name before each `#` from the last, so
+            // `C# tips#Overview` finds `C# tips`. An image's name is never
             // cut: `shot #1.png` is the image, not a heading in `shot`.
             "wikilink" => self.named(&link.target, &link.path).or_else(|| {
                 if is_image_path(link.target.trim_matches(frontmatter::is_space)) {
                     return None;
                 }
-                let (note, _) = link.target.split_once('#')?;
-                self.named(note, &link.path)
+                link.target
+                    .rmatch_indices('#')
+                    .find_map(|(at, _)| self.named(&link.target[..at], &link.path))
             }),
             "link" => {
                 let joined = resolve_path(&link.target, &link.path)?;

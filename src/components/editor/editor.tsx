@@ -360,20 +360,38 @@ function followLink(
   });
 }
 
+/** The `[[#heading]]` pill an event landed on, with its title, or null. */
+function headingPillAt(target: EventTarget | null) {
+  const pill =
+    target instanceof Element
+      ? target.closest<HTMLElement>("span.wikilink[data-wikilink]")
+      : null;
+
+  const title = pill?.dataset.wikilink;
+
+  return pill !== null &&
+    title !== undefined &&
+    wikilinkParts(title).note === ""
+    ? { pill, title }
+    : null;
+}
+
 /**
- * Opens the note a wikilink's link names, or for `[[#heading]]` naming no note
- * moves to that heading in this note the way a `#heading` link does.
+ * Opens the note a wikilink's link names. A `[[#heading]]` naming no note moves
+ * to that heading in this note the way a `#heading` link does, decided by the
+ * session once the note list has loaded.
  */
 function followWikilink(
   view: TiptapEditor["view"],
   title: string,
-  onWikilinkClick: (link: string) => void,
-  resolveWikilink?: (link: string) => string | undefined
+  onWikilinkClick: (link: string, onMissing?: () => void) => void
 ) {
   const { heading, link, note } = wikilinkParts(title);
 
-  if (note === "" && resolveWikilink?.(link) === undefined) {
-    followLink(view, `#${encodeURIComponent(slug(heading))}`);
+  if (note === "") {
+    onWikilinkClick(link, () => {
+      followLink(view, `#${encodeURIComponent(slug(heading))}`);
+    });
 
     return;
   }
@@ -723,8 +741,11 @@ interface EditorProps {
   onReady?: (handle: EditorHandle) => void;
   /** Undefined once the editor is destroyed. */
   onSelect?: (read: SelectionReader | undefined) => void;
-  /** Opens the note a clicked wikilink's link names, its alias left off. */
-  onWikilinkClick?: (link: string) => void;
+  /**
+   * Opens the note a clicked wikilink's link names, its alias left off, or
+   * calls `onMissing`, when given, where no note has that name.
+   */
+  onWikilinkClick?: (link: string, onMissing?: () => void) => void;
   placeholderText?: string;
   /** Resolve image sources (e.g. `attachments/x.png`) to loadable URLs, with what shows when one does not load. */
   resolveImageSrc?: (src: string) => ImageSource;
@@ -946,12 +967,7 @@ export function Editor(mountProps: EditorProps) {
           const title = noteTitleAt(instance.state, head);
 
           if (title !== "" && config.onWikilinkClick) {
-            followWikilink(
-              instance.view,
-              title,
-              config.onWikilinkClick,
-              config.resolveWikilink
-            );
+            followWikilink(instance.view, title, config.onWikilinkClick);
 
             return true;
           }
@@ -1034,12 +1050,7 @@ export function Editor(mountProps: EditorProps) {
             throw new Error(`A ${node.type.name} has no title`);
           }
 
-          followWikilink(
-            view,
-            node.attrs.title,
-            config.onWikilinkClick,
-            config.resolveWikilink
-          );
+          followWikilink(view, node.attrs.title, config.onWikilinkClick);
 
           return true;
         }
@@ -1055,6 +1066,17 @@ export function Editor(mountProps: EditorProps) {
 
           const pressed = fragmentPressRef.current;
           fragmentPressRef.current = null;
+          const heading = headingPillAt(event.target);
+
+          if (
+            heading !== null &&
+            heading.pill === pressed &&
+            config.onWikilinkClick
+          ) {
+            followWikilink(view, heading.title, config.onWikilinkClick);
+
+            return true;
+          }
 
           if (target === null) {
             return false;
@@ -1126,6 +1148,17 @@ export function Editor(mountProps: EditorProps) {
             // Fragment clicks must retain the selection when lookup fails.
             event.preventDefault();
             fragmentPressRef.current = target;
+
+            return true;
+          }
+
+          const heading = headingPillAt(event.target);
+
+          if (event.button === 0 && heading !== null) {
+            // A `[[#heading]]` can be a heading lookup too, so it keeps the
+            // selection the same way.
+            event.preventDefault();
+            fragmentPressRef.current = heading.pill;
 
             return true;
           }

@@ -571,7 +571,11 @@ function SessionBuffer({ active, file, stash, tab }: SessionBufferProps) {
     }
   }, [active]);
 
-  const followNote = async (kind: "title" | "path", value: string) => {
+  const followNote = async (
+    kind: "title" | "path",
+    value: string,
+    onMissing?: () => void
+  ) => {
     navigation.current?.abort();
     const request = new AbortController();
     navigation.current = request;
@@ -590,6 +594,12 @@ function SessionBuffer({ active, file, stash, tab }: SessionBufferProps) {
       }
 
       const target = resolver[kind](value, live.current.path);
+
+      if (target === undefined && onMissing !== undefined) {
+        onMissing();
+
+        return;
+      }
 
       if (target === undefined) {
         toast.add({
@@ -616,8 +626,8 @@ function SessionBuffer({ active, file, stash, tab }: SessionBufferProps) {
     }
   };
 
-  const openWikilink = async (title: string) => {
-    await followNote("title", title);
+  const openWikilink = async (link: string, onMissing?: () => void) => {
+    await followNote("title", link, onMissing);
   };
 
   const openNoteLink = async (href: string) => {

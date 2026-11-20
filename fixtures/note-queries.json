@@ -90,6 +90,21 @@
     {
       "notes": [
         {
+          "path": "c.md",
+          "title": "C"
+        },
+        {
+          "path": "c#-tips.md",
+          "title": "C# tips"
+        }
+      ],
+      "target": "C# tips#Overview",
+      "from": "index.md",
+      "expected": "c#-tips.md"
+    },
+    {
+      "notes": [
+        {
           "path": "shot.md",
           "title": "shot"
         }
