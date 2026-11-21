@@ -6,6 +6,7 @@ import type { OxlintOverride } from "oxlint";
 import antiSlop from "ultracite/oxlint/anti-slop";
 import core from "ultracite/oxlint/core";
 import { jsPluginSettings, selectJsPlugins } from "ultracite/oxlint/js-plugins";
+import landmines from "ultracite/oxlint/landmines";
 import react from "ultracite/oxlint/react";
 import shadcn from "ultracite/oxlint/shadcn";
 import tanstackJsPlugins from "ultracite/oxlint/tanstack/js-plugins";
@@ -43,6 +44,7 @@ export default defineConfig({
     vitest,
     tanstackJsPlugins,
     antiSlop,
+    landmines,
     jsPlugins,
     shadcn,
   ],
@@ -56,7 +58,11 @@ export default defineConfig({
     "assets",
   ],
   // Dependency analyzers read plugin packages off the root config only, so the preset's entry is restated here.
-  jsPlugins: [...(jsPlugins.jsPlugins ?? []), ...(shadcn.jsPlugins ?? [])],
+  jsPlugins: [
+    ...(jsPlugins.jsPlugins ?? []),
+    ...(landmines.jsPlugins ?? []),
+    ...(shadcn.jsPlugins ?? []),
+  ],
   options: { typeAware: true },
   overrides: [
     ...sameFolderImports,
@@ -83,6 +89,34 @@ export default defineConfig({
   ],
   rules: {
     "func-style": ["error", "declaration", { allowArrowFunctions: true }],
+    // AGENTS.md names tests *.spec.ts.
+    "landmines-structure/test-file-names": "off",
+    // AGENTS.md keeps a comment that carries a why.
+    "landmines-style/no-comments": "off",
+    // Each entry is a wait no signal can replace: the smoke run waits on the built app's own clock, and a paste queued behind an IME composition waits on a listener a test cannot see.
+    "landmines-testing/no-fixed-sleep": [
+      "error",
+      {
+        allow: {
+          "smoke/app.spec.ts": 4,
+          "src/components/editor/markdown-paste.spec.ts": 2,
+        },
+      },
+    ],
+    // Each entry bounds real work: a launch of the built app, and highlight tests that tokenize thousands of lines through the worker, which runs past 5s on a loaded machine.
+    "landmines-testing/no-flake-masking": [
+      "error",
+      {
+        allow: {
+          "smoke.config.ts": 2,
+          "src/components/editor/code-block-shiki.spec.ts": 4,
+        },
+      },
+    ],
+    // The rule names mockIPC, the IPC seam ARCHITECTURE.md tests the frontend at, and takes no option to exempt it.
+    "landmines-testing/no-test-doubles": "off",
+    // AGENTS.md keeps return types on exported functions as their contract.
+    "landmines-types/no-explicit-return-types": "off",
     // AGENTS.md lets a TODO mark a known gap, and the rule cannot tell one from finished work.
     // TODO: turn back on once oxlint ships unicorn/expiring-todo-comments, which checks a TODO's stated condition, or once src has no TODOs.
     "no-warning-comments": "off",
