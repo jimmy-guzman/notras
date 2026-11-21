@@ -143,52 +143,42 @@ function postedCodes(posted: MockInstance<Worker["postMessage"]>) {
 }
 
 describe("code block highlighting", () => {
-  it(
-    "should tokenize only changed code blocks and no code for prose or selection edits",
-    { timeout: 60_000 },
-    async ({ onTestFinished }) => {
-      const editor = createEditor("ts", "const a = 1;");
-      onTestFinished(() => {
-        editor.destroy();
-      });
-      editor.commands.insertContentAt(editor.state.doc.content.size, {
-        attrs: { language: "ts" },
-        content: [{ text: "const b = 2;", type: "text" }],
-        type: "codeBlock",
-      });
-      await vi.waitFor(
-        () => {
-          expect(coloredText(editor, "syntax-keyword")).toBe("constconst");
-        },
-        { timeout: 20_000 }
-      );
-      // Observe what crosses to the worker without replacing its answers.
-      const posted = vi.spyOn(Worker.prototype, "postMessage");
-      onTestFinished(() => {
-        posted.mockRestore();
-      });
+  it("should tokenize only changed code blocks and no code for prose or selection edits", async ({
+    onTestFinished,
+  }) => {
+    const editor = createEditor("ts", "const a = 1;");
+    onTestFinished(() => {
+      editor.destroy();
+    });
+    editor.commands.insertContentAt(editor.state.doc.content.size, {
+      attrs: { language: "ts" },
+      content: [{ text: "const b = 2;", type: "text" }],
+      type: "codeBlock",
+    });
+    await syntaxSettled(editor.view);
+    expect(coloredText(editor, "syntax-keyword")).toBe("constconst");
+    // Observe what crosses to the worker without replacing its answers.
+    const posted = vi.spyOn(Worker.prototype, "postMessage");
+    onTestFinished(() => {
+      posted.mockRestore();
+    });
 
-      editor.commands.insertContentAt(0, {
-        content: [{ text: "intro", type: "text" }],
-        type: "paragraph",
-      });
-      editor.commands.setTextSelection(1);
-      expect(posted).not.toHaveBeenCalled();
-      expect(coloredText(editor, "syntax-keyword")).toBe("constconst");
+    editor.commands.insertContentAt(0, {
+      content: [{ text: "intro", type: "text" }],
+      type: "paragraph",
+    });
+    editor.commands.setTextSelection(1);
+    expect(posted).not.toHaveBeenCalled();
+    expect(coloredText(editor, "syntax-keyword")).toBe("constconst");
 
-      editor.commands.insertContentAt({ from: 8, to: 13 }, "let");
-      await Promise.resolve();
-      expect(posted).toHaveBeenCalledExactlyOnceWith(
-        expect.objectContaining({ code: "let a = 1;", language: "typescript" })
-      );
-      await vi.waitFor(
-        () => {
-          expect(coloredText(editor, "syntax-keyword")).toBe("letconst");
-        },
-        { timeout: 20_000 }
-      );
-    }
-  );
+    editor.commands.insertContentAt({ from: 8, to: 13 }, "let");
+    await Promise.resolve();
+    expect(posted).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({ code: "let a = 1;", language: "typescript" })
+    );
+    await syntaxSettled(editor.view);
+    expect(coloredText(editor, "syntax-keyword")).toBe("letconst");
+  });
 
   it("should settle once every answer in flight has landed", async ({
     onTestFinished,
@@ -477,12 +467,8 @@ describe("code block highlighting", () => {
       });
       const viewport = fakeViewport(editor, onTestFinished);
 
-      await vi.waitFor(
-        () => {
-          expect(coloredText(editor, "syntax-keyword")).toContain("const");
-        },
-        { timeout: 20_000 }
-      );
+      await syntaxSettled(editor.view);
+      expect(coloredText(editor, "syntax-keyword")).toContain("const");
 
       const near =
         coloredText(editor, "syntax-keyword").length / "const".length;
@@ -495,14 +481,8 @@ describe("code block highlighting", () => {
       );
 
       viewport.scrollTo(editor.state.doc.content.size - 4000);
-      await vi.waitFor(
-        () => {
-          expect(coloredText(editor, "syntax-number")).toContain(
-            String(lines - 1)
-          );
-        },
-        { timeout: 20_000 }
-      );
+      await syntaxSettled(editor.view);
+      expect(coloredText(editor, "syntax-number")).toContain(String(lines - 1));
       expect(
         coloredText(editor, "syntax-keyword").length / "const".length
       ).toBeLessThan(lines);
@@ -526,12 +506,8 @@ describe("code block highlighting", () => {
         editor.destroy();
       });
       fakeViewport(editor, onTestFinished);
-      await vi.waitFor(
-        () => {
-          expect(coloredText(editor, "syntax-keyword")).toContain("const");
-        },
-        { timeout: 20_000 }
-      );
+      await syntaxSettled(editor.view);
+      expect(coloredText(editor, "syntax-keyword")).toContain("const");
       expect(coloredText(editor, "syntax-keyword")).not.toBe(
         "const".repeat(lines)
       );
@@ -560,12 +536,8 @@ describe("code block highlighting", () => {
 
       const first = createEditor("ts", text);
       fakeViewport(first, onTestFinished);
-      await vi.waitFor(
-        () => {
-          expect(coloredText(first, "syntax-keyword")).toContain("const");
-        },
-        { timeout: 20_000 }
-      );
+      await syntaxSettled(first.view);
+      expect(coloredText(first, "syntax-keyword")).toContain("const");
       first.destroy();
       vi.useFakeTimers({
         toFake: ["requestAnimationFrame", "cancelAnimationFrame"],
@@ -642,12 +614,8 @@ describe("code block highlighting", () => {
       expect(lastFence()).toBeNull();
 
       viewport.scrollTo(editor.state.doc.content.size - 2000);
-      await vi.waitFor(
-        () => {
-          expect(lastFence()).not.toBeNull();
-        },
-        { timeout: 20_000 }
-      );
+      await syntaxSettled(editor.view);
+      expect(lastFence()).not.toBeNull();
     }
   );
 
@@ -917,6 +885,21 @@ describe("code block highlighting", () => {
     await Promise.resolve();
     expect(posted).toHaveBeenCalledOnce();
 
+    const [worker] = posted.mock.contexts;
+
+    if (!(worker instanceof Worker)) {
+      throw new TypeError("The first request went to no worker");
+    }
+
+    const answered = Promise.withResolvers<null>();
+    worker.addEventListener(
+      "message",
+      () => {
+        answered.resolve(null);
+      },
+      { once: true }
+    );
+
     const last = editor.state.doc.lastChild;
 
     if (last === null) {
@@ -926,9 +909,7 @@ describe("code block highlighting", () => {
     const start = editor.state.doc.content.size - last.nodeSize + 1;
     editor.commands.insertContentAt({ from: start, to: start + 5 }, "let");
 
-    await vi.waitFor(() => {
-      expect(posted.mock.calls.length).toBeGreaterThan(1);
-    });
+    await answered.promise;
     expect(postedCodes(posted)[1]).toBe("let queued399 = 1;");
   });
 
@@ -971,6 +952,21 @@ describe("code block highlighting", () => {
     await Promise.resolve();
     expect(posted).toHaveBeenCalledOnce();
 
+    const [worker] = posted.mock.contexts;
+
+    if (!(worker instanceof Worker)) {
+      throw new TypeError("The first request went to no worker");
+    }
+
+    const answered = Promise.withResolvers<null>();
+    worker.addEventListener(
+      "message",
+      () => {
+        answered.resolve(null);
+      },
+      { once: true }
+    );
+
     const host = document.createElement("div");
     document.body.append(host);
 
@@ -1002,9 +998,7 @@ describe("code block highlighting", () => {
     });
     vi.advanceTimersToNextFrame();
 
-    await vi.waitFor(() => {
-      expect(posted.mock.calls.length).toBeGreaterThan(1);
-    });
+    await answered.promise;
     expect(postedCodes(posted)[1]).toBe("const seen = 1;");
   });
 });

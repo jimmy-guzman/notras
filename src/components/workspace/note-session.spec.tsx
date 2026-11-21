@@ -1,5 +1,3 @@
-import { setTimeout as sleep } from "node:timers/promises";
-
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { InvokeArgs } from "@tauri-apps/api/core";
 import { clearMocks, mockConvertFileSrc, mockIPC } from "@tauri-apps/api/mocks";
@@ -4586,6 +4584,10 @@ describe(NoteSession, () => {
   });
 
   it("should read a reopened tab's stored review afresh rather than from its first opening", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    onTestFinished(() => {
+      vi.useRealTimers();
+    });
     let stored: ConflictStash | null = null;
     mockIPC(
       withDisk((command) => (command === "read_conflict" ? stored : null))
@@ -4629,7 +4631,9 @@ describe(NoteSession, () => {
       ours: "# Errands\n\nbody, mine",
     };
     await act(async () => {
-      await sleep(0);
+      // The opening query's zero gcTime discards it on a zero timer once the
+      // closed session lets go.
+      await vi.advanceTimersByTimeAsync(0);
       reopenTab();
     });
 
@@ -4961,9 +4965,6 @@ describe(NoteSession, () => {
     });
     expect(disk.has(tab.path)).toBeFalsy();
     await act(async () => {
-      await sleep(0);
-    });
-    await act(async () => {
       moved.resolve(null);
       await intoFolder;
     });
@@ -4985,9 +4986,6 @@ describe(NoteSession, () => {
       expect(diskReads.slice(beforeBack)).toStrictEqual(["folder/a.md"]);
     });
     await act(async () => {
-      await sleep(0);
-    });
-    await act(async () => {
       moved.resolve(null);
       await back;
     });
@@ -4997,9 +4995,6 @@ describe(NoteSession, () => {
     });
     await waitFor(() => {
       expect(diskReads.slice(beforeSettled)).toStrictEqual([tab.path]);
-    });
-    await act(async () => {
-      await sleep(0);
     });
 
     expect(getTabState().tabs.find((entry) => entry.id === id)).toMatchObject({

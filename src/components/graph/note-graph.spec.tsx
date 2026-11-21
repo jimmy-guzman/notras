@@ -1,5 +1,3 @@
-import { setTimeout as sleep } from "node:timers/promises";
-
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { clearMocks, mockIPC } from "@tauri-apps/api/mocks";
 import {
@@ -543,6 +541,10 @@ describe(TabGraph, () => {
 
 describe("TabGraph native queries", () => {
   it("should report a failed refresh once while keeping the cached graph", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    onTestFinished(() => {
+      vi.useRealTimers();
+    });
     const client = createQueryClient();
 
     const query = noteQueries.graph({ kind: "note", path: "c.md" });
@@ -574,7 +576,7 @@ describe("TabGraph native queries", () => {
       await client.invalidateQueries({ queryKey: query.queryKey });
       // TanStack Query tells its observers on a zero timer, so the graph view
       // sees the failed refresh a tick after the refetch settles.
-      await sleep(0);
+      await vi.advanceTimersByTimeAsync(0);
     });
 
     expect(reported).toHaveBeenCalledExactlyOnceWith(
@@ -588,6 +590,10 @@ describe("TabGraph native queries", () => {
   });
 
   it("should toast once when the graph's first read fails", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    onTestFinished(() => {
+      vi.useRealTimers();
+    });
     const client = createQueryClient();
 
     mockIPC(
@@ -617,7 +623,7 @@ describe("TabGraph native queries", () => {
     // A second report would land after the first; let the queued observer
     // updates and effects run before counting.
     await act(async () => {
-      await sleep(0);
+      await vi.advanceTimersByTimeAsync(0);
     });
 
     expect(reported).toHaveBeenCalledExactlyOnceWith({
@@ -628,6 +634,10 @@ describe("TabGraph native queries", () => {
   });
 
   it("should report a failed hub read after another hub failed on the same tab", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    onTestFinished(() => {
+      vi.useRealTimers();
+    });
     const user = userEvent.setup();
     const client = createQueryClient();
 
@@ -669,7 +679,7 @@ describe("TabGraph native queries", () => {
       expect(reported).toHaveBeenCalledTimes(2);
     });
     await act(async () => {
-      await sleep(0);
+      await vi.advanceTimersByTimeAsync(0);
     });
 
     expect(reported).toHaveBeenCalledTimes(2);
@@ -770,6 +780,10 @@ describe("TabGraph native queries", () => {
   });
 
   it("should report a prose failure once until its reason changes", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    onTestFinished(() => {
+      vi.useRealTimers();
+    });
     const client = createQueryClient();
     const query = noteQueries.graph({ kind: "note", path: "c.md" });
 
@@ -822,7 +836,7 @@ describe("TabGraph native queries", () => {
     });
     await act(async () => {
       await client.invalidateQueries({ queryKey: query.queryKey });
-      await sleep(0);
+      await vi.advanceTimersByTimeAsync(0);
     });
 
     expect(reported).toHaveBeenCalledOnce();
@@ -830,7 +844,7 @@ describe("TabGraph native queries", () => {
     reason = "Disk unavailable";
     await act(async () => {
       await client.invalidateQueries({ queryKey: query.queryKey });
-      await sleep(0);
+      await vi.advanceTimersByTimeAsync(0);
     });
 
     expect(reported).toHaveBeenCalledTimes(2);

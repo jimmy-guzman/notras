@@ -1,5 +1,3 @@
-import { setTimeout as sleep } from "node:timers/promises";
-
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { InvokeArgs } from "@tauri-apps/api/core";
 import { clearMocks, mockIPC } from "@tauri-apps/api/mocks";
@@ -85,6 +83,10 @@ function mount(query: string, error?: Error) {
 
 describe("palette search states", () => {
   it("should offer folder choices only once their notes have loaded", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    onTestFinished(() => {
+      vi.useRealTimers();
+    });
     const notes = Promise.withResolvers<unknown[]>();
     const folders = Promise.withResolvers<string[]>();
     mockIPC(async (command) => {
@@ -104,8 +106,8 @@ describe("palette search states", () => {
 
     await act(async () => {
       folders.resolve(["work"]);
-      // A macrotask lets the folder read land in the query before asserting.
-      await sleep(0);
+      // TanStack Query tells its observers on a zero timer.
+      await vi.advanceTimersByTimeAsync(0);
     });
 
     expect(screen.getByText("loading suggestions...")).toBeInTheDocument();

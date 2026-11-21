@@ -8,7 +8,6 @@ export default defineConfig({
     hookTimeout: 30_000,
     include: ["smoke/*.spec.ts"],
     maxWorkers: 1,
-    retry: 0,
     testTimeout: 180_000,
   },
 });

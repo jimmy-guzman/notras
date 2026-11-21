@@ -1,5 +1,3 @@
-import { setTimeout as sleep } from "node:timers/promises";
-
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { clearMocks, mockIPC } from "@tauri-apps/api/mocks";
 import {
@@ -825,6 +823,10 @@ describe("csv session", () => {
   ])(
     "should keep rows in the viewport when a deep file $change",
     async ({ after, before }) => {
+      vi.useFakeTimers({ shouldAdvanceTime: true });
+      onTestFinished(() => {
+        vi.useRealTimers();
+      });
       let rows = before;
 
       const { viewport } = await mountSheet({
@@ -853,7 +855,7 @@ describe("csv session", () => {
       expect(drawn).toBeDefined();
 
       // Past the virtualizer's 150ms scroll debounce, which would re-report.
-      await sleep(200);
+      await vi.advanceTimersByTimeAsync(200);
 
       expect(rowAtTop(viewport)).toBe(drawn);
     }

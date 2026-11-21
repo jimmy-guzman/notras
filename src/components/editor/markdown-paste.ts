@@ -7,6 +7,7 @@ import type { EditorState, SelectionBookmark } from "@tiptap/pm/state";
 import { Plugin, PluginKey, Selection } from "@tiptap/pm/state";
 import type { EditorView } from "@tiptap/pm/view";
 import pLimit from "p-limit";
+import type { LimitFunction } from "p-limit";
 import { nullable, object, parse, parseJson, pipe, string } from "valibot";
 
 import { toast } from "@/components/ui/toast";
@@ -44,6 +45,9 @@ interface MarkdownPasteOptions {
   readClipboardText: ReadClipboardText | null;
   saveImage: SaveImage | null;
 }
+
+/** Each editor's paste queue, which runs paste work in the order the pastes were made. */
+const turns = new WeakMap<Editor, LimitFunction>();
 
 const MARKDOWN_PASTE_PATTERN =
   /^#{1,6}\s|^\s*[-*+]\s|^\s*\d+[.)]\s|^\s*>\s|^ {0,3}(?:`{3,}|~{3,})|^\s*\[.*\]\(.*\)|^\s*!\[|\*\*.*\*\*|~~.*~~|(?:^|[^`])`[^`\n]+`(?!`)|(?:^|[\s(])(?<marker>[*_~])[^\s*_~](?:[^\n]*?\S)?\k<marker>(?![\w*_~])|^\s*[-*_]{3,}\s*$|^\|.+\|/mu;
@@ -624,6 +628,21 @@ async function pastePlainText(
 }
 
 /**
+ * Resolves once every paste made so far has landed or failed.
+ *
+ * @internal
+ */
+export async function pasteSettled(editor: Editor): Promise<void> {
+  const inTurn = turns.get(editor);
+
+  if (inTurn === undefined) {
+    throw new Error("The markdown paste extension is not installed");
+  }
+
+  await inTurn(() => null);
+}
+
+/**
  * Paste by the clipboard's source: the editor metadata on the event, the
  * native reader when the webview omits it, and markdown only when neither
  * the HTML nor the source says otherwise. ⌘⌥⇧V pastes the plain text as
@@ -641,6 +660,8 @@ export const MarkdownPaste = Extension.create<MarkdownPasteOptions>({
   addProseMirrorPlugins() {
     const pending = new Set<PendingPaste>();
     const inTurn = pLimit(1);
+
+    turns.set(this.editor, inTurn);
     // Set only while a queued paste dispatches again, since it already holds
     // its turn.
     let replay: Replay | null = null;

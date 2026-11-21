@@ -4,12 +4,13 @@ import { setTimeout as sleep } from "node:timers/promises";
 import { act, render, screen } from "@testing-library/react";
 import { Editor } from "@tiptap/core";
 import { createElement } from "react";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, onTestFinished, vi } from "vitest";
 
-import { Toaster } from "@/components/ui/toast";
+import { toast, Toaster } from "@/components/ui/toast";
 import type { ClipboardSource } from "@/lib/ui/clipboard-source";
 
 import { createEditorExtensions, serializeMarkdown } from "./extensions";
+import { pasteSettled } from "./markdown-paste";
 
 let editor: Editor | undefined;
 
@@ -140,7 +141,7 @@ describe("markdown paste", () => {
   );
 
   it("should keep localized links in tables when native clipboard reading fails", async () => {
-    editor = new Editor({
+    const target = new Editor({
       content: "",
       extensions: createEditorExtensions({
         readClipboardSource: async () => {
@@ -148,6 +149,8 @@ describe("markdown paste", () => {
         },
       }),
     });
+
+    editor = target;
     const clipboardData = new DataTransfer();
     clipboardData.setData("text/plain", "copied text");
     clipboardData.setData(
@@ -155,10 +158,10 @@ describe("markdown paste", () => {
       '<table><thead><tr><th>Contents</th></tr></thead><tbody><tr><td><a href="https://source.test/page#one">One</a></td></tr></tbody></table><h2>One</h2><ul><li><input type="checkbox" checked> Done</li></ul>'
     );
     await act(async () => {
-      editor?.view.dom.dispatchEvent(
+      target.view.dom.dispatchEvent(
         new ClipboardEvent("paste", { clipboardData })
       );
-      await sleep(0);
+      await pasteSettled(target);
     });
     expect(serializeMarkdown(editor)).toContain("| [One](#one) |");
     expect(serializeMarkdown(editor).trimEnd()).toMatch(
@@ -217,7 +220,7 @@ describe("markdown paste", () => {
       editor.view.dom.dispatchEvent(
         new ClipboardEvent("paste", { clipboardData })
       );
-      await sleep(0);
+      await pasteSettled(editor);
       expect(serializeMarkdown(editor).trimEnd()).toBe(
         "[one](#first) [two](#first-1) [elsewhere](https://source.test/page#missing)\n\n## First\n\n## First"
       );
@@ -248,7 +251,7 @@ describe("markdown paste", () => {
         editor.view.dom.dispatchEvent(
           new ClipboardEvent("paste", { clipboardData })
         );
-        await sleep(0);
+        await pasteSettled(editor);
 
         expect(editor.getJSON().content?.[0]).toEqual({
           content: [
@@ -279,11 +282,8 @@ describe("markdown paste", () => {
       });
       pasteText(editor, "first");
       pasteText(editor, "second");
-      await sleep(0);
-
-      expect(editor.state.doc.textContent).toBe("");
       first.resolve(null);
-      await sleep(0);
+      await pasteSettled(editor);
 
       expect(editor.state.doc.textContent).toBe("firstsecond");
     });
@@ -298,9 +298,10 @@ describe("markdown paste", () => {
         }),
       });
       pasteText(editor, "after");
+      const settled = pasteSettled(editor);
       editor.destroy();
       clipboard.reject(new Error("the clipboard metadata is invalid"));
-      await sleep(0);
+      await settled;
 
       expect(editor.state.doc.textContent).toBe("before");
     });
@@ -320,7 +321,7 @@ describe("markdown paste", () => {
       pasteText(editor, "second");
       second.resolve({ kind: "code", language: "python" });
       first.resolve({ kind: "code", language: "python" });
-      await sleep(0);
+      await pasteSettled(editor);
 
       expect(editor.state.doc.textContent).toBe("firstsecond");
     });
@@ -348,7 +349,7 @@ describe("markdown paste", () => {
         new ClipboardEvent("paste", { clipboardData: secondData })
       );
       first.resolve(null);
-      await sleep(0);
+      await pasteSettled(editor);
 
       expect(serializeMarkdown(editor)).toBe(
         "see [https://example.com](https://example.com) copied"
@@ -381,7 +382,7 @@ describe("markdown paste", () => {
         new ClipboardEvent("paste", { clipboardData: outside })
       );
       first.resolve(null);
-      await sleep(0);
+      await pasteSettled(editor);
 
       expect(serializeMarkdown(editor)).toBe("see https://example.commore");
     });
@@ -408,7 +409,7 @@ describe("markdown paste", () => {
         new ClipboardEvent("paste", { clipboardData: secondData })
       );
       first.resolve(null);
-      await sleep(0);
+      await pasteSettled(editor);
 
       expect(serializeMarkdown(editor)).toBe("firstsecond");
     });
@@ -436,7 +437,7 @@ describe("markdown paste", () => {
         new ClipboardEvent("paste", { clipboardData: secondData })
       );
       first.resolve(null);
-      await sleep(0);
+      await pasteSettled(editor);
 
       expect(serializeMarkdown(editor)).toBe("firstsecond");
     });
@@ -466,7 +467,7 @@ describe("markdown paste", () => {
         new ClipboardEvent("paste", { clipboardData: secondData })
       );
       first.resolve(null);
-      await sleep(0);
+      await pasteSettled(editor);
 
       expect(serializeMarkdown(editor).trimEnd()).toBe(
         "first\n\n```\na# secondb\n```"
@@ -488,14 +489,18 @@ describe("markdown paste", () => {
 
       pasteText(editor, "first");
       pasteText(editor, "second");
+      const firstLanded = Promise.withResolvers<null>();
+      editor.once("update", () => {
+        firstLanded.resolve(null);
+      });
       first.resolve(null);
-      await sleep(0);
+      await firstLanded.promise;
       thirdData.setData("text/html", "<p>third</p>");
       editor.view.dom.dispatchEvent(
         new ClipboardEvent("paste", { clipboardData: thirdData })
       );
       second.resolve(null);
-      await sleep(0);
+      await pasteSettled(editor);
 
       expect(editor.state.doc.textContent).toBe("firstsecondthird");
     });
@@ -523,7 +528,7 @@ describe("markdown paste", () => {
       pasteText(editor, "second");
       clipboard = "something else";
       first.resolve(null);
-      await sleep(0);
+      await pasteSettled(editor);
 
       expect(serializeMarkdown(editor).trimEnd()).toBe("first`second`");
     });
@@ -545,7 +550,7 @@ describe("markdown paste", () => {
       first.resolve(null);
       await sleep(0);
       editor.view.dom.dispatchEvent(new CompositionEvent("compositionend"));
-      await sleep(0);
+      await pasteSettled(editor);
 
       expect(editor.state.doc.textContent).toBe("firstsecond");
     });
@@ -572,7 +577,7 @@ describe("markdown paste", () => {
         new KeyboardEvent("keydown", { key: "Shift", shiftKey: true })
       );
       first.resolve(null);
-      await sleep(0);
+      await pasteSettled(editor);
 
       expect(serializeMarkdown(editor).trimEnd()).toBe("first**bold**");
     });
@@ -596,7 +601,7 @@ describe("markdown paste", () => {
         new ClipboardEvent("paste", { clipboardData: secondData })
       );
       first.resolve(null);
-      await sleep(0);
+      await pasteSettled(editor);
 
       expect(editor.state.doc.textContent).toBe("firstsecond");
     });
@@ -616,7 +621,7 @@ describe("markdown paste", () => {
       pasteText(editor, "first");
       pasteText(editor, "second");
       first.resolve(null);
-      await sleep(0);
+      await pasteSettled(editor);
 
       expect(serializeMarkdown(editor).trimEnd()).toBe("a\n\nfirstsecond\n\nb");
     });
@@ -638,7 +643,7 @@ describe("markdown paste", () => {
         new ClipboardEvent("paste", { clipboardData })
       );
       first.resolve(null);
-      await sleep(0);
+      await pasteSettled(editor);
 
       expect(editor.state.doc.textContent).toBe("firsthttps://example.com/");
     });
@@ -666,7 +671,7 @@ describe("markdown paste", () => {
       );
       editor.view.dom.dispatchEvent(new KeyboardEvent("keydown", { key: "a" }));
       first.resolve(null);
-      await sleep(0);
+      await pasteSettled(editor);
 
       expect(serializeMarkdown(editor).trimEnd()).toBe("firstbold");
     });
@@ -693,7 +698,7 @@ describe("markdown paste", () => {
       );
       pasteText(editor, "text");
       saved.reject(new Error("The disk is full"));
-      await sleep(0);
+      await pasteSettled(editor);
 
       expect(editor.state.doc.textContent).toBe("text");
     });
@@ -715,7 +720,7 @@ describe("markdown paste", () => {
       first.resolve(null);
       await sleep(0);
       editor.view.dom.dispatchEvent(new CompositionEvent("compositionend"));
-      await sleep(0);
+      await pasteSettled(editor);
 
       expect(editor.state.doc.textContent).toBe("firstsecond");
     });
@@ -749,7 +754,7 @@ describe("markdown paste", () => {
         new ClipboardEvent("paste", { clipboardData: secondData })
       );
       first.resolve(null);
-      await sleep(0);
+      await pasteSettled(editor);
 
       expect(serializeMarkdown(editor).trimEnd()).toBe(
         "| a   | b   |\n| --- | --- |\n| x   | y   |"
@@ -777,9 +782,8 @@ describe("markdown paste", () => {
       editor.view.dom.dispatchEvent(
         new ClipboardEvent("paste", { clipboardData })
       );
-      await sleep(0);
       first.resolve(null);
-      await sleep(0);
+      await pasteSettled(editor);
 
       expect(serializeMarkdown(editor)).toBe(
         "first![](attachments/pasted-1.png)"
@@ -806,16 +810,21 @@ describe("markdown paste", () => {
           type: "image/png",
         })
       );
+      const reported = vi.spyOn(toast, "add");
+      onTestFinished(() => {
+        reported.mockRestore();
+      });
+      const reportsAtLanding = Promise.withResolvers<number>();
+      editor.once("update", () => {
+        reportsAtLanding.resolve(reported.mock.calls.length);
+      });
       pasteText(editor, "first");
       editor.view.dom.dispatchEvent(
         new ClipboardEvent("paste", { clipboardData })
       );
-      await sleep(0);
-
-      expect(screen.queryByText("The disk is full")).toBeNull();
-
       first.resolve(null);
 
+      await expect(reportsAtLanding.promise).resolves.toBe(0);
       await expect(
         screen.findByText("The disk is full")
       ).resolves.toBeDefined();
@@ -838,7 +847,7 @@ describe("markdown paste", () => {
         new ClipboardEvent("paste", { clipboardData: new DataTransfer() })
       );
       first.resolve(null);
-      await sleep(0);
+      await pasteSettled(editor);
 
       expect(editor.state.doc.textContent).toBe("firstkeep");
     });
@@ -863,7 +872,7 @@ describe("markdown paste", () => {
       editor.view.dom.dispatchEvent(
         new ClipboardEvent("paste", { clipboardData })
       );
-      await sleep(0);
+      await pasteSettled(editor);
 
       expect(editor.state.doc.firstChild?.type.name).toBe("codeBlock");
       expect(editor.state.doc.firstChild?.attrs.language).toBe("python");
@@ -916,7 +925,7 @@ describe("markdown paste", () => {
       });
       editor.commands.setTextSelection(8);
       pasteText(editor, "print(1)");
-      await sleep(0);
+      await pasteSettled(editor);
 
       expect(editor.getJSON().content).toEqual([
         {
@@ -994,7 +1003,7 @@ describe("markdown paste", () => {
       editor.view.dom.dispatchEvent(
         new ClipboardEvent("paste", { clipboardData })
       );
-      await sleep(0);
+      await pasteSettled(editor);
 
       expect(editor.state.doc.firstChild?.type.name).toBe("codeBlock");
       expect(editor.state.doc.firstChild?.attrs.language).toBe("python");
@@ -1014,7 +1023,7 @@ describe("markdown paste", () => {
       editor.view.dom.dispatchEvent(
         new ClipboardEvent("paste", { clipboardData })
       );
-      await sleep(0);
+      await pasteSettled(editor);
 
       expect(editor.getJSON().content).toEqual([
         { content: [{ text: "print(1)", type: "text" }], type: "paragraph" },
@@ -1058,7 +1067,7 @@ describe("markdown paste", () => {
         }),
       });
       pasteText(editor, "1. one\n2. two");
-      await sleep(0);
+      await pasteSettled(editor);
 
       expect(serializeMarkdown(editor).trimEnd()).toBe(
         "```\n1. one\n2. two\n```"
@@ -1085,7 +1094,7 @@ describe("markdown paste", () => {
       editor.view.dom.dispatchEvent(
         new ClipboardEvent("paste", { clipboardData })
       );
-      await sleep(0);
+      await pasteSettled(editor);
 
       expect(serializeMarkdown(editor).trimEnd()).toBe(
         "| a   | b   |\n| --- | --- |\n| x   | y   |"
@@ -1100,7 +1109,7 @@ describe("markdown paste", () => {
         }),
       });
       pasteText(editor, "# comment\nprint(1)");
-      await sleep(0);
+      await pasteSettled(editor);
 
       expect(editor.state.doc.firstChild?.type.name).toBe("codeBlock");
       expect(editor.state.doc.firstChild?.attrs.language).toBeNull();
@@ -1123,7 +1132,7 @@ describe("markdown paste", () => {
       editor.view.dom.dispatchEvent(
         new ClipboardEvent("paste", { clipboardData })
       );
-      await sleep(0);
+      await pasteSettled(editor);
 
       expect(editor.getJSON().content?.[0]).toEqual({
         content: [{ marks: [{ type: "bold" }], text: "bold", type: "text" }],
@@ -1151,7 +1160,7 @@ describe("markdown paste", () => {
         editor.view.dom.dispatchEvent(
           new ClipboardEvent("paste", { clipboardData })
         );
-        await sleep(0);
+        await pasteSettled(editor);
 
         expect(serializeMarkdown(editor)).toBe(
           "[one](https://example.com) and *two*"
@@ -1168,7 +1177,7 @@ describe("markdown paste", () => {
         }),
       });
       pasteText(editor, "run **x** and `ls`");
-      await sleep(0);
+      await pasteSettled(editor);
 
       expect(editor.getJSON().content).toEqual([
         {
@@ -1186,7 +1195,7 @@ describe("markdown paste", () => {
         }),
       });
       pasteText(editor, "# install deps\nnpm install");
-      await sleep(0);
+      await pasteSettled(editor);
 
       expect(editor.getJSON().content?.map((node) => node.type)).toEqual([
         "paragraph",
@@ -1203,7 +1212,7 @@ describe("markdown paste", () => {
         }),
       });
       pasteText(editor, "~~~ts\nconst value = 1;\n~~~");
-      await sleep(0);
+      await pasteSettled(editor);
 
       expect(editor.state.doc.firstChild?.type.name).toBe("codeBlock");
       expect(editor.state.doc.firstChild?.attrs.language).toBe("ts");
@@ -1222,7 +1231,7 @@ describe("markdown paste", () => {
       pasteText(editor, "print(1)\nprint(2)");
       editor.commands.insertContentAt(1, "new ");
       clipboard.resolve({ kind: "code", language: "python" });
-      await sleep(0);
+      await pasteSettled(editor);
 
       expect(editor.state.doc.textContent).toBe(
         "new before print(1)\nprint(2)after"
@@ -1240,9 +1249,10 @@ describe("markdown paste", () => {
         }),
       });
       pasteText(editor, "print(1)");
+      const settled = pasteSettled(editor);
       editor.destroy();
       clipboard.resolve({ kind: "code", language: "python" });
-      await sleep(0);
+      await settled;
 
       expect(editor.state.doc.textContent).toBe("before");
     });
@@ -1504,7 +1514,7 @@ describe("markdown paste", () => {
       });
 
       editor.commands.keyboardShortcut("Mod-Alt-Shift-v");
-      await sleep(0);
+      await pasteSettled(editor);
 
       expect(editor.getJSON().content).toEqual([
         { content: [{ text: "# heading", type: "text" }], type: "paragraph" },
@@ -1527,7 +1537,7 @@ describe("markdown paste", () => {
       editor.commands.setTextSelection(1);
       editor.commands.insertContent("x");
       clipboard.resolve("*plain*");
-      await sleep(0);
+      await pasteSettled(editor);
 
       expect(editor.state.doc.textContent).toBe("xbefore *plain* after");
     });
@@ -1562,14 +1572,19 @@ describe("markdown paste", () => {
           },
         }),
       });
+      const reported = vi.spyOn(toast, "add");
+      onTestFinished(() => {
+        reported.mockRestore();
+      });
+      const reportsAtLanding = Promise.withResolvers<number>();
+      editor.once("update", () => {
+        reportsAtLanding.resolve(reported.mock.calls.length);
+      });
       pasteText(editor, "first");
       editor.commands.keyboardShortcut("Mod-Alt-Shift-v");
-      await sleep(0);
-
-      expect(screen.queryByText("The clipboard is unavailable.")).toBeNull();
-
       first.resolve(null);
 
+      await expect(reportsAtLanding.promise).resolves.toBe(0);
       await expect(
         screen.findByText("The clipboard is unavailable.")
       ).resolves.toBeDefined();
@@ -1590,9 +1605,8 @@ describe("markdown paste", () => {
       editor.commands.keyboardShortcut("Mod-Alt-Shift-v");
       pasteText(editor, "rich");
       plain.resolve("plain");
-      await sleep(0);
       rich.resolve(null);
-      await sleep(0);
+      await pasteSettled(editor);
 
       expect(editor.state.doc.textContent).toBe("plainrich");
     });
@@ -1607,7 +1621,7 @@ describe("markdown paste", () => {
       });
 
       editor.commands.keyboardShortcut("Mod-Alt-Shift-v");
-      await sleep(0);
+      await pasteSettled(editor);
 
       expect(serializeMarkdown(editor)).toBe(
         "see [https://example.com](https://example.com)"
@@ -1630,7 +1644,7 @@ describe("markdown paste", () => {
         new ClipboardEvent("paste", { clipboardData: copy })
       );
       editor.commands.keyboardShortcut("Mod-Alt-Shift-v");
-      await sleep(0);
+      await pasteSettled(editor);
 
       expect(serializeMarkdown(editor)).toBe(
         "copied see [https://example.com](https://example.com)"
