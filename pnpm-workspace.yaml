@@ -9,6 +9,7 @@ autoInstallPeers: false
 color: always
 engineStrict: true
 patchedDependencies:
+  "@tiptap/core": patches/@tiptap__core.patch
   "@tiptap/markdown": patches/@tiptap__markdown.patch
   "@tiptap/react": patches/@tiptap__react.patch
 permissions:

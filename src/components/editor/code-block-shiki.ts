@@ -775,21 +775,20 @@ export const CodeBlockShiki = CodeBlock.extend({
     return [syntaxPlugin()];
   },
   /**
-   * TODO: drop this once marked trims indented code again. Through 18.1.1 an
-   * indented block with no blank line after it keeps its last line ending in
-   * its text, which the fence it is written as would show as a blank line.
+   * The text leaves out the line ending before the closing fence, which
+   * `renderMarkdown` writes back. marked keeps it for an indented block with
+   * no blank line after it and, since 18.2.1, for a fenced block that ends in
+   * a blank line.
    */
   parseMarkdown(token, helpers) {
-    const trimmed =
-      token.codeBlockStyle === "indented"
-        ? { ...token, text: token.text?.replace(LAST_LINE_ENDING, "") }
-        : token;
-
     if (!this.parent) {
       throw new Error("CodeBlock has no markdown parser to extend");
     }
 
-    return this.parent(trimmed, helpers);
+    return this.parent(
+      { ...token, text: token.text?.replace(LAST_LINE_ENDING, "") },
+      helpers
+    );
   },
   renderMarkdown(node, helpers) {
     const body = node.content ? helpers.renderChildren(node.content) : "";

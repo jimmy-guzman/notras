@@ -1,0 +1,44 @@
+diff --git a/dist/index.cjs b/dist/index.cjs
+index c21a1a98e10e50dac0d34ac5255d450cdee907b0..a68d1f57d4ee2971d9af9b0edf5e56c1b06f47b7 100644
+--- a/dist/index.cjs
++++ b/dist/index.cjs
+@@ -1240,7 +1240,7 @@ function findParentNode(predicate) {
+ * @returns The field value
+ */
+ function getExtensionField(extension, field, context) {
+-	if (extension.config[field] === void 0 && extension.parent) return getExtensionField(extension.parent, field, context);
++	if ((extension.config[field] === void 0 || extension.config[field] === extension.parent?.config[field]) && extension.parent) return getExtensionField(extension.parent, field, context);
+ 	if (typeof extension.config[field] === "function") return extension.config[field].bind({
+ 		...context,
+ 		parent: extension.parent ? getExtensionField(extension.parent, field, context) : null
+diff --git a/dist/index.js b/dist/index.js
+index 23ffc4b09b793ccda67f38209fe4f00de92ffd41..0039bc4616386a93cd9586c3016f9b1578e1619d 100644
+--- a/dist/index.js
++++ b/dist/index.js
+@@ -1228,7 +1228,7 @@ function findParentNode(predicate) {
+ * @returns The field value
+ */
+ function getExtensionField(extension, field, context) {
+-	if (extension.config[field] === void 0 && extension.parent) return getExtensionField(extension.parent, field, context);
++	if ((extension.config[field] === void 0 || extension.config[field] === extension.parent?.config[field]) && extension.parent) return getExtensionField(extension.parent, field, context);
+ 	if (typeof extension.config[field] === "function") return extension.config[field].bind({
+ 		...context,
+ 		parent: extension.parent ? getExtensionField(extension.parent, field, context) : null
+diff --git a/src/helpers/getExtensionField.ts b/src/helpers/getExtensionField.ts
+index 1406462041f8e8d4224418a5836b644f21498a97..dc934047b7763cc2e0b4c4a75fcfeeb64a57ffe5 100644
+--- a/src/helpers/getExtensionField.ts
++++ b/src/helpers/getExtensionField.ts
+@@ -15,7 +15,12 @@ export function getExtensionField<T = any, E extends AnyExtension = any>(
+   field: keyof ExtensionConfig | keyof MarkConfig | keyof NodeConfig,
+   context?: Omit<MaybeThisParameterType<T>, 'parent'>,
+ ): RemoveThis<T> {
+-  if (extension.config[field as keyof typeof extension.config] === undefined && extension.parent) {
++  const own = extension.config[field as keyof typeof extension.config]
++
++  // `extend` copies the parent's config into the child, so an inherited field
++  // is the parent's own function. Binding it with the parent's binding of it as
++  // `this.parent` would run it once per level.
++  if ((own === undefined || own === extension.parent?.config[field as keyof typeof extension.config]) && extension.parent) {
+     return getExtensionField(extension.parent, field, context)
+   }
+ 
