@@ -2,17 +2,8 @@ import { diffIndices } from "node-diff3";
 
 function spans(before: string[], source: string[]) {
   return diffIndices(before, source).map((hunk) => {
-    const [from, length]: number[] = hunk.buffer1;
-    const [sourceFrom, sourceLength]: number[] = hunk.buffer2;
-
-    if (
-      from === undefined ||
-      length === undefined ||
-      sourceFrom === undefined ||
-      sourceLength === undefined
-    ) {
-      throw new Error("The diff returned a hunk without a range");
-    }
+    const [from, length] = hunk.buffer1;
+    const [sourceFrom, sourceLength] = hunk.buffer2;
 
     return { from, length, sourceFrom, sourceLength };
   });

@@ -67,7 +67,7 @@
     "lucide-react": "1.72.0",
     "marked": "18.2.1",
     "mdurl": "2.1.0",
-    "node-diff3": "3.2.1",
+    "node-diff3": "4.0.0",
     "p-limit": "7.3.3",
     "pele": "1.13.0",
     "react": "19.3.1",
