@@ -1059,7 +1059,9 @@ describe("TabGraph native queries", () => {
         noteQueries.graph({ kind: "note", path: "second.md" })
       );
     });
-    await waitFor(() => expect(host).toHaveTextContent("Second"));
+    await waitFor(() => {
+      expect(host).toHaveTextContent("Second");
+    });
     expect(host.textContent).toContain("Linked");
     expect(reported).toHaveBeenCalledExactlyOnceWith({
       description: "Permission denied",

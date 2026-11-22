@@ -1872,11 +1872,11 @@ describe("recent note results", () => {
     ];
 
     const palette = mount("find", notes);
-    await waitFor(() =>
+    await waitFor(() => {
       expect(screen.getByRole("option", { selected: true })).toHaveTextContent(
         "A"
-      )
-    );
+      );
+    });
     await palette.user.keyboard("{ArrowDown}");
 
     const updated = notes.map((note) => ({

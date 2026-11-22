@@ -14,9 +14,9 @@ import { CaptureWindow } from "./capture-window";
 async function mountCapture() {
   mockWindows("capture");
   const { container } = render(createElement(CaptureWindow));
-  await waitFor(() =>
-    expect(container.querySelector(".ProseMirror")).toBeInTheDocument()
-  );
+  await waitFor(() => {
+    expect(container.querySelector(".ProseMirror")).toBeInTheDocument();
+  });
   const surface = container.querySelector(".ProseMirror");
 
   if (

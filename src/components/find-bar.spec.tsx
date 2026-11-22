@@ -391,9 +391,9 @@ describe("find controls", () => {
     mockWindows("capture");
     mockIPC(() => null);
     const { container } = render(createElement(CaptureWindow));
-    await waitFor(() =>
-      expect(container.querySelector(".ProseMirror")).toBeInTheDocument()
-    );
+    await waitFor(() => {
+      expect(container.querySelector(".ProseMirror")).toBeInTheDocument();
+    });
     const editor = container.querySelector(".ProseMirror");
 
     if (!(editor instanceof HTMLElement)) {
