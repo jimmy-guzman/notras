@@ -900,9 +900,9 @@ describe("layout", () => {
       screen.queryByRole("textbox", { name: "find text" })
     ).not.toBeInTheDocument();
     expect(document.querySelector(".note-find-open")).toBeNull();
-    await waitFor(() =>
-      expect(document.activeElement).toHaveClass("ProseMirror")
-    );
+    await waitFor(() => {
+      expect(document.activeElement).toHaveClass("ProseMirror");
+    });
     const caret = window.getSelection();
     const anchor = caret?.anchorNode;
     const paragraph = anchor?.parentElement?.closest("p");
@@ -1083,9 +1083,9 @@ describe("layout", () => {
         "first.md",
         "jot.md",
       ]);
-      await waitFor(() =>
-        expect(document.activeElement).toHaveClass("ProseMirror")
-      );
+      await waitFor(() => {
+        expect(document.activeElement).toHaveClass("ProseMirror");
+      });
       const caret = window.getSelection();
       const anchor = caret?.anchorNode;
       const paragraph = anchor?.parentElement?.closest("p");

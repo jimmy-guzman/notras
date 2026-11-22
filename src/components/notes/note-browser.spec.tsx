@@ -268,18 +268,20 @@ describe("note browser", () => {
 
     expect(input).toHaveFocus();
     await user.type(input, "preview");
-    await waitFor(() =>
+    await waitFor(() => {
       expect(
         within(browser).getByRole("list", { name: "notes in all notes" })
-      ).toHaveAttribute("aria-busy", "false")
-    );
+      ).toHaveAttribute("aria-busy", "false");
+    });
     await user.keyboard("{ArrowDown}{ArrowDown}{Enter}");
 
     const row = within(browser).getByRole("button", {
       name: /^Two Second preview/u,
     });
 
-    await waitFor(() => expect(row).toHaveAttribute("aria-current", "page"));
+    await waitFor(() => {
+      expect(row).toHaveAttribute("aria-current", "page");
+    });
     await screen.findByRole("heading", { name: "Opened" });
     expect(row).toHaveFocus();
     expect(input).toHaveValue("preview");
@@ -288,9 +290,9 @@ describe("note browser", () => {
     expect(
       screen.queryByRole("complementary", { name: "browse notes" })
     ).not.toBeInTheDocument();
-    await waitFor(() =>
-      expect(document.activeElement).toHaveClass("ProseMirror")
-    );
+    await waitFor(() => {
+      expect(document.activeElement).toHaveClass("ProseMirror");
+    });
     await user.click(screen.getByRole("button", { name: "browse notes" }));
     expect(
       screen.getByRole("textbox", { name: "search all notes" })
@@ -329,11 +331,11 @@ describe("note browser", () => {
     );
 
     await user.type(browser.getByRole("textbox"), "doc");
-    await waitFor(() =>
+    await waitFor(() => {
       expect(
         browser.getByRole("list", { name: "notes in all notes" })
-      ).toHaveAttribute("aria-busy", "false")
-    );
+      ).toHaveAttribute("aria-busy", "false");
+    });
     await user.keyboard("{ArrowDown}{Enter}");
     expect(
       await screen.findByText("Document", { selector: ".note-find-match" })
@@ -387,11 +389,11 @@ describe("note browser", () => {
     );
 
     await user.type(browser.getByRole("textbox"), "doc");
-    await waitFor(() =>
+    await waitFor(() => {
       expect(
         browser.getByRole("list", { name: "notes in all notes" })
-      ).toHaveAttribute("aria-busy", "false")
-    );
+      ).toHaveAttribute("aria-busy", "false");
+    });
     await user.keyboard("{ArrowDown}{Enter}");
     expect(
       await screen.findByText("Document", { selector: ".note-find-match" })

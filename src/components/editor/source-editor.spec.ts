@@ -167,9 +167,9 @@ describe("source editor focus", () => {
       createElement(SourceEditor, { editor: note.editor, focusOnMount: true })
     );
 
-    await waitFor(() =>
-      expect(container.querySelector(".ProseMirror")).toHaveFocus()
-    );
+    await waitFor(() => {
+      expect(container.querySelector(".ProseMirror")).toHaveFocus();
+    });
   });
 });
 
@@ -517,9 +517,9 @@ describe("source editor", () => {
       })
     );
 
-    await waitFor(() =>
-      expect(container.querySelector(".syntax-token")).toBeInTheDocument()
-    );
+    await waitFor(() => {
+      expect(container.querySelector(".syntax-token")).toBeInTheDocument();
+    });
     const [handle] = handles;
 
     if (handle === undefined) {

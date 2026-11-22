@@ -154,17 +154,19 @@ function panel(id: string = getTabState().activeId) {
 }
 
 async function settle() {
-  await waitFor(() => expect(panel()).toBeInTheDocument());
+  await waitFor(() => {
+    expect(panel()).toBeInTheDocument();
+  });
 }
 
 async function editor(id: string = getTabState().activeId) {
-  await waitFor(() =>
+  await waitFor(() => {
     expect(
       document
         .querySelector(`[id="${tabPanelId(id)}"]`)
         ?.querySelector(".ProseMirror")
-    ).toBeInTheDocument()
-  );
+    ).toBeInTheDocument();
+  });
 
   const surface = document
     .querySelector(`[id="${tabPanelId(id)}"]`)
@@ -281,9 +283,9 @@ async function mountConflict(
   act(() => {
     refreshTabs((entry) => entry.path === tab.path);
   });
-  await waitFor(() =>
-    expect(screen.getByText("this note changed on disk")).toBeInTheDocument()
-  );
+  await waitFor(() => {
+    expect(screen.getByText("this note changed on disk")).toBeInTheDocument();
+  });
 
   return { client, liveEditor };
 }
@@ -2397,9 +2399,9 @@ describe(NoteSession, () => {
     );
     await editor("t6");
 
-    await waitFor(() =>
-      expect(screen.getByText("first body")).toBeInTheDocument()
-    );
+    await waitFor(() => {
+      expect(screen.getByText("first body")).toBeInTheDocument();
+    });
     expect(screen.queryByText("title: Atlas")).toBeNull();
 
     disk.set("atlas.md", {
@@ -2411,9 +2413,9 @@ describe(NoteSession, () => {
       await client.invalidateQueries({ queryKey: noteQueries.index });
     });
 
-    await waitFor(() =>
-      expect(screen.getByText("second body")).toBeInTheDocument()
-    );
+    await waitFor(() => {
+      expect(screen.getByText("second body")).toBeInTheDocument();
+    });
   });
 
   it("should say in an embed's place that its title names no note, or why its note could not be read", async () => {
@@ -2462,12 +2464,14 @@ describe(NoteSession, () => {
     );
     await editor("t7");
 
-    await waitFor(() =>
-      expect(screen.getByText('No note is named "nowhere"')).toBeInTheDocument()
-    );
-    await waitFor(() =>
-      expect(screen.getByText("No such file")).toBeInTheDocument()
-    );
+    await waitFor(() => {
+      expect(
+        screen.getByText('No note is named "nowhere"')
+      ).toBeInTheDocument();
+    });
+    await waitFor(() => {
+      expect(screen.getByText("No such file")).toBeInTheDocument();
+    });
   });
 
   it.each([
@@ -2935,9 +2939,9 @@ describe(NoteSession, () => {
     );
     await editor("t12");
 
-    await waitFor(() =>
-      expect(screen.getByText("a note, not a picture")).toBeInTheDocument()
-    );
+    await waitFor(() => {
+      expect(screen.getByText("a note, not a picture")).toBeInTheDocument();
+    });
   });
 
   it("should say in an embed's place that no image has its name, or which folder it could not read", async () => {
@@ -2986,11 +2990,11 @@ describe(NoteSession, () => {
     );
     await editor("t13");
 
-    await waitFor(() =>
+    await waitFor(() => {
       expect(
         screen.getByText('No image is named "gone.png"')
-      ).toBeInTheDocument()
-    );
+      ).toBeInTheDocument();
+    });
 
     unreadable = ["locked"];
 
@@ -2998,11 +3002,11 @@ describe(NoteSession, () => {
       await client.invalidateQueries({ queryKey: noteQueries.all });
     });
 
-    await waitFor(() =>
+    await waitFor(() => {
       expect(
         screen.getByText("Could not read these folders: locked")
-      ).toBeInTheDocument()
-    );
+      ).toBeInTheDocument();
+    });
   });
 
   it("should resolve an embed from the note's new folder after it moves", async () => {
@@ -3069,9 +3073,9 @@ describe(NoteSession, () => {
     );
 
     await editor("t8");
-    await waitFor(() =>
-      expect(screen.getByText("the a plan")).toBeInTheDocument()
-    );
+    await waitFor(() => {
+      expect(screen.getByText("the a plan")).toBeInTheDocument();
+    });
 
     session.rerender(
       <QueryClientProvider client={client}>
@@ -3082,9 +3086,9 @@ describe(NoteSession, () => {
       </QueryClientProvider>
     );
 
-    await waitFor(() =>
-      expect(screen.getByText("the b plan")).toBeInTheDocument()
-    );
+    await waitFor(() => {
+      expect(screen.getByText("the b plan")).toBeInTheDocument();
+    });
   });
 
   it("should say in an external file's embed that embeds show in library notes only", async () => {
@@ -4278,9 +4282,9 @@ describe(NoteSession, () => {
     act(() => {
       refreshTabs((entry) => entry.path === tab.path);
     });
-    await waitFor(() =>
-      expect(screen.getByText("this note changed on disk")).toBeInTheDocument()
-    );
+    await waitFor(() => {
+      expect(screen.getByText("this note changed on disk")).toBeInTheDocument();
+    });
     expect(liveEditor.getText()).toContain("bodyTyped");
     expect(liveEditor.getText()).not.toContain("on disk");
     client.clear();
@@ -4427,7 +4431,9 @@ describe(NoteSession, () => {
     act(() => {
       refreshTabs((entry) => entry.path === tab.path);
     });
-    await waitFor(() => expect(review()).not.toBeInTheDocument());
+    await waitFor(() => {
+      expect(review()).not.toBeInTheDocument();
+    });
     disk.set(tab.path, {
       content: "# Chores\n\nbody, on disk again",
       revision: "r3",
@@ -4436,9 +4442,9 @@ describe(NoteSession, () => {
     act(() => {
       refreshTabs((entry) => entry.path === tab.path);
     });
-    await waitFor(() =>
-      expect(screen.getByText("this note changed on disk")).toBeInTheDocument()
-    );
+    await waitFor(() => {
+      expect(screen.getByText("this note changed on disk")).toBeInTheDocument();
+    });
     expect(review()).toHaveAttribute("inert");
     client.clear();
   });
@@ -4577,9 +4583,9 @@ describe(NoteSession, () => {
     );
     const liveEditor = await editor(tab.id);
     expect(liveEditor.getText()).toContain("body, mine");
-    await waitFor(() =>
-      expect(screen.getByText("this note changed on disk")).toBeInTheDocument()
-    );
+    await waitFor(() => {
+      expect(screen.getByText("this note changed on disk")).toBeInTheDocument();
+    });
     client.clear();
   });
 
@@ -4640,9 +4646,9 @@ describe(NoteSession, () => {
     expect(getTabState().activeId).toBe(id);
     const reopened = await editor(id);
     expect(reopened.getText()).toContain("body, mine");
-    await waitFor(() =>
-      expect(screen.getByText("this note changed on disk")).toBeInTheDocument()
-    );
+    await waitFor(() => {
+      expect(screen.getByText("this note changed on disk")).toBeInTheDocument();
+    });
   });
 
   it("should show the initial merge of stored edits and the current file in the rich editor", async () => {
