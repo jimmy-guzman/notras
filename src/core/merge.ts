@@ -55,16 +55,12 @@ export function mergeDocuments(
       return { kind: "ok", lines: region.ok };
     }
 
-    if (region.conflict !== undefined) {
-      return {
-        base: region.conflict.o,
-        kind: "hunk",
-        ours: region.conflict.a,
-        theirs: region.conflict.b,
-      };
-    }
-
-    throw new Error("A merge region without a side");
+    return {
+      base: region.conflict.o,
+      kind: "hunk",
+      ours: region.conflict.a,
+      theirs: region.conflict.b,
+    };
   });
 
   if (regions.every((region) => region.kind === "ok")) {
