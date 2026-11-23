@@ -95,6 +95,72 @@ async function openCapture(session: WebdriverIO.Browser) {
   await session.switchToWindow(capture);
 }
 
+async function dragPanelDivider(
+  session: WebdriverIO.Browser,
+  selector: string,
+  delta: number
+) {
+  await session.$(selector).waitForDisplayed();
+  await session.execute(
+    (dividerSelector, offset) => {
+      const divider = document.querySelector(dividerSelector);
+
+      if (!(divider instanceof HTMLElement)) {
+        throw new TypeError("The panel divider is missing.");
+      }
+
+      const rect = divider.getBoundingClientRect();
+      const x = rect.x + rect.width / 2;
+      const y = rect.y + rect.height / 2;
+
+      const pointer = {
+        bubbles: true,
+        cancelable: true,
+        clientY: y,
+        isPrimary: true,
+        pointerId: 1,
+        pointerType: "mouse",
+      };
+
+      Object.defineProperty(divider, "setPointerCapture", {
+        configurable: true,
+        value() {
+          // WebKit only captures a pointer started by trusted input.
+        },
+      });
+
+      try {
+        for (const event of [
+          new PointerEvent("pointerdown", {
+            ...pointer,
+            buttons: 1,
+            clientX: x,
+          }),
+          new PointerEvent("pointermove", {
+            ...pointer,
+            button: -1,
+            buttons: 1,
+            clientX: x + offset,
+          }),
+          new PointerEvent("pointerup", { ...pointer, clientX: x + offset }),
+        ]) {
+          const target = document.elementFromPoint(event.clientX, y);
+
+          if (target === null) {
+            throw new Error("The panel drag left the window.");
+          }
+
+          target.dispatchEvent(event);
+        }
+      } finally {
+        Reflect.deleteProperty(divider, "setPointerCapture");
+      }
+    },
+    selector,
+    delta
+  );
+}
+
 describe("native smoke", () => {
   it("should save an edit to disk and display it after restarting the app", async () => {
     const { artifacts, binary, note } = inject("smoke");
@@ -645,6 +711,55 @@ describe("native smoke", () => {
       throw error;
     } finally {
       await cleanupWdioSession(second);
+    }
+  });
+
+  it("should resize each side panel while the other is closed", async () => {
+    const { artifacts, binary } = inject("smoke");
+    const session = await launchApp(binary, artifacts);
+
+    try {
+      const editor = '[contenteditable="true"]';
+      const recent = '[aria-label="recent notes"] button';
+
+      await session
+        .$(`${editor}, ${recent}`)
+        .waitForDisplayed({ timeout: 30_000 });
+
+      if (!(await session.$(editor).isExisting())) {
+        await session.$(recent).click();
+      }
+
+      await session.$(editor).waitForDisplayed({ timeout: 30_000 });
+
+      const browserDivider =
+        '[role="separator"][aria-label="resize note browser"]';
+
+      const noteDivider = '[role="separator"][aria-label="resize note panel"]';
+
+      const widthOf = async (selector: string) =>
+        await session.$(selector).getSize("width");
+
+      const browserWidth = await widthOf("#note-browser");
+      await dragPanelDivider(session, browserDivider, -48);
+      expect(await widthOf("#note-browser")).toBeGreaterThan(browserWidth);
+      expect(await widthOf("#note-panel")).toBe(0);
+      expect(await widthOf(noteDivider)).toBe(0);
+
+      await session.$('button[aria-label="browse notes"]').click();
+      await expect.poll(async () => await widthOf("#note-browser")).toBe(0);
+      await session.$('button[aria-label="note panel"]').click();
+      await expect
+        .poll(async () => await widthOf("#note-panel"))
+        .toBeGreaterThan(0);
+
+      const noteWidth = await widthOf("#note-panel");
+      await dragPanelDivider(session, noteDivider, 48);
+      expect(await widthOf("#note-panel")).toBeGreaterThan(noteWidth);
+      expect(await widthOf("#note-browser")).toBe(0);
+      expect(await widthOf(browserDivider)).toBe(0);
+    } finally {
+      await cleanupWdioSession(session);
     }
   });
 });
