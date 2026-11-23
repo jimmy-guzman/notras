@@ -404,7 +404,16 @@ function Browser({ notesDir }: { notesDir: string }) {
     }
 
     if (mode === "tags") {
-      const tags = [...new Set(listed.flatMap((note) => note.tags))].toSorted();
+      const byTag = Map.groupBy(
+        listed.flatMap((note) =>
+          [...new Set(note.tags)].map((tag) => ({ note, tag }))
+        ),
+        ({ tag }) => tag
+      );
+
+      const tags = [...byTag].toSorted(([left], [right]) =>
+        left < right ? -1 : 1
+      );
 
       return tags.length === 0 ? (
         <Nothing title="no tags yet">
@@ -412,26 +421,22 @@ function Browser({ notesDir }: { notesDir: string }) {
         </Nothing>
       ) : (
         <SidebarMenu aria-label="tags">
-          {tags.map((tag) => {
-            const tagged = listed.filter((note) => note.tags.includes(tag));
-
-            return (
-              <Branch
-                Icon={HashIcon}
-                count={tagged.length}
-                key={tag}
-                label={tag}
-                onToggle={() => {
-                  fold.onToggle(`tag:${tag}`);
-                }}
-                open={opened.has(`tag:${tag}`)}
-              >
-                {tagged.map((note) => (
-                  <NoteRow depth={1} key={note.path} note={note} />
-                ))}
-              </Branch>
-            );
-          })}
+          {tags.map(([tag, tagged]) => (
+            <Branch
+              Icon={HashIcon}
+              count={tagged.length}
+              key={tag}
+              label={tag}
+              onToggle={() => {
+                fold.onToggle(`tag:${tag}`);
+              }}
+              open={opened.has(`tag:${tag}`)}
+            >
+              {tagged.map(({ note }) => (
+                <NoteRow depth={1} key={note.path} note={note} />
+              ))}
+            </Branch>
+          ))}
         </SidebarMenu>
       );
     }
