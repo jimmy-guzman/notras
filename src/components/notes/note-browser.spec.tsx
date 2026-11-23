@@ -786,7 +786,7 @@ describe("note browser", () => {
     expect(
       browser.getByRole("button", { name: /^One Preview/u })
     ).toHaveAttribute("aria-disabled", "true");
-    expect(browser.queryByText("searching...")).not.toBeInTheDocument();
+    expect(browser.queryByText("searching…")).not.toBeInTheDocument();
     expect(browser.queryByText("nothing found")).not.toBeInTheDocument();
     await act(async () => {
       pending.resolve([]);

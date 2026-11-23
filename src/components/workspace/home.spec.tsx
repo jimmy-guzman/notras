@@ -210,7 +210,7 @@ describe("home", () => {
   it("should say indexing while the first scan runs", async () => {
     mountHome([], "scanning");
 
-    expect(await screen.findByText("indexing notes...")).toBeInTheDocument();
+    expect(await screen.findByText("indexing notes…")).toBeInTheDocument();
   });
 
   it("should keep the recent notes and toast the reason when a refresh fails", async () => {

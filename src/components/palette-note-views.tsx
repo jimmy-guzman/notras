@@ -123,7 +123,7 @@ export function MoveView({
     return (
       <output className="block p-4 text-sm">
         {failure === null ? (
-          "loading folders..."
+          "loading folders…"
         ) : (
           <>
             <span className="block">could not load folders</span>
@@ -281,7 +281,7 @@ export function TagsView({
     <>
       {vocabulary.isPending ? (
         <output className="text-muted-foreground block p-4 text-sm">
-          loading tag suggestions...
+          loading tag suggestions…
         </output>
       ) : null}
       {vocabulary.isLoadingError ? (
@@ -371,7 +371,7 @@ export function LinksToView({ onOpen, path, query, title }: LinksToViewProps) {
     <>
       {graph.isPending ? (
         <output className="text-muted-foreground block p-4 text-sm">
-          loading links...
+          loading links…
         </output>
       ) : null}
       {/* Rows already loaded stay through a failed refresh, which the query

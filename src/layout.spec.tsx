@@ -427,7 +427,7 @@ describe("layout", () => {
     expect(noteReads).toHaveLength(0);
     await user.keyboard("typed ");
     await user.keyboard("{Control>},{/Control}");
-    await user.click(await screen.findByRole("button", { name: "change..." }));
+    await user.click(await screen.findByRole("button", { name: "change…" }));
 
     await waitFor(() => {
       expect(getTabState().tabs).toStrictEqual([

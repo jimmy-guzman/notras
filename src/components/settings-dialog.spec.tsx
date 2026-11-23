@@ -44,7 +44,7 @@ describe(SettingsDialog, () => {
     );
     const user = userEvent.setup();
 
-    await user.click(await screen.findByRole("button", { name: "change..." }));
+    await user.click(await screen.findByRole("button", { name: "change…" }));
 
     expect(
       await screen.findByText("could not update notes folder")

@@ -116,7 +116,7 @@ async function processId(binary: string) {
 async function runAction(browser: Browser, name: string) {
   await press(browser, "P", "KeyP", { meta: true, shift: true });
   await browser
-    .$('[placeholder="run an action..."]')
+    .$('[placeholder="run an action…"]')
     .waitForDisplayed({ timeout: 10_000 });
 
   await browser.execute((text) => {
@@ -254,7 +254,7 @@ describe("README screenshots", () => {
 
       await press(browser, "P", "KeyP", { meta: true, shift: true });
       await browser
-        .$('[placeholder="run an action..."]')
+        .$('[placeholder="run an action…"]')
         .waitForDisplayed({ timeout: 10_000 });
       await capture(browser, window, "palette");
       await press(browser, "P", "KeyP", { meta: true, shift: true });

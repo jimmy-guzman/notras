@@ -391,7 +391,7 @@ function Collections({
       )}
       {library.isPending || known.isPending ? (
         <p className="text-muted-foreground p-3 text-xs">
-          loading collections...
+          loading collections…
         </p>
       ) : null}
       {failure === null ? null : (
@@ -503,7 +503,7 @@ function Browser({ notesDir }: { notesDir: string }) {
                   rows.current?.querySelector("button")?.focus();
                 }
               }}
-              placeholder="search notes..."
+              placeholder="search notes…"
               ref={input}
               value={query}
             />
@@ -585,7 +585,7 @@ function Browser({ notesDir }: { notesDir: string }) {
           result.data === undefined &&
           status.data?.state === "scanning" ? (
             <output className="text-muted-foreground block px-3 py-2 text-xs">
-              indexing notes...
+              indexing notes…
             </output>
           ) : null}
           <div className="px-2 pb-2">
