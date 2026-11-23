@@ -230,18 +230,27 @@ interface Fold {
   opened: Set<string>;
 }
 
+interface FolderCount {
+  count: number;
+  folder: string;
+}
+
+/** The folders and notes of the tree, each grouped by the folder that holds it, `""` for the root. */
+interface Tree {
+  folders: Map<string, FolderCount[]>;
+  notes: Map<string, NoteMeta[]>;
+}
+
 function FolderBranch({
   depth = 0,
   fold,
   folder,
-  folders,
-  notes,
+  tree,
 }: {
   depth?: number;
   fold: Fold;
-  folder: { count: number; folder: string };
-  folders: { count: number; folder: string }[];
-  notes: NoteMeta[];
+  folder: FolderCount;
+  tree: Tree;
 }) {
   return (
     <Branch
@@ -255,25 +264,18 @@ function FolderBranch({
       }}
       open={fold.opened.has(`folder:${folder.folder}`)}
     >
-      {folders.map((child) =>
-        child.folder.includes("/") &&
-        child.folder.slice(0, child.folder.lastIndexOf("/")) ===
-          folder.folder ? (
-          <FolderBranch
-            depth={depth + 1}
-            fold={fold}
-            folder={child}
-            folders={folders}
-            key={child.folder}
-            notes={notes}
-          />
-        ) : null
-      )}
-      {notes.map((note) =>
-        note.folder === folder.folder ? (
-          <NoteRow depth={depth + 1} key={note.path} note={note} />
-        ) : null
-      )}
+      {tree.folders.get(folder.folder)?.map((child) => (
+        <FolderBranch
+          depth={depth + 1}
+          fold={fold}
+          folder={child}
+          key={child.folder}
+          tree={tree}
+        />
+      ))}
+      {tree.notes.get(folder.folder)?.map((note) => (
+        <NoteRow depth={depth + 1} key={note.path} note={note} />
+      ))}
     </Branch>
   );
 }
@@ -361,26 +363,30 @@ function Browser({ notesDir }: { notesDir: string }) {
     if (mode === "folders") {
       const folders = searchFolders(folderNames, listed);
 
+      const tree: Tree = {
+        folders: Map.groupBy(folders, ({ folder }) =>
+          folder.slice(0, Math.max(0, folder.lastIndexOf("/")))
+        ),
+        notes: Map.groupBy(listed, (note) => note.folder),
+      };
+
       return listed.length === 0 && folders.length === 0 ? (
         <Nothing title="no notes yet">
           Write a note with <Chord hotkey="Mod+N" /> and it shows here.
         </Nothing>
       ) : (
         <SidebarMenu aria-label="folders">
-          {folders.map((folder) =>
-            folder.folder.includes("/") ? null : (
-              <FolderBranch
-                fold={fold}
-                folder={folder}
-                folders={folders}
-                key={folder.folder}
-                notes={listed}
-              />
-            )
-          )}
-          {listed.map((note) =>
-            note.folder === "" ? <NoteRow key={note.path} note={note} /> : null
-          )}
+          {tree.folders.get("")?.map((folder) => (
+            <FolderBranch
+              fold={fold}
+              folder={folder}
+              key={folder.folder}
+              tree={tree}
+            />
+          ))}
+          {tree.notes.get("")?.map((note) => (
+            <NoteRow key={note.path} note={note} />
+          ))}
         </SidebarMenu>
       );
     }
