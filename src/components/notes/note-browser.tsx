@@ -10,6 +10,7 @@ import {
 import { useState } from "react";
 import type { KeyboardEvent, ReactNode } from "react";
 
+import { Chord } from "@/components/chord";
 import { Mark } from "@/components/mark";
 import { Button } from "@/components/ui/button";
 import {
@@ -234,7 +235,7 @@ function FolderBranch({
   );
 }
 
-function Nothing({ children, title }: { children: string; title: string }) {
+function Nothing({ children, title }: { children: ReactNode; title: string }) {
   return (
     <Empty aria-live="polite">
       <EmptyHeader>
@@ -336,7 +337,9 @@ function Browser({ notesDir }: { notesDir: string }) {
       const folders = searchFolders(folderNames, listed);
 
       return listed.length === 0 && folders.length === 0 ? (
-        <Nothing title="no notes yet">Write a note and it shows here.</Nothing>
+        <Nothing title="no notes yet">
+          Write a note with <Chord hotkey="Mod+N" /> and it shows here.
+        </Nothing>
       ) : (
         <SidebarMenu aria-label="folders">
           {folders.map((folder) =>
@@ -361,7 +364,9 @@ function Browser({ notesDir }: { notesDir: string }) {
       const tags = [...new Set(listed.flatMap((note) => note.tags))].toSorted();
 
       return tags.length === 0 ? (
-        <Nothing title="no tags yet">Tag a note and it shows here.</Nothing>
+        <Nothing title="no tags yet">
+          Tag a note with <Chord hotkey="Mod+Shift+Y" /> and it shows here.
+        </Nothing>
       ) : (
         <SidebarMenu aria-label="tags">
           {tags.map((tag) => {
@@ -395,7 +400,7 @@ function Browser({ notesDir }: { notesDir: string }) {
 
       return visited.length === 0 ? (
         <Nothing title="nothing opened yet">
-          Open a note and it shows here.
+          Open a note with <Chord hotkey="Mod+P" /> and it shows here.
         </Nothing>
       ) : (
         <SidebarMenu aria-label="recent notes">
@@ -409,7 +414,9 @@ function Browser({ notesDir }: { notesDir: string }) {
     const pinned = listed.filter((note) => note.pinned);
 
     return pinned.length === 0 ? (
-      <Nothing title="nothing pinned">Pin a note and it shows here.</Nothing>
+      <Nothing title="nothing pinned">
+        Pin a note with <Chord hotkey="Mod+Shift+D" /> and it shows here.
+      </Nothing>
     ) : (
       <SidebarMenu aria-label="pinned notes">
         {pinned.map((note) => (

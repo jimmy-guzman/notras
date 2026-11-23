@@ -324,7 +324,7 @@ function TabItem({ active, notesDir, sole, tab }: TabItemProps) {
           <button
             aria-label={`close ${label}`}
             className={cn(
-              "hover:bg-foreground/8 hover:text-foreground absolute inset-y-0 end-1 my-auto inline-flex size-5 items-center justify-center rounded-sm opacity-0 transition duration-150 ease-out group-hover:opacity-100 focus-visible:opacity-100",
+              "hover:bg-foreground/8 hover:text-foreground absolute inset-y-0 end-1 my-auto inline-flex size-5 items-center justify-center rounded-sm opacity-0 transition duration-150 ease-out group-hover:opacity-100 before:absolute before:-inset-x-1 before:-inset-y-1.5 focus-visible:opacity-100",
               active && "text-muted-foreground opacity-100"
             )}
             data-tab-close
