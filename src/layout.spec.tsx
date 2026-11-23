@@ -964,7 +964,9 @@ describe("layout", () => {
         });
 
         await waitFor(() => {
-          expect(browser.contains(document.activeElement)).toBeTruthy();
+          expect(
+            within(browser).getByRole("button", { name: "First" })
+          ).toHaveFocus();
         });
       },
     ],
@@ -1014,7 +1016,22 @@ describe("layout", () => {
             return { state: "ready" };
           }
 
-          if (command === "list_notes" || command === "list_tags") {
+          if (command === "list_notes") {
+            return [
+              {
+                createdAt: 0,
+                folder: "",
+                path: "first.md",
+                pinned: false,
+                snippet: null,
+                tags: [],
+                title: "First",
+                updatedAt: 1,
+              },
+            ];
+          }
+
+          if (command === "list_folders" || command === "list_tags") {
             return [];
           }
 

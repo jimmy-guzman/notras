@@ -776,6 +776,114 @@ describe("note browser", () => {
     expect(work).toHaveAttribute("aria-expanded", "true");
   });
 
+  it("should show a note whose folder the folder list is missing", async () => {
+    const user = mount(
+      () => [
+        {
+          createdAt: 0,
+          folder: "work",
+          path: "work/one.md",
+          pinned: false,
+          snippet: null,
+          tags: [],
+          title: "One",
+          updatedAt: 1,
+        },
+      ],
+      () => []
+    );
+
+    await user.click(
+      await screen.findByRole("button", { name: "browse notes" })
+    );
+
+    const browser = within(
+      await screen.findByRole("complementary", { name: "browse notes" })
+    );
+
+    await user.click(await browser.findByRole("button", { name: /^work 1$/u }));
+
+    expect(browser.getByRole("button", { name: "One" })).toBeVisible();
+  });
+
+  it("should keep the focus in the browser when a refresh removes the focused row", async () => {
+    let pinned = true;
+
+    const user = mount(() => [
+      {
+        createdAt: 0,
+        folder: "",
+        path: "one.md",
+        pinned,
+        snippet: null,
+        tags: [],
+        title: "One",
+        updatedAt: 1,
+      },
+    ]);
+
+    await screen.findByRole("button", { name: "browse notes" });
+    await user.keyboard("{Control>}{Alt>}4{/Alt}{/Control}");
+
+    const browser = await screen.findByRole("complementary", {
+      name: "browse notes",
+    });
+
+    await waitFor(() => {
+      expect(
+        within(browser).getByRole("button", { name: "One" })
+      ).toHaveFocus();
+    });
+    pinned = false;
+    await act(async () => {
+      await user.client.invalidateQueries({ queryKey: noteQueries.index });
+    });
+    await within(browser).findByText("nothing pinned");
+
+    await waitFor(() => {
+      expect(browser.contains(document.activeElement)).toBeTruthy();
+    });
+    await user.keyboard("{Escape}");
+    expect(
+      screen.queryByRole("complementary", { name: "browse notes" })
+    ).not.toBeInTheDocument();
+  });
+
+  it("should focus the first row that arrives after the browser opened empty", async () => {
+    let notes: NoteMeta[] = [];
+
+    const user = mount(() => notes);
+
+    await user.click(
+      await screen.findByRole("button", { name: "browse notes" })
+    );
+
+    const browser = within(
+      await screen.findByRole("complementary", { name: "browse notes" })
+    );
+
+    await browser.findByText("no notes yet");
+    notes = [
+      {
+        createdAt: 0,
+        folder: "",
+        path: "one.md",
+        pinned: false,
+        snippet: null,
+        tags: [],
+        title: "One",
+        updatedAt: 1,
+      },
+    ];
+    await act(async () => {
+      await user.client.invalidateQueries({ queryKey: noteQueries.index });
+    });
+
+    await waitFor(() => {
+      expect(browser.getByRole("button", { name: "One" })).toHaveFocus();
+    });
+  });
+
   it("should keep the listed notes and toast the reason when a refresh fails", async () => {
     let failing = false;
 

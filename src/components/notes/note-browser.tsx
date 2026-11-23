@@ -97,6 +97,47 @@ function moveFocus(event: KeyboardEvent<HTMLButtonElement>) {
   buttons[Math.max(0, Math.min(buttons.length - 1, position))]?.focus();
 }
 
+/** Focuses the row of the note that shows, or the first row, as a mode arrives. With no row to focus the content takes the focus itself, so Escape still closes the browser. */
+function focusRow(content: HTMLDivElement | null) {
+  (
+    content?.querySelector<HTMLElement>("[aria-current=page]") ??
+    content?.querySelector<HTMLElement>("[data-slot=sidebar-menu-button]") ??
+    content
+  )?.focus();
+}
+
+/** Keeps the focus on a row as rows come and go. A row that arrives while the content holds the focus takes it, and a focused row that leaves hands it back to the content, so Escape and the arrow keys still work. Focus anywhere else stays where it is. */
+function keepRowFocus(button: HTMLButtonElement | null) {
+  const content = button?.closest<HTMLDivElement>(
+    "[data-slot=sidebar-content]"
+  );
+
+  if (
+    content !== null &&
+    content !== undefined &&
+    document.activeElement === content
+  ) {
+    focusRow(content);
+  }
+
+  return () => {
+    if (
+      content === null ||
+      content === undefined ||
+      document.activeElement !== button
+    ) {
+      return;
+    }
+
+    // The row is still in the document while its ref detaches, so the hand-off waits for the removal.
+    queueMicrotask(() => {
+      if (content.isConnected && document.activeElement === document.body) {
+        focusRow(content);
+      }
+    });
+  };
+}
+
 function NoteRow({
   Icon = FileTextIcon,
   depth = 0,
@@ -114,6 +155,7 @@ function NoteRow({
   return (
     <SidebarMenuItem>
       <SidebarMenuButton
+        ref={keepRowFocus}
         aria-current={showing ? "page" : undefined}
         depth={depth}
         isActive={showing}
@@ -157,6 +199,7 @@ function Branch({
   return (
     <SidebarMenuItem>
       <SidebarMenuButton
+        ref={keepRowFocus}
         aria-expanded={open}
         depth={depth}
         onClick={onToggle}
@@ -256,24 +299,6 @@ function folderChain(folder: string) {
     : folder
         .split("/")
         .map((_, index, parts) => parts.slice(0, index + 1).join("/"));
-}
-
-/** Focuses the row of the note that shows, or the first row, as a mode arrives. With no row to focus the content takes the focus itself, so Escape still closes the browser. */
-function focusRow(content: HTMLDivElement | null) {
-  (
-    content?.querySelector<HTMLElement>("[aria-current=page]") ??
-    content?.querySelector<HTMLElement>("[data-slot=sidebar-menu-button]") ??
-    content
-  )?.focus();
-}
-
-/** Hands the focus to a row when rows load after the content took it. Focus anywhere else stays where it is. */
-function focusLoadedRow(rows: HTMLDivElement | null) {
-  const content = rows?.closest<HTMLDivElement>("[data-slot=sidebar-content]");
-
-  if (content !== undefined && content === document.activeElement) {
-    focusRow(content);
-  }
 }
 
 function Browser({ notesDir }: { notesDir: string }) {
@@ -471,9 +496,7 @@ function Browser({ notesDir }: { notesDir: string }) {
           ) : null}
           {notes === undefined || known.data === undefined ? null : (
             <ScrollArea className="min-h-0 flex-1">
-              <div className="py-1" ref={focusLoadedRow}>
-                {rowsFor(notes, known.data)}
-              </div>
+              <div className="py-1">{rowsFor(notes, known.data)}</div>
             </ScrollArea>
           )}
         </SidebarContent>

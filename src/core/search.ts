@@ -144,7 +144,7 @@ export function insertSearchFilter(
   return `${before}${before === "" || WHITESPACE.test(before.at(-1) ?? "") ? "" : " "}${prefix}${value} ${after}`;
 }
 
-/** Every folder, empty ones included, with the number of notes anywhere under it. */
+/** Every folder, empty ones included and the folders of every note even when `folders` misses them, with the number of notes anywhere under it. */
 export function searchFolders(
   folders: string[],
   notes: NoteMeta[]
@@ -160,7 +160,7 @@ export function searchFolders(
     (folder) => folder
   );
 
-  return folders
+  return [...new Set([...folders, ...counts.keys()])]
     .map((folder) => ({ count: counts.get(folder)?.length ?? 0, folder }))
     .toSorted((left, right) => left.folder.localeCompare(right.folder));
 }

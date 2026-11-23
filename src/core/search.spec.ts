@@ -117,6 +117,14 @@ describe("palette search", () => {
       { count: 0, folder: "empty" },
       { count: 3, folder: "work" },
       { count: 2, folder: "work/2026" },
+      { count: 1, folder: "workbench" },
+    ]);
+  });
+
+  it("should list the folders of notes the folder list is missing", () => {
+    expect(searchFolders([], [note("work/2026/b.md")])).toStrictEqual([
+      { count: 1, folder: "work" },
+      { count: 1, folder: "work/2026" },
     ]);
   });
 
