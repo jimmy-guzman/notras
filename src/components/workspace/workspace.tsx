@@ -288,7 +288,6 @@ function BrowserPanels({
         aria-label="resize note panel"
         disabled={!leftOpen}
         disableDoubleClick
-        hidden={!leftOpen}
         titleBand
       />
       <ResizablePanel
@@ -302,7 +301,6 @@ function BrowserPanels({
         aria-label="resize note browser"
         disabled={!open}
         disableDoubleClick
-        hidden={!open}
         titleBand
       />
       <ResizablePanel
