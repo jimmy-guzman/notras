@@ -61,6 +61,11 @@ function focusParentBranch(event: KeyboardEvent<HTMLButtonElement>) {
 }
 
 function moveFocus(event: KeyboardEvent<HTMLButtonElement>) {
+  // A modified arrow is a workspace chord, such as stepping between tabs.
+  if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) {
+    return;
+  }
+
   if (event.key === "ArrowLeft") {
     focusParentBranch(event);
 
@@ -204,7 +209,10 @@ function Branch({
         depth={depth}
         onClick={onToggle}
         onKeyDown={(event) => {
-          if (event.key === (open ? "ArrowLeft" : "ArrowRight")) {
+          if (
+            event.key === (open ? "ArrowLeft" : "ArrowRight") &&
+            !(event.altKey || event.ctrlKey || event.metaKey || event.shiftKey)
+          ) {
             event.preventDefault();
             onToggle();
           } else {
@@ -337,7 +345,11 @@ function Browser({ notesDir }: { notesDir: string }) {
   }
 
   const notes = library.data;
-  const failure = [library, known].find((read) => read.isLoadingError);
+
+  // Only the folder tree reads the folder list, so the other modes neither wait on it nor fail with it.
+  const folderNames = mode === "folders" ? known.data : [];
+  const reads = mode === "folders" ? [library, known] : [library];
+  const failure = reads.find((read) => read.isLoadingError);
 
   const fold: Fold = {
     onToggle: (key) => {
@@ -354,14 +366,14 @@ function Browser({ notesDir }: { notesDir: string }) {
     opened,
   };
 
-  function rowsFor(unsorted: NoteMeta[], folderNames: string[]) {
+  function rowsFor(unsorted: NoteMeta[], knownFolders: string[]) {
     const listed = unsorted.toSorted(
       (a, b) =>
         Number(b.pinned) - Number(a.pinned) || a.title.localeCompare(b.title)
     );
 
     if (mode === "folders") {
-      const folders = searchFolders(folderNames, listed);
+      const folders = searchFolders(knownFolders, listed);
 
       const tree: Tree = {
         folders: Map.groupBy(folders, ({ folder }) =>
@@ -481,9 +493,17 @@ function Browser({ notesDir }: { notesDir: string }) {
               <p>could not load notes</p>
               <p>{reasonOf(failure.error)}</p>
               <Button
-                onClick={() => {
-                  void library.refetch();
-                  void known.refetch();
+                onClick={(event) => {
+                  // The retry button leaves with the alert, so a keyboard retry hands the focus to the content for the rows to take.
+                  if (document.activeElement === event.currentTarget) {
+                    event.currentTarget
+                      .closest<HTMLElement>("[data-slot=sidebar-content]")
+                      ?.focus();
+                  }
+
+                  for (const read of reads) {
+                    void read.refetch();
+                  }
                 }}
                 size="sm"
                 variant="ghost"
@@ -492,7 +512,7 @@ function Browser({ notesDir }: { notesDir: string }) {
               </Button>
             </div>
           )}
-          {(notes === undefined || known.data === undefined) &&
+          {(notes === undefined || folderNames === undefined) &&
           failure === undefined ? (
             <output className="text-muted-foreground block px-3 py-2 text-xs">
               {status.data?.state === "scanning"
@@ -500,9 +520,9 @@ function Browser({ notesDir }: { notesDir: string }) {
                 : "loading notes…"}
             </output>
           ) : null}
-          {notes === undefined || known.data === undefined ? null : (
+          {notes === undefined || folderNames === undefined ? null : (
             <ScrollArea className="min-h-0 flex-1">
-              <div className="py-1">{rowsFor(notes, known.data)}</div>
+              <div className="py-1">{rowsFor(notes, folderNames)}</div>
             </ScrollArea>
           )}
         </SidebarContent>

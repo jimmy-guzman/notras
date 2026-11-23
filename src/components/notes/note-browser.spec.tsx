@@ -1033,6 +1033,116 @@ describe("note browser", () => {
     expect(browser.queryByText("could not load notes")).not.toBeInTheDocument();
   });
 
+  it("should leave a modified arrow on a row to the tab shortcuts", async () => {
+    const user = mount(() => [
+      {
+        createdAt: 0,
+        folder: "work",
+        path: "work/one.md",
+        pinned: false,
+        snippet: null,
+        tags: [],
+        title: "One",
+        updatedAt: 1,
+      },
+    ]);
+
+    await user.click(
+      await screen.findByRole("button", { name: "browse notes" })
+    );
+
+    const browser = within(
+      await screen.findByRole("complementary", { name: "browse notes" })
+    );
+
+    const work = await browser.findByRole("button", { name: /^work 1$/u });
+
+    await waitFor(() => {
+      expect(work).toHaveFocus();
+    });
+    await user.keyboard("{Control>}{Alt>}{ArrowRight}{/Alt}{/Control}");
+
+    expect(work).toHaveAttribute("aria-expanded", "false");
+  });
+
+  it("should keep the focus in the browser when a keyboard retry loads the notes", async () => {
+    let failing = true;
+
+    const user = mount(
+      () => [
+        {
+          createdAt: 0,
+          folder: "",
+          path: "one.md",
+          pinned: false,
+          snippet: null,
+          tags: [],
+          title: "One",
+          updatedAt: 1,
+        },
+      ],
+      () => {
+        if (failing) {
+          throw Object.assign(new Error("the disk is busy"), {
+            kind: "failed",
+          });
+        }
+
+        return [];
+      }
+    );
+
+    await user.click(
+      await screen.findByRole("button", { name: "browse notes" })
+    );
+
+    const browser = within(
+      await screen.findByRole("complementary", { name: "browse notes" })
+    );
+
+    await browser.findByRole("alert");
+    failing = false;
+    browser.getByRole("button", { name: "retry" }).focus();
+    await user.keyboard("{Enter}");
+
+    await waitFor(() => {
+      expect(browser.getByRole("button", { name: "One" })).toHaveFocus();
+    });
+  });
+
+  it("should list pinned notes when the folder list fails to load", async () => {
+    mount(
+      () => [
+        {
+          createdAt: 0,
+          folder: "",
+          path: "one.md",
+          pinned: true,
+          snippet: null,
+          tags: [],
+          title: "One",
+          updatedAt: 1,
+        },
+      ],
+      () => {
+        throw Object.assign(new Error("the disk is busy"), {
+          kind: "failed",
+        });
+      }
+    );
+
+    act(() => {
+      showNoteBrowserMode("pinned");
+    });
+
+    const browser = within(
+      await screen.findByRole("complementary", { name: "browse notes" })
+    );
+
+    expect(await browser.findByRole("button", { name: "One" })).toBeVisible();
+    expect(browser.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
   it("should say why the notes could not load and read them again on retry", async () => {
     let failing = true;
 
