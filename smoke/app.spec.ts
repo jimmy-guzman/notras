@@ -741,7 +741,7 @@ describe("native smoke", () => {
         await session.$(selector).getSize("width");
 
       const browserWidth = await widthOf("#note-browser");
-      await dragPanelDivider(session, browserDivider, -48);
+      await dragPanelDivider(session, browserDivider, 48);
       expect(await widthOf("#note-browser")).toBeGreaterThan(browserWidth);
       expect(await widthOf("#note-panel")).toBe(0);
       expect(await widthOf(noteDivider)).toBe(0);
@@ -754,7 +754,7 @@ describe("native smoke", () => {
         .toBeGreaterThan(0);
 
       const noteWidth = await widthOf("#note-panel");
-      await dragPanelDivider(session, noteDivider, 48);
+      await dragPanelDivider(session, noteDivider, -48);
       expect(await widthOf("#note-panel")).toBeGreaterThan(noteWidth);
       expect(await widthOf("#note-browser")).toBe(0);
       expect(await widthOf(browserDivider)).toBe(0);
