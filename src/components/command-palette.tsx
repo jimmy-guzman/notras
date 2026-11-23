@@ -36,6 +36,7 @@ import {
 import type { LucideIcon } from "lucide-react";
 import { useLayoutEffect, useRef, useState, useSyncExternalStore } from "react";
 
+import { NOTE_BROWSER_BUTTONS } from "@/components/notes/note-browser-buttons";
 import { Button } from "@/components/ui/button";
 import {
   Command,
@@ -74,7 +75,11 @@ import {
 import { tabFullPath } from "@/lib/tabs/tab";
 import { reasonOf } from "@/lib/ui/failure";
 import { openNoteFind, openSearchResult } from "@/lib/ui/find";
-import { toggleNoteBrowser, useNoteBrowser } from "@/lib/ui/note-browser";
+import {
+  showNoteBrowserMode,
+  toggleNoteBrowser,
+  useNoteBrowser,
+} from "@/lib/ui/note-browser";
 import { useChordsByName } from "@/lib/ui/shortcuts";
 import { setTabListOpen } from "@/lib/ui/tab-list";
 import { pressView, useTabView } from "@/lib/ui/view";
@@ -801,6 +806,19 @@ export function CommandPalette({
       text: "check for updates…",
       value: "check-for-updates",
     },
+    ...NOTE_BROWSER_BUTTONS.map(
+      ({ Icon, label, mode: browserMode }): PaletteAction => ({
+        Icon,
+        label,
+        needs: "none",
+        onSelect: () => {
+          close();
+          showNoteBrowserMode(browserMode);
+        },
+        text: label,
+        value: label.replace(" ", "-"),
+      })
+    ),
   ];
 
   const filterMode = view === "filters";

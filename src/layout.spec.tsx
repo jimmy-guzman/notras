@@ -925,7 +925,7 @@ describe("layout", () => {
     expect(before.toString()).toBe("An ");
 
     await user.keyboard("{Control>}\\{/Control}");
-    await screen.findByRole("textbox", { name: "search all notes" });
+    await screen.findByRole("complementary", { name: "browse notes" });
     await user.keyboard("{Control>}\\{/Control}");
     await waitFor(() => {
       expect(document.querySelector(".ProseMirror")).toHaveFocus();
@@ -955,16 +955,17 @@ describe("layout", () => {
   it.each([
     ["nothing", async () => {}],
     [
-      "the note browser search",
+      "a note browser row",
       async (user: UserEvent) => {
         await user.keyboard("{Control>}\\{/Control}");
 
-        const search = await screen.findByRole("textbox", {
-          name: "search all notes",
+        const browser = await screen.findByRole("complementary", {
+          name: "browse notes",
         });
 
-        await user.click(search);
-        expect(search).toHaveFocus();
+        await waitFor(() => {
+          expect(browser.contains(document.activeElement)).toBeTruthy();
+        });
       },
     ],
     [

@@ -1,20 +1,14 @@
-import { useDebouncedValue } from "@tanstack/react-pacer";
-import { keepPreviousData, useQuery } from "@tanstack/react-query";
-import type { UseQueryResult } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import {
-  ArrowLeftIcon,
-  ChevronRightIcon,
-  ChevronsUpDownIcon,
   Clock3Icon,
+  FileTextIcon,
   FolderIcon,
+  FolderOpenIcon,
   HashIcon,
-  LayersIcon,
   PinIcon,
-  SearchIcon,
-  XIcon,
 } from "lucide-react";
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
-import type { KeyboardEvent } from "react";
+import { useState } from "react";
+import type { KeyboardEvent, ReactNode } from "react";
 
 import { Mark } from "@/components/mark";
 import { Button } from "@/components/ui/button";
@@ -25,27 +19,18 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from "@/components/ui/empty";
-import {
-  InputGroup,
-  InputGroupAddon,
-  InputGroupButton,
-  InputGroupInput,
-} from "@/components/ui/input-group";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   Sidebar,
   SidebarContent,
-  SidebarGroup,
-  SidebarGroupContent,
-  SidebarGroupLabel,
-  SidebarHeader,
   SidebarMenu,
   SidebarMenuBadge,
   SidebarMenuButton,
   SidebarMenuItem,
   useSidebar,
 } from "@/components/ui/sidebar";
-import { toast } from "@/components/ui/toast";
+import { ToggleGroup } from "@/components/ui/toggle-group";
+import { PanelToggle } from "@/components/workspace/note-panel";
 import type { NoteMeta } from "@/core/notes";
 import { searchFolders } from "@/core/search";
 import { indexStatusQuery } from "@/data/index-status";
@@ -54,86 +39,14 @@ import { readRecentNotes } from "@/lib/recent-notes";
 import { useTabState } from "@/lib/tabs/store";
 import { reasonOf } from "@/lib/ui/failure";
 import { openSearchResult } from "@/lib/ui/find";
-import { closeNoteBrowser, useNoteBrowser } from "@/lib/ui/note-browser";
+import {
+  closeNoteBrowser,
+  showNoteBrowserMode,
+  useNoteBrowser,
+  useNoteBrowserMode,
+} from "@/lib/ui/note-browser";
 
-import { Highlighted } from "./note-label";
-
-type Collection =
-  | { kind: "all" | "pinned" | "recent" }
-  | { kind: "folder" | "tag"; value: string };
-
-function collectionLabel(collection: Collection) {
-  if (collection.kind === "folder") {
-    return collection.value;
-  }
-
-  if (collection.kind === "tag") {
-    return `#${collection.value}`;
-  }
-
-  return collection.kind === "all" ? "all notes" : collection.kind;
-}
-
-/**
- * The collection to show. A chosen folder deleted on disk leaves nothing to
- * show, so the browser shows every note and names the folder that went.
- */
-function shownCollection(
-  collection: Collection,
-  folders: string[] | undefined
-): { deleted?: string; shown: Collection } {
-  return collection.kind === "folder" &&
-    folders !== undefined &&
-    !folders.includes(collection.value)
-    ? { deleted: collection.value, shown: { kind: "all" } }
-    : { shown: collection };
-}
-
-function collectionNotes(
-  notes: NoteMeta[],
-  collection: Collection,
-  history: string[],
-  query: string
-) {
-  const visited = new Set(history);
-
-  const filtered = notes.filter((note) => {
-    switch (collection.kind) {
-      case "pinned": {
-        return note.pinned;
-      }
-
-      case "recent": {
-        return visited.has(note.path);
-      }
-
-      case "tag": {
-        return note.tags.includes(collection.value);
-      }
-
-      case "folder": {
-        return (
-          note.folder === collection.value ||
-          note.folder.startsWith(`${collection.value}/`)
-        );
-      }
-
-      case "all": {
-        return true;
-      }
-
-      default: {
-        return false;
-      }
-    }
-  });
-
-  return collection.kind === "recent" && query.trim() === ""
-    ? filtered
-        .toSorted((a, b) => history.indexOf(a.path) - history.indexOf(b.path))
-        .toSorted((a, b) => Number(b.pinned) - Number(a.pinned))
-    : filtered;
-}
+import { NOTE_BROWSER_BUTTONS } from "./note-browser-buttons";
 
 function moveFocus(event: KeyboardEvent<HTMLButtonElement>) {
   if (!["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) {
@@ -146,10 +59,7 @@ function moveFocus(event: KeyboardEvent<HTMLButtonElement>) {
     return;
   }
 
-  const buttons = [...list.querySelectorAll("button")].filter(
-    (button) => button.closest("details:not([open])") === null
-  );
-
+  const buttons = [...list.querySelectorAll("button")];
   const index = buttons.indexOf(event.currentTarget);
 
   const next = {
@@ -169,304 +79,327 @@ function moveFocus(event: KeyboardEvent<HTMLButtonElement>) {
   buttons[Math.max(0, Math.min(buttons.length - 1, position))]?.focus();
 }
 
-const shortDate = new Intl.DateTimeFormat(undefined, {
-  day: "numeric",
-  month: "short",
-});
-
-function editedDate(date: Date) {
-  const today = new Date();
-
-  if (date.toDateString() === today.toDateString()) {
-    return "today";
-  }
-
-  const yesterday = new Date(
-    today.getFullYear(),
-    today.getMonth(),
-    today.getDate() - 1
-  );
-
-  return date.toDateString() === yesterday.toDateString()
-    ? "yesterday"
-    : // oxlint-disable-next-line react-doctor/no-locale-format-in-render -- the app renders only in the webview, so no hydration
-      shortDate.format(date);
-}
-
-function FolderCollection({
-  folder,
-  folders,
-  collection,
-  onChoose,
+function NoteRow({
+  Icon = FileTextIcon,
+  depth = 0,
+  note,
 }: {
-  folder: { count: number; folder: string };
-  folders: { count: number; folder: string }[];
-  collection: Collection;
-  onChoose: (collection: Collection) => void;
+  /** What the row is in its mode: a file in a tree, a visit in recent, a pin in pinned. */
+  Icon?: typeof FileTextIcon;
+  depth?: number;
+  note: NoteMeta;
 }) {
-  const children = folders.filter(
-    (candidate) =>
-      candidate.folder.includes("/") &&
-      candidate.folder.slice(0, candidate.folder.lastIndexOf("/")) ===
-        folder.folder
-  );
-
-  const selected =
-    collection.kind === "folder" && collection.value === folder.folder;
-
-  const row = (
-    <SidebarMenuButton
-      isActive={selected}
-      aria-current={selected ? "true" : undefined}
-      onClick={() => {
-        onChoose({ kind: "folder", value: folder.folder });
-      }}
-      onKeyDown={moveFocus}
-    >
-      <FolderIcon className="text-muted-foreground" />
-      <span className="min-w-0 flex-1 truncate">
-        {folder.folder.split("/").at(-1)}
-      </span>
-      {folder.count === 0 ? null : (
-        <SidebarMenuBadge>{folder.count}</SidebarMenuBadge>
-      )}
-    </SidebarMenuButton>
-  );
+  const { activeId, tabs } = useTabState();
+  const activeTab = tabs.find((tab) => tab.id === activeId);
+  const showing = activeTab?.kind === "note" && activeTab.path === note.path;
 
   return (
     <SidebarMenuItem>
-      {children.length === 0 ? (
-        row
-      ) : (
-        <>
-          {row}
-          <details open className="group/folder pl-4">
-            <summary
-              aria-label={`subfolders in ${folder.folder}`}
-              className="text-muted-foreground hover:text-foreground flex min-h-6 cursor-pointer list-none items-center gap-1 rounded-sm px-2 text-xs focus-visible:-outline-offset-2 [&::-webkit-details-marker]:hidden"
-            >
-              <ChevronRightIcon className="size-3 group-open/folder:rotate-90" />
-              subfolders
-            </summary>
-            <SidebarMenu>
-              {children.map((child) => (
-                <FolderCollection
-                  key={child.folder}
-                  folder={child}
-                  folders={folders}
-                  collection={collection}
-                  onChoose={onChoose}
-                />
-              ))}
-            </SidebarMenu>
-          </details>
-        </>
-      )}
+      <SidebarMenuButton
+        aria-current={showing ? "page" : undefined}
+        depth={depth}
+        isActive={showing}
+        onClick={(event) => {
+          event.currentTarget.focus();
+          openSearchResult(note, event.metaKey || event.ctrlKey);
+        }}
+        onKeyDown={moveFocus}
+      >
+        <Icon className="text-muted-foreground" />
+        <span className="min-w-0 flex-1 truncate">{note.title}</span>
+        {note.pinned && Icon !== PinIcon ? (
+          <PinIcon aria-label="pinned" className="text-muted-foreground" />
+        ) : null}
+      </SidebarMenuButton>
     </SidebarMenuItem>
   );
 }
 
-function Collections({
-  collection,
-  history,
-  known,
-  library,
-  onChoose,
+/** A row that folds open to show what it holds. */
+function Branch({
+  Icon,
+  OpenIcon = Icon,
+  children,
+  count,
+  depth = 0,
+  label,
+  onToggle,
+  open,
 }: {
-  collection: Collection;
-  history: string[];
-  known: UseQueryResult<string[]>;
-  library: UseQueryResult<NoteMeta[]>;
-  onChoose: (collection: Collection) => void;
+  Icon: typeof FileTextIcon;
+  /** The icon while the branch is open, for an icon that can show it. */
+  OpenIcon?: typeof FileTextIcon;
+  children: ReactNode;
+  count: number;
+  depth?: number;
+  label: string;
+  onToggle: () => void;
+  open: boolean;
 }) {
-  // Counts come from the notes, so no folder row draws before both have loaded.
-  const folders =
-    known.data === undefined || library.data === undefined
-      ? []
-      : searchFolders(known.data, library.data);
-
-  const failure =
-    [library, known].find((read) => read.isLoadingError)?.error ?? null;
-
-  const tags = [
-    ...new Set(library.data?.flatMap((note) => note.tags)),
-  ].toSorted();
-
-  const visited = new Set(history);
-
-  const shortcuts = [
-    { Icon: LayersIcon, count: library.data?.length, kind: "all" },
-    {
-      Icon: Clock3Icon,
-      count: library.data?.filter((note) => visited.has(note.path)).length,
-      kind: "recent",
-    },
-    {
-      Icon: PinIcon,
-      count: library.data?.filter((note) => note.pinned).length,
-      kind: "pinned",
-    },
-  ] satisfies {
-    Icon: typeof LayersIcon;
-    count: number | undefined;
-    kind: "all" | "recent" | "pinned";
-  }[];
-
   return (
-    <ScrollArea className="min-h-0 flex-1">
-      <SidebarGroup>
-        <SidebarGroupContent>
-          <SidebarMenu aria-label="collections">
-            {shortcuts.map(({ Icon, count, kind }) => (
-              <SidebarMenuItem key={kind}>
-                <SidebarMenuButton
-                  isActive={collection.kind === kind}
-                  aria-current={collection.kind === kind ? "true" : undefined}
-                  onClick={() => {
-                    onChoose({ kind });
-                  }}
-                  onKeyDown={moveFocus}
-                >
-                  <Icon className="text-muted-foreground" />
-                  <span className="flex-1">
-                    {kind === "all" ? "all notes" : kind}
-                  </span>
-                  <SidebarMenuBadge>{count}</SidebarMenuBadge>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-            ))}
-          </SidebarMenu>
-        </SidebarGroupContent>
-      </SidebarGroup>
-      {folders.length === 0 ? null : (
-        <SidebarGroup>
-          <SidebarGroupLabel>folders</SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              {folders.map((folder) =>
-                folder.folder.includes("/") ? null : (
-                  <FolderCollection
-                    key={folder.folder}
-                    folder={folder}
-                    folders={folders}
-                    collection={collection}
-                    onChoose={onChoose}
-                  />
-                )
-              )}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
-      )}
-      {tags.length === 0 ? null : (
-        <SidebarGroup>
-          <SidebarGroupLabel>tags</SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              {tags.map((tag) => (
-                <SidebarMenuItem key={tag}>
-                  <SidebarMenuButton
-                    isActive={
-                      collection.kind === "tag" && collection.value === tag
-                    }
-                    onClick={() => {
-                      onChoose({ kind: "tag", value: tag });
-                    }}
-                    onKeyDown={moveFocus}
-                  >
-                    <HashIcon className="text-muted-foreground" />
-                    <span className="min-w-0 flex-1 truncate">{tag}</span>
-                    <SidebarMenuBadge>
-                      {
-                        library.data?.filter((note) => note.tags.includes(tag))
-                          .length
-                      }
-                    </SidebarMenuBadge>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
-      )}
-      {library.isPending || known.isPending ? (
-        <p className="text-muted-foreground p-3 text-xs">
-          loading collections…
-        </p>
-      ) : null}
-      {failure === null ? null : (
-        <div role="alert" className="p-3 text-xs">
-          <p>{reasonOf(failure)}</p>
-          <Button
-            onClick={() => {
-              void library.refetch();
-              void known.refetch();
-            }}
-            size="sm"
-            variant="ghost"
-          >
-            retry
-          </Button>
-        </div>
-      )}
-    </ScrollArea>
+    <SidebarMenuItem>
+      <SidebarMenuButton
+        aria-expanded={open}
+        depth={depth}
+        onClick={onToggle}
+        onKeyDown={(event) => {
+          if (event.key === (open ? "ArrowLeft" : "ArrowRight")) {
+            event.preventDefault();
+            onToggle();
+          } else {
+            moveFocus(event);
+          }
+        }}
+      >
+        {open ? (
+          <OpenIcon className="text-muted-foreground" />
+        ) : (
+          <Icon className="text-muted-foreground" />
+        )}
+        <span className="min-w-0 flex-1 truncate">{label}</span>
+        {count === 0 ? null : <SidebarMenuBadge>{count}</SidebarMenuBadge>}
+      </SidebarMenuButton>
+      {open ? <SidebarMenu>{children}</SidebarMenu> : null}
+    </SidebarMenuItem>
   );
+}
+
+interface Fold {
+  onToggle: (key: string) => void;
+  opened: Set<string>;
+}
+
+function FolderBranch({
+  depth = 0,
+  fold,
+  folder,
+  folders,
+  notes,
+}: {
+  depth?: number;
+  fold: Fold;
+  folder: { count: number; folder: string };
+  folders: { count: number; folder: string }[];
+  notes: NoteMeta[];
+}) {
+  return (
+    <Branch
+      Icon={FolderIcon}
+      OpenIcon={FolderOpenIcon}
+      count={folder.count}
+      depth={depth}
+      label={folder.folder.slice(folder.folder.lastIndexOf("/") + 1)}
+      onToggle={() => {
+        fold.onToggle(`folder:${folder.folder}`);
+      }}
+      open={fold.opened.has(`folder:${folder.folder}`)}
+    >
+      {folders.map((child) =>
+        child.folder.includes("/") &&
+        child.folder.slice(0, child.folder.lastIndexOf("/")) ===
+          folder.folder ? (
+          <FolderBranch
+            depth={depth + 1}
+            fold={fold}
+            folder={child}
+            folders={folders}
+            key={child.folder}
+            notes={notes}
+          />
+        ) : null
+      )}
+      {notes.map((note) =>
+        note.folder === folder.folder ? (
+          <NoteRow depth={depth + 1} key={note.path} note={note} />
+        ) : null
+      )}
+    </Branch>
+  );
+}
+
+function Nothing({ children, title }: { children: string; title: string }) {
+  return (
+    <Empty aria-live="polite">
+      <EmptyHeader>
+        <EmptyMedia>
+          <Mark expression="meh" size={32} />
+        </EmptyMedia>
+        <EmptyTitle>{title}</EmptyTitle>
+        <EmptyDescription>{children}</EmptyDescription>
+      </EmptyHeader>
+    </Empty>
+  );
+}
+
+/** The ancestors of a folder and the folder itself, so a branch deep in the tree shows. */
+function folderChain(folder: string) {
+  return folder === ""
+    ? []
+    : folder
+        .split("/")
+        .map((_, index, parts) => parts.slice(0, index + 1).join("/"));
+}
+
+/** Focuses the row of the note that shows, or the first row, as a mode arrives. With no row to focus the content takes the focus itself, so Escape still closes the browser. */
+function focusRow(content: HTMLDivElement | null) {
+  (
+    content?.querySelector<HTMLElement>("[aria-current=page]") ??
+    content?.querySelector<HTMLElement>("[data-slot=sidebar-menu-button]") ??
+    content
+  )?.focus();
+}
+
+/** Hands the focus to a row when rows load after the content took it. Focus anywhere else stays where it is. */
+function focusLoadedRow(rows: HTMLDivElement | null) {
+  const content = rows?.closest<HTMLDivElement>("[data-slot=sidebar-content]");
+
+  if (content !== undefined && content === document.activeElement) {
+    focusRow(content);
+  }
 }
 
 function Browser({ notesDir }: { notesDir: string }) {
   const open = useSidebar();
+  const mode = useNoteBrowserMode();
   const { activeId, tabs } = useTabState();
-  const activeTab = tabs.find((tab) => tab.id === activeId);
-  const [query, setQuery] = useState("");
-  const [debounced] = useDebouncedValue(query, { wait: 150 });
-  const [collection, setCollection] = useState<Collection>({ kind: "all" });
-  const [picking, setPicking] = useState(false);
-  const [history, setHistory] = useState(() => readRecentNotes(notesDir));
-  const input = useRef<HTMLInputElement>(null);
-  const rows = useRef<HTMLUListElement>(null);
-  const scopeButton = useRef<HTMLButtonElement>(null);
   const library = useQuery({ ...noteQueries.list(), enabled: open });
   const known = useQuery({ ...noteQueries.folders(), enabled: open });
-
-  const result = useQuery({
-    ...noteQueries.list({
-      includePreview: true,
-      query: debounced,
-    }),
-    enabled: open,
-    placeholderData: keepPreviousData,
-  });
-
   const status = useQuery({ ...indexStatusQuery, enabled: open });
 
-  const pending =
-    query !== debounced || result.isLoading || result.isPlaceholderData;
+  const showing = tabs.find((tab) => tab.id === activeId);
 
-  const { deleted, shown } = shownCollection(collection, known.data);
-  const label = collectionLabel(shown);
-  const notes = collectionNotes(result.data ?? [], shown, history, debounced);
+  // Opened as a mode arrives, so the tree opens on the note that shows.
+  const showingFolders =
+    showing?.kind === "note"
+      ? folderChain(
+          showing.path.slice(0, Math.max(0, showing.path.lastIndexOf("/")))
+        ).map((folder) => `folder:${folder}`)
+      : [];
 
-  // Keyed on the name, so the fallback announces itself once per folder.
-  useEffect(() => {
-    if (deleted !== undefined) {
-      toast.add({
-        description: `${deleted} is gone, so the browser shows all notes`,
-        title: "folder deleted",
-        type: "info",
+  const [opened, setOpened] = useState(() => new Set(showingFolders));
+
+  // Read as a mode arrives, so a click on a row does not reorder the list under the pointer.
+  const arrival = `${mode}:${open}`;
+
+  const [visits, setVisits] = useState(() => ({
+    arrival,
+    history: readRecentNotes(notesDir),
+  }));
+
+  if (visits.arrival !== arrival) {
+    setVisits({ arrival, history: readRecentNotes(notesDir) });
+    setOpened((keys) => new Set([...keys, ...showingFolders]));
+  }
+
+  const notes = library.data;
+  const failure = [library, known].find((read) => read.isLoadingError);
+
+  const fold: Fold = {
+    onToggle: (key) => {
+      setOpened((keys) => {
+        const next = new Set(keys);
+
+        if (!next.delete(key)) {
+          next.add(key);
+        }
+
+        return next;
       });
-    }
-  }, [deleted]);
+    },
+    opened,
+  };
 
-  useLayoutEffect(() => {
-    if (open) {
-      (picking ? scopeButton : input).current?.focus();
-    }
-  }, [open, picking]);
+  function rowsFor(unsorted: NoteMeta[], folderNames: string[]) {
+    const listed = unsorted.toSorted(
+      (a, b) =>
+        Number(b.pinned) - Number(a.pinned) || a.title.localeCompare(b.title)
+    );
 
-  function choose(next: Collection) {
-    setCollection(next);
-    setHistory(readRecentNotes(notesDir));
-    setPicking(false);
+    if (mode === "folders") {
+      const folders = searchFolders(folderNames, listed);
+
+      return listed.length === 0 && folders.length === 0 ? (
+        <Nothing title="no notes yet">Write a note and it shows here.</Nothing>
+      ) : (
+        <SidebarMenu aria-label="folders">
+          {folders.map((folder) =>
+            folder.folder.includes("/") ? null : (
+              <FolderBranch
+                fold={fold}
+                folder={folder}
+                folders={folders}
+                key={folder.folder}
+                notes={listed}
+              />
+            )
+          )}
+          {listed.map((note) =>
+            note.folder === "" ? <NoteRow key={note.path} note={note} /> : null
+          )}
+        </SidebarMenu>
+      );
+    }
+
+    if (mode === "tags") {
+      const tags = [...new Set(listed.flatMap((note) => note.tags))].toSorted();
+
+      return tags.length === 0 ? (
+        <Nothing title="no tags yet">Tag a note and it shows here.</Nothing>
+      ) : (
+        <SidebarMenu aria-label="tags">
+          {tags.map((tag) => {
+            const tagged = listed.filter((note) => note.tags.includes(tag));
+
+            return (
+              <Branch
+                Icon={HashIcon}
+                count={tagged.length}
+                key={tag}
+                label={tag}
+                onToggle={() => {
+                  fold.onToggle(`tag:${tag}`);
+                }}
+                open={opened.has(`tag:${tag}`)}
+              >
+                {tagged.map((note) => (
+                  <NoteRow depth={1} key={note.path} note={note} />
+                ))}
+              </Branch>
+            );
+          })}
+        </SidebarMenu>
+      );
+    }
+
+    if (mode === "recent") {
+      const visited = visits.history.flatMap(
+        (path) => listed.find((note) => note.path === path) ?? []
+      );
+
+      return visited.length === 0 ? (
+        <Nothing title="nothing opened yet">
+          Open a note and it shows here.
+        </Nothing>
+      ) : (
+        <SidebarMenu aria-label="recent notes">
+          {visited.map((note) => (
+            <NoteRow Icon={Clock3Icon} key={note.path} note={note} />
+          ))}
+        </SidebarMenu>
+      );
+    }
+
+    const pinned = listed.filter((note) => note.pinned);
+
+    return pinned.length === 0 ? (
+      <Nothing title="nothing pinned">Pin a note and it shows here.</Nothing>
+    ) : (
+      <SidebarMenu aria-label="pinned notes">
+        {pinned.map((note) => (
+          <NoteRow Icon={PinIcon} key={note.path} note={note} />
+        ))}
+      </SidebarMenu>
+    );
   }
 
   return (
@@ -477,193 +410,75 @@ function Browser({ notesDir }: { notesDir: string }) {
         if (event.key === "Escape") {
           event.preventDefault();
           event.stopPropagation();
-
-          if (picking) {
-            setPicking(false);
-          } else {
-            closeNoteBrowser();
-          }
+          closeNoteBrowser();
         }
       }}
     >
-      <SidebarHeader>
-        <div hidden={picking}>
-          <InputGroup variant="sidebar">
-            <InputGroupAddon>
-              <SearchIcon />
-            </InputGroupAddon>
-            <InputGroupInput
-              aria-label={`search ${label}`}
-              onChange={(event) => {
-                setQuery(event.target.value);
-              }}
-              onKeyDown={(event) => {
-                if (event.key === "ArrowDown" && !pending) {
-                  event.preventDefault();
-                  rows.current?.querySelector("button")?.focus();
-                }
-              }}
-              placeholder="search notes…"
-              ref={input}
-              value={query}
-            />
-            {query === "" ? null : (
-              <InputGroupAddon align="inline-end">
-                <InputGroupButton
-                  aria-label="clear search"
-                  size="icon-xs"
-                  onClick={() => {
-                    setQuery("");
-                    input.current?.focus();
-                  }}
-                >
-                  <XIcon />
-                </InputGroupButton>
-              </InputGroupAddon>
-            )}
-          </InputGroup>
-        </div>
-        <SidebarMenu>
-          <SidebarMenuItem>
-            <SidebarMenuButton
-              aria-expanded={picking}
-              aria-label={
-                picking ? "back to notes" : `choose collection: ${label}`
-              }
-              isActive={!picking}
-              onClick={() => {
-                if (!picking) {
-                  setHistory(readRecentNotes(notesDir));
-                }
-
-                setPicking(!picking);
-              }}
-              ref={scopeButton}
-            >
-              {picking ? <ArrowLeftIcon /> : <LayersIcon />}
-              <span className="min-w-0 flex-1 truncate">
-                {picking ? "back to notes" : label}
-              </span>
-              {picking ? null : <ChevronsUpDownIcon />}
-            </SidebarMenuButton>
-          </SidebarMenuItem>
-        </SidebarMenu>
-      </SidebarHeader>
-      <SidebarContent hidden={!picking}>
-        <Collections
-          collection={shown}
-          history={history}
-          known={known}
-          library={library}
-          onChoose={choose}
-        />
-      </SidebarContent>
-      <SidebarContent hidden={picking}>
-        <SidebarGroupLabel className="mx-2 justify-between">
-          <span>{query.trim() === "" ? label : "search results"}</span>
-          <output aria-label="note count">
-            {result.data === undefined ? null : notes.length}
-          </output>
-        </SidebarGroupLabel>
-        {result.isLoadingError ? (
-          <div role="alert" className="p-3 text-xs">
-            <p>could not load notes</p>
-            <p>{reasonOf(result.error)}</p>
-            <Button
-              onClick={() => {
-                void result.refetch();
-              }}
-              size="sm"
-              variant="ghost"
-            >
-              retry
-            </Button>
-          </div>
-        ) : null}
-        <ScrollArea className="min-h-0 flex-1">
-          {pending &&
-          result.data === undefined &&
-          status.data?.state === "scanning" ? (
+      {open ? (
+        <SidebarContent
+          // A new key remounts the content, which takes the focus as a mode arrives.
+          key={mode}
+          ref={focusRow}
+          tabIndex={-1}
+        >
+          {failure === undefined ? null : (
+            <div role="alert" className="p-3 text-xs">
+              <p>could not load notes</p>
+              <p>{reasonOf(failure.error)}</p>
+              <Button
+                onClick={() => {
+                  void library.refetch();
+                  void known.refetch();
+                }}
+                size="sm"
+                variant="ghost"
+              >
+                retry
+              </Button>
+            </div>
+          )}
+          {(notes === undefined || known.data === undefined) &&
+          failure === undefined ? (
             <output className="text-muted-foreground block px-3 py-2 text-xs">
-              indexing notes…
+              {status.data?.state === "scanning"
+                ? "indexing notes…"
+                : "loading notes…"}
             </output>
           ) : null}
-          <div className="px-2 pb-2">
-            <SidebarMenu
-              aria-busy={pending}
-              aria-label={`notes in ${label}`}
-              ref={rows}
-            >
-              {notes.map((note) => (
-                <SidebarMenuItem key={note.path}>
-                  <SidebarMenuButton
-                    isActive={
-                      activeTab?.kind === "note" && activeTab.path === note.path
-                    }
-                    aria-current={
-                      activeTab?.kind === "note" && activeTab.path === note.path
-                        ? "page"
-                        : undefined
-                    }
-                    aria-disabled={pending}
-                    onClick={(event) => {
-                      if (pending) {
-                        return;
-                      }
-
-                      event.currentTarget.focus();
-                      openSearchResult(note, event.metaKey || event.ctrlKey);
-                    }}
-                    onKeyDown={moveFocus}
-                    size="note"
-                  >
-                    <span className="flex min-w-0 flex-1 flex-col gap-1.5">
-                      <span className="flex min-w-0 items-center gap-1.5 text-sm leading-snug">
-                        {note.pinned ? (
-                          <PinIcon
-                            aria-label="pinned"
-                            className="text-primary"
-                          />
-                        ) : null}
-                        <Highlighted className="truncate" text={note.title} />
-                      </span>
-                      {note.snippet === null ? null : (
-                        <Highlighted
-                          className="text-muted-foreground line-clamp-2 text-xs leading-relaxed"
-                          text={note.snippet}
-                        />
-                      )}
-                      <span className="text-muted-foreground mt-0.5 flex items-center justify-between gap-2 text-xs">
-                        <span className="truncate">{note.folder}</span>
-                        <time
-                          className="shrink-0"
-                          dateTime={note.updatedAt.toISOString()}
-                        >
-                          {editedDate(note.updatedAt)}
-                        </time>
-                      </span>
-                    </span>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
-            </SidebarMenu>
-          </div>
-          {result.data !== undefined && notes.length === 0 ? (
-            <Empty aria-live="polite">
-              <EmptyHeader>
-                <EmptyMedia>
-                  <Mark expression="meh" size={32} />
-                </EmptyMedia>
-                <EmptyTitle>nothing found</EmptyTitle>
-                <EmptyDescription>
-                  Try different words or choose another collection.
-                </EmptyDescription>
-              </EmptyHeader>
-            </Empty>
-          ) : null}
-        </ScrollArea>
-      </SidebarContent>
+          {notes === undefined || known.data === undefined ? null : (
+            <ScrollArea className="min-h-0 flex-1">
+              <div className="py-1" ref={focusLoadedRow}>
+                {rowsFor(notes, known.data)}
+              </div>
+            </ScrollArea>
+          )}
+        </SidebarContent>
+      ) : null}
     </Sidebar>
+  );
+}
+
+/** The browser's modes as buttons, one lit, for the band above the browser. */
+export function NoteBrowserModes() {
+  const mode = useNoteBrowserMode();
+
+  return (
+    <ToggleGroup
+      aria-label="browse by"
+      onValueChange={([picked]) => {
+        // Base UI reports a click on the lit item as an empty value. The modes are a choice of one, so that click keeps the mode.
+        if (picked !== undefined) {
+          showNoteBrowserMode(picked);
+        }
+      }}
+      spacing={0}
+      value={[mode]}
+      variant="mark-bottom"
+    >
+      {NOTE_BROWSER_BUTTONS.map(({ Icon, label, mode: value }) => (
+        <PanelToggle Icon={Icon} key={value} label={label} value={value} />
+      ))}
+    </ToggleGroup>
   );
 }
 

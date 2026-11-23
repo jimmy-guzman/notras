@@ -99,10 +99,8 @@ function ViewerDialog({
     >
       <DialogContent
         className={cn(
-          "top-12 left-8 flex h-[calc(100vh-5rem)] w-[calc(100vw-4rem)] max-w-none translate-x-0 translate-y-0 p-0 ring-0 sm:max-w-none",
-          surface === "card"
-            ? "bg-card rounded-md"
-            : "bg-transparent shadow-none"
+          "top-12 left-8 flex h-[calc(100vh-5rem)] w-[calc(100vw-4rem)] max-w-none translate-x-0 translate-y-0 p-0 sm:max-w-none",
+          surface === "card" ? "bg-card" : "border-0 bg-transparent shadow-none"
         )}
         // The frame takes focus, so the arrow keys, Page Up and Down and
         // Space pan it the way they scroll any focused box.

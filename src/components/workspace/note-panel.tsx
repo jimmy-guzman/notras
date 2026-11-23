@@ -42,7 +42,6 @@ import {
 import type { NotePanelTab } from "@/lib/ui/note-panel";
 import { useChordsByName } from "@/lib/ui/shortcuts";
 import { showView, useTabView } from "@/lib/ui/view";
-import type { TabView } from "@/lib/ui/view";
 
 function describeDirection(incoming: boolean, outgoing: boolean) {
   if (incoming) {
@@ -341,10 +340,10 @@ interface PanelToggleProps {
   Icon: typeof Link2Icon;
   /** Also the name its chord registers under, so the tooltip reads the binding. */
   label: string;
-  value: NotePanelTab | TabView;
+  value: string;
 }
 
-function PanelToggle({ Icon, label, value }: PanelToggleProps) {
+export function PanelToggle({ Icon, label, value }: PanelToggleProps) {
   const chords = useChordsByName().get(label);
 
   return (

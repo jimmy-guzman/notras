@@ -117,7 +117,7 @@ export function FindBar({ controller }: FindBarProps) {
 
   return (
     <div
-      className="bg-popover absolute top-2 right-3 left-3 ml-auto max-w-sm rounded-lg shadow-md"
+      className="bg-popover shadow-popover absolute top-2 right-3 left-3 ml-auto max-w-sm rounded-lg border"
       data-find-bar
     >
       <InputGroup aria-label="find in note">

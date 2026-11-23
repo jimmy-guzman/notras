@@ -289,12 +289,6 @@ describe.each(palettes)("$scheme palette", ({ other, scheme, tokens }) => {
     );
   });
 
-  it("should match the shell to the scrollbar thumb color", () => {
-    expect(tokenValue(scheme, tokens, "shell")).toBe(
-      tokenValue(scheme, tokens, "border")
-    );
-  });
-
   it("should define the same token names as the default theme", () => {
     expect([...tokens.keys()].toSorted()).toStrictEqual(
       [...defaultTheme.dark.keys()].toSorted()

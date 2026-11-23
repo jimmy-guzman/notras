@@ -687,6 +687,10 @@ describe("recent commands", () => {
         "catppuccin theme",
         "reindex library",
         "check for updates…",
+        "browse folders",
+        "browse tags",
+        "browse recent",
+        "browse pinned",
       ]);
     }
   );

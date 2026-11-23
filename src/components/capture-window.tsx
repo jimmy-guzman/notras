@@ -273,7 +273,7 @@ export function CaptureWindow() {
   return (
     <div className="bg-shell text-foreground flex h-svh flex-col">
       <Titlebar />
-      <div className="bg-background relative mx-1 flex min-h-0 flex-1 flex-col overflow-clip rounded-lg">
+      <div className="bg-background relative flex min-h-0 flex-1 flex-col overflow-clip">
         <Editor
           focusOnMount
           initialContent=""

@@ -3,7 +3,7 @@
 :root,
 .print-sheet .code-block-wrapper {
   --background: #191819;
-  --shell: #282729;
+  --shell: #1e1d1f;
   --foreground: #e6dfd6;
   --card: #151416;
   --card-foreground: #e6dfd6;
@@ -21,9 +21,8 @@
   --success: #9abb9f;
   --warning: #d6bc89;
   --info: #83bac7;
-  --border: #282729;
+  --border: #2a292c;
   --input: #7b747d;
-  --band-divider: color-mix(in srgb, white 29%, var(--shell));
   --ink-on-dark: var(--foreground);
   --ink-on-light: var(--background);
   --ring: #e99ac2;
@@ -48,7 +47,7 @@
 @media (prefers-color-scheme: light), print {
   :root {
     --background: #faf7f2;
-    --shell: #dedbd9;
+    --shell: #f2eee9;
     --foreground: #29272c;
     --card: #fffdfa;
     --card-foreground: #29272c;
@@ -68,7 +67,6 @@
     --info: #196f85;
     --border: #dedbd9;
     --input: #aaa4ad;
-    --band-divider: color-mix(in srgb, black 38%, var(--shell));
     --ink-on-dark: var(--background);
     --ink-on-light: var(--foreground);
     --ring: #ae286f;

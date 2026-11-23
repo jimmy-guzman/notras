@@ -4,7 +4,7 @@ notras gives the note the largest share of the window. Interface additions shoul
 
 ## Layout and interaction
 
-The editor is the primary surface. The optional browser occupies a docked column on the right, and the optional note panel docks on the left with the open note's outline, links, and tags. The palette holds note actions such as rename, move, pin, and tags. Prefer an existing action surface before adding another bar or permanent control.
+The editor is the primary surface. The optional browser occupies a docked column on the left, and the optional note panel docks on the right with the open note's outline, links, and tags. The browser shows one mode at a time: folders, tags, recent or pinned. Icons in its band switch the mode. It has no search field, since search lives in the palette. The browser sits on the shell fill, and a 1px line divides the note panel from the note. Neither panel is a card. The palette holds note actions such as rename, move, pin, and tags. Prefer an existing action surface before adding another bar or permanent control.
 
 Actions need keyboard access through a shortcut or the palette. Pointer controls need accessible names, visible focus, and an interaction state that remains understandable without hover. Preserve selection, caret position, and undo history when switching views or applying an action to the open document.
 
@@ -18,11 +18,11 @@ Use the system sans stack for interface text and prose, and the system monospace
 
 A theme in `src/themes/` owns the palette: every color token, in a dark and a light scheme. `src/styles.css` owns the other interface tokens and the `.typeset-note` preset. Tune the note surface there. `src/typeset.css` is vendored and remains byte-for-byte upstream. The preset owns reading rhythm; components should not recreate it with isolated margins.
 
-Color carries a role. The primary color identifies actions and the current item in a set, such as the outline heading being read or a lit toggle in the note panel. The selection color identifies text selection, and the accent identifies active command rows. Use semantic tokens and derive tints from them so every theme and scheme stays consistent. Contrast tests cover declared pairs; inspect rendered interaction states too.
+Color carries a role. The primary color identifies actions and the current item in a set, such as the outline heading being read or a lit toggle in the note panel. A browser row marks the note that shows with a neutral fill, one step from the shell. The selection color identifies text selection, and the accent identifies active command rows. Use semantic tokens and derive tints from them so every theme and scheme stays consistent. Contrast tests cover declared pairs; inspect rendered interaction states too.
 
 Inki is the default theme. Its dark scheme pairs warm near-black backgrounds with ivory text, and its light scheme uses ivory paper and dark ink. Its primary is pink, its selection blue, and its accent violet. Catppuccin takes Mocha for dark and Latte for light. Its primary is mauve, its accent a surface gray, and its selection a tint of Overlay 2. A Latte ink that misses a contrast floor is darkened, keeping its hue. Paper prints in the active theme's light scheme.
 
-Use the existing radius ladder and spacing conventions. Nested radii account for the parent's padding. A new surface should have a clear relationship to the surrounding editor, shell, or floating controls. Avoid adding borders, shadows, and fills that express the same boundary more than once.
+Use the existing radius ladder and spacing conventions. Nested radii account for the parent's padding. A new surface should have a clear relationship to the surrounding editor, shell, or floating controls. Avoid adding borders, shadows, and fills that express the same boundary more than once. Menus, dialogs, the palette, toasts and the find bar float. A floating surface has the popover fill, a 1px border, `rounded-lg` and `shadow-popover`. A toast tints the fill by its type. The diagram viewer keeps the card fill its drawing's inks are derived for, while the image viewer shows the image with no surface around it. A dialog's backdrop dims the window below the title bar without blurring it.
 
 The icon master and regeneration instructions live in `CONTRIBUTING.md`. Reuse the app's mark component instead of drawing a second interpretation of its geometry.
 

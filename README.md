@@ -27,10 +27,10 @@
 - **Links you can query**: `[[wikilinks]]` with autocomplete and aliases, the notes that link to or mention this one and the ones it links to in the note panel, and search filters for tags, folders, links and mentions.
 - **WYSIWYG markdown**: `⌘E` for the source, a `/` menu, blocks you drag or move with `⌥↑` and `⌥↓`, and autosave.
 
-The note browser, with search, the collection picker and every note in the library.
+The note browser, with a mode each for folders, tags, recent notes and pinned notes.
 
 <p align="center">
-  <img src="assets/browser.png" alt="The note browser beside a note, with search, the collection picker and every note in the library" width="960">
+  <img src="assets/browser.png" alt="The note browser beside a note, showing the folder tree" width="960">
 </p>
 
 The review, after an agent changed the line you were editing: each overlapping place, with your text beside the version on disk.
@@ -102,6 +102,7 @@ xattr -dr com.apple.quarantine /Applications/notras.app
 | Shortcut | Action |
 | --- | --- |
 | `⌘\` | toggle the note browser |
+| `⌘⌥1` to `⌘⌥4` | browse folders, tags, recent or pinned |
 | `⌘⇧\` | toggle the note panel |
 | `⌘P` | find a note |
 | `⌘⇧P` | run an action |

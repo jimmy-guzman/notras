@@ -97,15 +97,14 @@ const STEPS = new Map<string, TabStep>([
 
 const ACTIVATION_DISTANCE_PX = 4;
 
-/** A tab's `min-w-24` and the strip's `gap-1`, which decide how many fit whole. */
+/** A tab's `min-w-24`, which decides how many fit whole. */
 const TAB_MIN_PX = 96;
-const TAB_GAP_PX = 4;
 
 /** A tab's `max-w-56`. */
 const TAB_MAX_PX = 224;
 
-/** The new note button's `icon-xs` box after the last tab. */
-const NEW_NOTE_PX = 24;
+/** The new note button's `icon-xs` box after the last tab, the `ps-1` before it and the list's own line. */
+const NEW_NOTE_PX = 29;
 
 const SHOW_TABS = "Mod+Shift+A";
 
@@ -277,10 +276,9 @@ function TabItem({ active, notesDir, sole, tab }: TabItemProps) {
           button a sibling of the tab rather than a child of it. */}
       <span
         className={cn(
-          "group tab-motion tab-shape hover:text-foreground flex h-7 max-w-56 min-w-24 flex-1 basis-0 items-center rounded-t-sm has-[:focus-visible]:outline-2 has-[:focus-visible]:-outline-offset-2",
-          active
-            ? "bg-background text-foreground"
-            : "hover:bg-muted dark:hover:bg-muted/50",
+          // The active tab's fill covers the bar's bottom line, joining it to the note.
+          "group tab-motion hover:text-foreground relative flex max-w-56 min-w-24 flex-1 basis-0 items-center border-e has-[:focus-visible]:outline-2 has-[:focus-visible]:-outline-offset-2",
+          active ? "bg-background text-foreground" : "hover:bg-foreground/4",
           isDragging && "shadow-drag z-10 cursor-grabbing"
         )}
         data-active={active || undefined}
@@ -292,7 +290,6 @@ function TabItem({ active, notesDir, sole, tab }: TabItemProps) {
           "--tab-x": `${transform?.x ?? 0}px`,
         }}
       >
-        <span aria-hidden className="tab-divider" />
         <ContextMenuTrigger
           className="flex min-w-0 flex-1 items-center self-stretch"
           data-tauri-drag-region={sole ? undefined : "false"}
@@ -303,9 +300,8 @@ function TabItem({ active, notesDir, sole, tab }: TabItemProps) {
             aria-describedby={viewId}
             aria-selected={active}
             // The whole box, with the close button floating over its end, so
-            // every press outside that button is the tab's. The bottom padding
-            // centers the label on the band's row above the feet.
-            className="flex min-w-0 flex-1 items-center self-stretch ps-1.5 pe-7 pb-1 text-start focus-visible:outline-none"
+            // every press outside that button is the tab's.
+            className="flex min-w-0 flex-1 items-center self-stretch ps-3 pe-7 text-start focus-visible:outline-none"
             // `deep`, since a bare mark only counts a press on the button itself
             // and the label and glyph sit inside it.
             data-tauri-drag-region={sole ? "deep" : undefined}
@@ -328,7 +324,7 @@ function TabItem({ active, notesDir, sole, tab }: TabItemProps) {
           <button
             aria-label={`close ${label}`}
             className={cn(
-              "hover:bg-muted hover:text-foreground absolute end-1 top-0.5 inline-flex size-5 items-center justify-center rounded-sm opacity-0 transition duration-150 ease-out group-hover:opacity-100 focus-visible:opacity-100",
+              "hover:bg-foreground/8 hover:text-foreground absolute inset-y-0 end-1 my-auto inline-flex size-5 items-center justify-center rounded-sm opacity-0 transition duration-150 ease-out group-hover:opacity-100 focus-visible:opacity-100",
               active && "text-muted-foreground opacity-100"
             )}
             data-tab-close
@@ -504,14 +500,7 @@ function TabList({ activeId, tabs }: TabListProps) {
     // Synchronous, or a frame of cut tabs paints first.
     const observer = new ResizeObserver(() => {
       flushSync(() => {
-        // `clientWidth` holds two gaps of padding for the feet, and new note
-        // takes its width and the gap before it.
-        setFit(
-          Math.floor(
-            (list.clientWidth - 2 * TAB_GAP_PX - NEW_NOTE_PX) /
-              (TAB_MIN_PX + TAB_GAP_PX)
-          )
-        );
+        setFit(Math.floor((list.clientWidth - NEW_NOTE_PX) / TAB_MIN_PX));
       });
     });
 
@@ -581,12 +570,12 @@ function TabList({ activeId, tabs }: TabListProps) {
           strategy={horizontalListSortingStrategy}
         >
           <div
-            // Room inside the clip for the feet and the 4px the tabs run below the row.
-            className="-mx-1 -mb-1 flex h-7 min-w-0 flex-1 items-center gap-1 overflow-clip px-1"
+            // Out of the bar's padding, so a tab is as tall as the bar.
+            className="-my-1 flex h-8 min-w-0 flex-1 items-stretch overflow-clip"
             ref={observeWidth}
           >
             <div
-              className="flex h-7 max-w-(--tabs-max) min-w-0 flex-1 items-center gap-1"
+              className="flex max-w-(--tabs-max) min-w-0 flex-1 items-stretch border-s"
               onKeyDown={handleKeyDown}
               role="tablist"
               // Fills the room as the tabs do, but no wider than they can grow,
@@ -594,7 +583,7 @@ function TabList({ activeId, tabs }: TabListProps) {
               // instead sizes the list by their titles in WebKit, which cuts a
               // long title with room to spare.
               style={{
-                "--tabs-max": `${run.tabs.length * (TAB_MAX_PX + TAB_GAP_PX) - TAB_GAP_PX}px`,
+                "--tabs-max": `${run.tabs.length * TAB_MAX_PX + 1}px`,
               }}
               tabIndex={-1}
             >
@@ -608,10 +597,7 @@ function TabList({ activeId, tabs }: TabListProps) {
                 />
               ))}
             </div>
-            {/* Top-aligned with the tab labels, which sit above the tabs' 4px
-                feet, and as tall as a tab so its divider centers with theirs. */}
-            <span className="relative flex h-7 shrink-0 items-start">
-              <span aria-hidden className="tab-divider" />
+            <span className="flex shrink-0 items-center ps-1">
               <BarButton Icon={PlusIcon} label="new note" onClick={openDraft} />
             </span>
           </div>

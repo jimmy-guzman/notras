@@ -73,20 +73,19 @@ async function press(
   );
 }
 
-/** Clicks the browser row whose title leads its text, since a snippet can name another note; ⌘ opens it in a new tab. */
-async function openRow(browser: Browser, title: string, inNewTab: boolean) {
+/** Clicks the browser row with this text: a folder, which folds open, or a note; ⌘ opens a note in a new tab. */
+async function clickRow(browser: Browser, title: string, inNewTab: boolean) {
   await focusWindow(browser);
   await browser
-    .$('[aria-label^="notes in"] li:first-child button')
+    // An open folder holds a first row of its own, so the match is not strict.
+    .$("[data-note-browser] li:first-child button", { strict: false })
     .waitForDisplayed({ timeout: 30_000 });
 
   await browser.execute(
     (text, meta) => {
-      const list = document.querySelector('[aria-label^="notes in"]');
-
-      const button = [...(list?.querySelectorAll("button") ?? [])].find(
-        (candidate) => candidate.textContent?.startsWith(text)
-      );
+      const button = [
+        ...document.querySelectorAll("[data-note-browser] li > button"),
+      ].find((candidate) => candidate.textContent?.startsWith(text));
 
       if (button === undefined) {
         throw new Error(`No row titled ${text} in the browser.`);
@@ -205,9 +204,10 @@ describe("README screenshots", () => {
       const window = await windowNumber(pid, "notras");
 
       // A first launch opens with the browser showing.
-      await openRow(browser, "Pour-over", false);
-      await openRow(browser, "Saturday ride", true);
-      await openRow(browser, "Watch list", true);
+      await clickRow(browser, "coffee", false);
+      await clickRow(browser, "Pour-over", false);
+      await clickRow(browser, "Saturday ride", true);
+      await clickRow(browser, "Watch list", true);
       await press(browser, "1", "Digit1", { meta: true });
       await press(browser, "\\", "Backslash", { meta: true });
       await browser
@@ -226,8 +226,14 @@ describe("README screenshots", () => {
 
       await press(browser, "\\", "Backslash", { meta: true });
       await browser
-        .$('[aria-label^="notes in"] li:first-child button')
+        .$('[data-note-browser] [aria-current="page"]')
         .waitForDisplayed({ timeout: 10_000 });
+      // The browser focuses the showing note's row as it opens, and the focus ring would land in the frame.
+      await browser.execute(() => {
+        if (document.activeElement instanceof HTMLElement) {
+          document.activeElement.blur();
+        }
+      });
       await capture(browser, window, "browser");
       await press(browser, "\\", "Backslash", { meta: true });
 
@@ -291,14 +297,14 @@ describe("README screenshots", () => {
       });
 
       const seed = await readFile(
-        path.resolve("smoke/library/pour-over.md"),
+        path.resolve("smoke/library/coffee/pour-over.md"),
         "utf-8"
       );
 
       await editor.addValue(" Grind at 22 clicks.");
       // Lands inside the 800 ms autosave window, so the edit is still unsaved when the file changes under it.
       await writeFile(
-        path.join(library, "pour-over.md"),
+        path.join(library, "coffee/pour-over.md"),
         seed.replace("A 15g dose", "A 16g dose")
       );
       await browser.$("button=review").waitForDisplayed({ timeout: 10_000 });
