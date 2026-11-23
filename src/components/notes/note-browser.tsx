@@ -48,7 +48,24 @@ import {
 
 import { NOTE_BROWSER_BUTTONS } from "./note-browser-buttons";
 
+/** Left from a row inside a branch, or from a folded branch, goes to the branch that holds it, as in Finder. */
+function focusParentBranch(event: KeyboardEvent<HTMLButtonElement>) {
+  const branch = event.currentTarget.closest("ul")?.closest("li");
+  const parent = branch?.querySelector<HTMLButtonElement>(":scope > button");
+
+  if (parent !== undefined && parent !== null) {
+    event.preventDefault();
+    parent.focus();
+  }
+}
+
 function moveFocus(event: KeyboardEvent<HTMLButtonElement>) {
+  if (event.key === "ArrowLeft") {
+    focusParentBranch(event);
+
+    return;
+  }
+
   if (!["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) {
     return;
   }

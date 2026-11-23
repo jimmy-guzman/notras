@@ -724,6 +724,39 @@ describe("note browser", () => {
     expect(localStorage.getItem("note-browser-open")).toBe("false");
   });
 
+  it("should move focus from a row in a folder to the folder with left", async () => {
+    const user = mount(() => [
+      {
+        createdAt: 0,
+        folder: "work",
+        path: "work/one.md",
+        pinned: false,
+        snippet: null,
+        tags: [],
+        title: "One",
+        updatedAt: 1,
+      },
+    ]);
+
+    await user.click(
+      await screen.findByRole("button", { name: "browse notes" })
+    );
+
+    const browser = within(
+      await screen.findByRole("complementary", { name: "browse notes" })
+    );
+
+    const work = await browser.findByRole("button", { name: /^work 1$/u });
+
+    await waitFor(() => {
+      expect(work).toHaveFocus();
+    });
+    await user.keyboard("{ArrowRight}{ArrowDown}{ArrowLeft}");
+
+    expect(work).toHaveFocus();
+    expect(work).toHaveAttribute("aria-expanded", "true");
+  });
+
   it("should keep the listed notes and toast the reason when a refresh fails", async () => {
     let failing = false;
 

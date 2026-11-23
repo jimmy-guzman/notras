@@ -287,13 +287,7 @@ function BrowserPanels({
         <div className="flex size-full min-h-0 flex-col">
           {/* `ps-titlebar` clears the traffic lights, which puts the browser's button where it sits while the browser is closed. */}
           <Titlebar>{open ? browserBand : null}</Titlebar>
-          <div
-            className={cn(
-              "flex min-h-0 flex-1 overflow-clip",
-              open &&
-                "animate-in fade-in-0 slide-in-from-left-8 duration-200 ease-out motion-reduce:animate-none"
-            )}
-          >
+          <div className="flex min-h-0 flex-1 overflow-clip">
             <NoteBrowser />
           </div>
         </div>
@@ -334,11 +328,7 @@ function BrowserPanels({
             {notePanelOpen ? notePanelBand : null}
           </div>
           <div
-            className={cn(
-              "flex min-h-0 flex-1 overflow-clip",
-              notePanelOpen &&
-                "animate-in fade-in-0 slide-in-from-right-8 duration-200 ease-out motion-reduce:animate-none"
-            )}
+            className="flex min-h-0 flex-1 overflow-clip"
             hidden={!notePanelOpen}
           >
             {notePanel}
@@ -550,9 +540,7 @@ export function Workspace({ onOpenSearch }: { onOpenSearch: () => void }) {
           browserBand={
             <>
               {browseButton}
-              <div className="animate-in fade-in-0 duration-200 ease-out motion-reduce:animate-none">
-                <NoteBrowserModes />
-              </div>
+              <NoteBrowserModes />
               <div className="ms-auto">
                 <BarButton
                   Icon={SearchIcon}
@@ -565,11 +553,7 @@ export function Workspace({ onOpenSearch }: { onOpenSearch: () => void }) {
           notePanel={<NotePanel tab={activeTab} />}
           notePanelBand={
             <>
-              {/* Arrives with the panel below it, on the panel's timing. The
-                  panel button is not faded: it stays where it was clicked. */}
-              <div className="animate-in fade-in-0 duration-200 ease-out motion-reduce:animate-none">
-                <NotePanelToggles tab={activeTab} />
-              </div>
+              <NotePanelToggles tab={activeTab} />
               <div className="ms-auto">{panelButton}</div>
             </>
           }
