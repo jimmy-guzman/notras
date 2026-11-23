@@ -28,7 +28,7 @@ The icon master and regeneration instructions live in `CONTRIBUTING.md`. Reuse t
 
 ## Copy and state
 
-Controls and titles use lowercase. Descriptions, help, and error reasons use sentence case. Small section labels become uppercase through CSS. Name the action a control performs.
+Controls and titles use lowercase. Descriptions, help, and error reasons use sentence case. Small section labels become uppercase through CSS. Name the action a control performs. A control that opens more input ends with `…`, and so does a loading state, never three periods.
 
 Errors have two parts: the UI names what failed, and the typed failure supplies the reason as a sentence without an error number. Preserve the reason rather than replacing it with a generic message. A failed load needs a visible explanation and a retry where supported. Empty results, loading, and failure are distinct states.
 

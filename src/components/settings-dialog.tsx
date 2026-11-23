@@ -266,7 +266,7 @@ export function SettingsDialog({
                 size="sm"
                 variant="outline"
               >
-                change...
+                change…
               </Button>
             </div>
           </div>

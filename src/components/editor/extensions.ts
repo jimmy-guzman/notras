@@ -1754,7 +1754,7 @@ export function createEditorExtensions(
       resolveSrc: options.resolveImageSrc ?? passImageSrc,
     }),
     Placeholder.configure({
-      placeholder: options.placeholderText ?? "write another note...",
+      placeholder: options.placeholderText ?? "write another note…",
     }),
     // Lists, tables and code blocks take Tab first. Anywhere else the browser
     // would move focus out of the note, so the key is kept.

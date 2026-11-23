@@ -124,7 +124,7 @@ export function FindBar({ controller }: FindBarProps) {
         <InputGroupInput
           aria-label="find text"
           onChange={change}
-          placeholder="find in note..."
+          placeholder="find in note…"
           ref={attach}
           value={state.query}
         />

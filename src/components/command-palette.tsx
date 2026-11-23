@@ -447,7 +447,7 @@ export function CommandPalette({
         }
       });
     },
-    text: "export pdf...",
+    text: "export pdf…",
     value: "export-pdf",
   };
 
@@ -511,7 +511,7 @@ export function CommandPalette({
         setQuery("");
         setView("tags");
       },
-      text: "edit tags...",
+      text: "edit tags…",
       value: "edit-tags",
     },
     {
@@ -522,7 +522,7 @@ export function CommandPalette({
         setQuery("");
         setView("links");
       },
-      text: "show links to this note...",
+      text: "show links to this note…",
       value: "show-links",
     },
     {
@@ -533,7 +533,7 @@ export function CommandPalette({
         setQuery(currentNote?.title ?? "");
         setView("rename");
       },
-      text: "rename note...",
+      text: "rename note…",
       value: "rename-note",
     },
     {
@@ -544,7 +544,7 @@ export function CommandPalette({
         setQuery("");
         setView("move");
       },
-      text: "move to folder...",
+      text: "move to folder…",
       value: "move-note",
     },
     {
@@ -565,7 +565,7 @@ export function CommandPalette({
         setQuery("");
         setView("delete");
       },
-      text: "delete note...",
+      text: "delete note…",
       value: "delete-note",
     },
     {
@@ -798,7 +798,7 @@ export function CommandPalette({
           offerUpdate(update);
         });
       },
-      text: "check for updates...",
+      text: "check for updates…",
       value: "check-for-updates",
     },
   ];
@@ -912,14 +912,14 @@ export function CommandPalette({
             onValueChange={changeInput}
             placeholder={
               {
-                actions: "run an action...",
+                actions: "run an action…",
                 delete: "confirm deletion",
-                filters: "search filters...",
-                find: "find a note...",
-                links: "filter links...",
-                move: "move to folder... (type a new name to create it)",
-                rename: "new title...",
-                tags: "find or create a tag...",
+                filters: "search filters…",
+                find: "find a note…",
+                links: "filter links…",
+                move: "move to folder… (type a new name to create it)",
+                rename: "new title…",
+                tags: "find or create a tag…",
               }[view]
             }
             readOnly={view === "delete"}

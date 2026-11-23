@@ -110,7 +110,7 @@ describe("palette search states", () => {
       await vi.advanceTimersByTimeAsync(0);
     });
 
-    expect(screen.getByText("loading suggestions...")).toBeInTheDocument();
+    expect(screen.getByText("loading suggestions…")).toBeInTheDocument();
     expect(screen.queryByRole("option", { name: /work/u })).toBeNull();
     await act(async () => {
       notes.resolve([

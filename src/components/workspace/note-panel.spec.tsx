@@ -413,7 +413,7 @@ describe("note panel links", () => {
     });
     mountPanel();
 
-    expect(screen.getByText("loading links...")).toBeInTheDocument();
+    expect(screen.getByText("loading links…")).toBeInTheDocument();
     expect(screen.queryByText("no links or mentions")).not.toBeInTheDocument();
     expect(screen.queryByText("to this note")).not.toBeInTheDocument();
     expect(screen.queryByText("from this note")).not.toBeInTheDocument();

@@ -111,9 +111,7 @@ export function LinkEditor({
           onChange={(event) => {
             setText(event.target.value);
           }}
-          placeholder={
-            state.kind === "wikilink" ? "note title..." : "link text..."
-          }
+          placeholder={state.kind === "wikilink" ? "note title…" : "link text…"}
           ref={firstFieldRef}
           value={text}
         />
@@ -124,7 +122,7 @@ export function LinkEditor({
             onChange={(event) => {
               setUrl(event.target.value);
             }}
-            placeholder="enter url..."
+            placeholder="enter url…"
             type="url"
             value={url}
           />

@@ -155,7 +155,7 @@ describe("palette note views", () => {
       client
     );
 
-    expect(host.textContent).toContain("loading folders...");
+    expect(host.textContent).toContain("loading folders…");
     expect(host.textContent).not.toContain("index unavailable");
   });
 

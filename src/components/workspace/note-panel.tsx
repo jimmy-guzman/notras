@@ -195,7 +195,7 @@ function Links({ path }: { path: string }) {
         // Held back as the code and csv tabs hold theirs, so a read that
         // lands quickly never flashes the line.
         <output className="text-muted-foreground animate-in fade-in fill-mode-backwards block px-2 text-sm delay-300">
-          loading links...
+          loading links…
         </output>
       ) : null}
       {/* Rows already loaded stay through a failed refresh, which the query
@@ -293,7 +293,7 @@ function Tags({ id, path }: { id: string; path: string }) {
             void toggle(typed);
           }
         }}
-        placeholder="add a tag..."
+        placeholder="add a tag…"
         value={draft}
       />
       {vocabulary.isLoadingError ? (
@@ -313,7 +313,7 @@ function Tags({ id, path }: { id: string; path: string }) {
       ) : null}
       {typed !== "" && vocabulary.isPending ? (
         <output className="text-muted-foreground block text-sm">
-          loading tag suggestions...
+          loading tag suggestions…
         </output>
       ) : null}
       {suggestions.length === 0 ? null : (

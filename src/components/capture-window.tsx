@@ -282,7 +282,7 @@ export function CaptureWindow() {
             setMood(content.trim() === "" ? "empty" : "written");
           }}
           onReady={attachEditor}
-          placeholderText="jot it down..."
+          placeholderText="jot it down…"
         />
         <FindBar controller={find} />
       </div>

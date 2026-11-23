@@ -440,7 +440,7 @@ describe("command palette actions", () => {
     );
     mount("actions", []);
     expect(
-      screen.getByRole("option", { name: "move to folder..." })
+      screen.getByRole("option", { name: "move to folder…" })
     ).toBeInTheDocument();
     expect(
       screen.queryByRole("option", { name: "remove from folder" })
@@ -468,7 +468,7 @@ describe("command palette actions", () => {
     });
     const palette = mount("actions", []);
     await palette.user.type(palette.input, "export");
-    expect(document.body.textContent).toContain("export pdf...");
+    expect(document.body.textContent).toContain("export pdf…");
     await palette.user.keyboard("{Enter}");
     expect(exportPdf).toHaveBeenCalledOnce();
     expect(palette.closed).toStrictEqual([false]);
@@ -686,7 +686,7 @@ describe("recent commands", () => {
         "settings",
         "catppuccin theme",
         "reindex library",
-        "check for updates...",
+        "check for updates…",
       ]);
     }
   );
@@ -1026,11 +1026,11 @@ describe("recent commands", () => {
       "settings",
       "settings",
       "settings",
-      "rename note...",
-      "move to folder...",
-      "delete note...",
-      "edit tags...",
-      "show links to this note...",
+      "rename note…",
+      "move to folder…",
+      "delete note…",
+      "edit tags…",
+      "show links to this note…",
     ]) {
       const palette = mount("actions", []);
       // oxlint-disable-next-line no-await-in-loop -- choices must finish in order to establish recency
@@ -1041,11 +1041,11 @@ describe("recent commands", () => {
     const palette = mount("actions", []);
 
     const recent = [
-      "show links to this note...",
-      "edit tags...",
-      "delete note...",
-      "move to folder...",
-      "rename note...",
+      "show links to this note…",
+      "edit tags…",
+      "delete note…",
+      "move to folder…",
+      "rename note…",
     ];
 
     expect(
@@ -1068,10 +1068,10 @@ describe("recent commands", () => {
         .map((row) => row.textContent)
     ).toStrictEqual([
       "settings",
-      "show links to this note...",
-      "edit tags...",
-      "delete note...",
-      "move to folder...",
+      "show links to this note…",
+      "edit tags…",
+      "delete note…",
+      "move to folder…",
     ]);
     expect(screen.getAllByRole("option")).toHaveLength(usual.length);
 
@@ -1084,7 +1084,7 @@ describe("recent commands", () => {
         .map((row) => row.textContent)
     ).toStrictEqual(["settings"]);
     expect(
-      screen.queryByRole("option", { name: "rename note..." })
+      screen.queryByRole("option", { name: "rename note…" })
     ).not.toBeInTheDocument();
   });
 
@@ -1182,18 +1182,18 @@ describe("recent commands", () => {
     );
     const palette = mount("actions", []);
     await palette.user.click(
-      screen.getByRole("option", { name: "delete note..." })
+      screen.getByRole("option", { name: "delete note…" })
     );
     await palette.user.keyboard("{Escape}");
 
     expect(
       within(screen.getByRole("group", { name: "recent" })).getByRole(
         "option",
-        { name: "delete note..." }
+        { name: "delete note…" }
       )
     ).toBeInTheDocument();
     await palette.user.click(
-      screen.getByRole("option", { name: "delete note..." })
+      screen.getByRole("option", { name: "delete note…" })
     );
     await waitFor(() => {
       expect(screen.getByRole("option", { selected: true })).toHaveTextContent(
@@ -1988,7 +1988,7 @@ describe("recent note results", () => {
     rememberNote("/notes", "gone.md");
     const palette = mount("actions", []);
     await palette.user.click(
-      screen.getByRole("option", { name: "delete note..." })
+      screen.getByRole("option", { name: "delete note…" })
     );
     await palette.user.click(
       screen.getByRole("option", { name: "delete forever" })
@@ -2049,7 +2049,7 @@ describe("links to this note", () => {
     );
 
     await palette.user.click(
-      screen.getByRole("option", { name: "show links to this note..." })
+      screen.getByRole("option", { name: "show links to this note…" })
     );
 
     expect(screen.getByRole("option", { name: /Bee/u })).toBeInTheDocument();
@@ -2081,7 +2081,7 @@ describe("links to this note", () => {
     );
 
     await palette.user.click(
-      screen.getByRole("option", { name: "show links to this note..." })
+      screen.getByRole("option", { name: "show links to this note…" })
     );
 
     expect(screen.getByText("no notes link here")).toBeInTheDocument();
@@ -2160,7 +2160,7 @@ describe("links to this note", () => {
     const palette = mount("actions", []);
 
     await palette.user.click(
-      screen.getByRole("option", { name: "show links to this note..." })
+      screen.getByRole("option", { name: "show links to this note…" })
     );
 
     expect(await screen.findByText("could not load links")).toBeInTheDocument();
@@ -2265,7 +2265,7 @@ describe("links to this note", () => {
     );
 
     await palette.user.click(
-      screen.getByRole("option", { name: "show links to this note..." })
+      screen.getByRole("option", { name: "show links to this note…" })
     );
     await palette.user.click(screen.getByRole("button", { name: "retry" }));
 
@@ -2335,7 +2335,7 @@ describe("links to this note", () => {
     );
 
     await palette.user.click(
-      screen.getByRole("option", { name: "show links to this note..." })
+      screen.getByRole("option", { name: "show links to this note…" })
     );
     await act(async () => {
       await palette.client.invalidateQueries({
@@ -2387,7 +2387,7 @@ describe("edit tags", () => {
     const palette = mount("actions", []);
 
     await palette.user.click(
-      screen.getByRole("option", { name: "edit tags..." })
+      screen.getByRole("option", { name: "edit tags…" })
     );
     await act(async () => {
       await palette.client.invalidateQueries({

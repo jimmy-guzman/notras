@@ -512,7 +512,7 @@ export function PaletteSearch({
     <div aria-busy={pending || choicesPending}>
       {choicesPending ? (
         <output className="text-muted-foreground block p-4 text-sm">
-          loading suggestions...
+          loading suggestions…
         </output>
       ) : null}
       {choicesFailed ? (
@@ -532,7 +532,7 @@ export function PaletteSearch({
       ) : null}
       {indexing ? (
         <output className="text-muted-foreground block p-4 text-sm">
-          indexing notes...
+          indexing notes…
         </output>
       ) : null}
       {choosingFilter ? null : (

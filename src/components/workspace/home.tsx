@@ -46,7 +46,7 @@ function RecentNotes({ notesDir }: { notesDir: string }) {
   if (library.isPending) {
     return status.data?.state === "scanning" ? (
       <output className="text-muted-foreground block px-2 text-xs">
-        indexing notes...
+        indexing notes…
       </output>
     ) : null;
   }
