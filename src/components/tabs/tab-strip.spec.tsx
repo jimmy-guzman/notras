@@ -493,12 +493,11 @@ describe("tab strip", () => {
       ).toBeVisible();
     });
 
-    // 231px is one short of the 232px two tabs need: 8px of foot padding, two
-    // 96px tabs and the gap between them, then the gap before the 24px new
-    // note button.
+    // 220px is one short of the 221px two tabs need: two 96px tabs, the
+    // list's 1px line, then the 4px before the 24px new note button.
     it.each([
-      { shown: ["c", "d"], width: 232 },
-      { shown: ["d"], width: 231 },
+      { shown: ["c", "d"], width: 221 },
+      { shown: ["d"], width: 220 },
     ])(
       "should show only the tabs that fit a $width px strip whole, holding the showing one",
       async ({ shown, width }) => {

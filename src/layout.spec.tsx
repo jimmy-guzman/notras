@@ -925,7 +925,7 @@ describe("layout", () => {
     expect(before.toString()).toBe("An ");
 
     await user.keyboard("{Control>}\\{/Control}");
-    await screen.findByRole("textbox", { name: "search all notes" });
+    await screen.findByRole("complementary", { name: "browse notes" });
     await user.keyboard("{Control>}\\{/Control}");
     await waitFor(() => {
       expect(document.querySelector(".ProseMirror")).toHaveFocus();
@@ -955,16 +955,19 @@ describe("layout", () => {
   it.each([
     ["nothing", async () => {}],
     [
-      "the note browser search",
+      "a note browser row",
       async (user: UserEvent) => {
         await user.keyboard("{Control>}\\{/Control}");
 
-        const search = await screen.findByRole("textbox", {
-          name: "search all notes",
+        const browser = await screen.findByRole("complementary", {
+          name: "browse notes",
         });
 
-        await user.click(search);
-        expect(search).toHaveFocus();
+        await waitFor(() => {
+          expect(
+            within(browser).getByRole("button", { name: "First" })
+          ).toHaveFocus();
+        });
       },
     ],
     [
@@ -1013,7 +1016,22 @@ describe("layout", () => {
             return { state: "ready" };
           }
 
-          if (command === "list_notes" || command === "list_tags") {
+          if (command === "list_notes") {
+            return [
+              {
+                createdAt: 0,
+                folder: "",
+                path: "first.md",
+                pinned: false,
+                snippet: null,
+                tags: [],
+                title: "First",
+                updatedAt: 1,
+              },
+            ];
+          }
+
+          if (command === "list_folders" || command === "list_tags") {
             return [];
           }
 

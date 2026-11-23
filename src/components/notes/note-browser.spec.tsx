@@ -6,14 +6,12 @@ import { nullish, object, parse, string } from "valibot";
 import { describe, expect, it, onTestFinished } from "vitest";
 
 import { Toaster } from "@/components/ui/toast";
-import { SNIPPET_END, SNIPPET_START } from "@/core/fts-markers";
 import { noteQueries } from "@/data/queries";
 import { Layout } from "@/layout";
 import { createQueryClient } from "@/lib/query-client";
 import { rememberNote } from "@/lib/recent-notes";
 import { closeTab, getTabState, openNote } from "@/lib/tabs/store";
-import { noteFind } from "@/lib/ui/find";
-import { closeNoteBrowser } from "@/lib/ui/note-browser";
+import { closeNoteBrowser, showNoteBrowserMode } from "@/lib/ui/note-browser";
 import type { NoteMeta_Serialize } from "@/server/adapters/bindings";
 
 type NoteMeta = Omit<NoteMeta_Serialize, "createdAt" | "updatedAt"> & {
@@ -26,6 +24,7 @@ function mount(
   folders?: () => string[]
 ) {
   localStorage.clear();
+  showNoteBrowserMode("folders");
   closeNoteBrowser();
   mockWindows("main");
   mockIPC(async (command, args) => {
@@ -141,7 +140,7 @@ describe("note browser", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("should list an empty folder without a count", async () => {
+  it("should fold a folder open to its subfolders and notes, with root notes below the folders and no count on an empty folder", async () => {
     const user = mount(
       () => [
         {
@@ -154,8 +153,28 @@ describe("note browser", () => {
           title: "One",
           updatedAt: 1,
         },
+        {
+          createdAt: 0,
+          folder: "work/deep",
+          path: "work/deep/two.md",
+          pinned: false,
+          snippet: null,
+          tags: [],
+          title: "Two",
+          updatedAt: 1,
+        },
+        {
+          createdAt: 0,
+          folder: "",
+          path: "three.md",
+          pinned: false,
+          snippet: null,
+          tags: [],
+          title: "Three",
+          updatedAt: 1,
+        },
       ],
-      () => ["inbox", "work"]
+      () => ["inbox", "work", "work/deep"]
     );
 
     await user.click(
@@ -166,36 +185,67 @@ describe("note browser", () => {
       await screen.findByRole("complementary", { name: "browse notes" })
     );
 
-    await user.click(
-      browser.getByRole("button", { name: "choose collection: all notes" })
-    );
+    const work = await browser.findByRole("button", { name: /^work 2$/u });
+
+    expect(work).toHaveAttribute("aria-expanded", "false");
+    expect(browser.getByRole("button", { name: /^inbox$/u })).toBeVisible();
+    expect(browser.getByRole("button", { name: "Three" })).toBeVisible();
+    expect(
+      browser.queryByRole("button", { name: "One" })
+    ).not.toBeInTheDocument();
+
+    await user.click(work);
+
+    expect(work).toHaveAttribute("aria-expanded", "true");
+    expect(browser.getByRole("button", { name: "One" })).toBeVisible();
+    expect(
+      browser.queryByRole("button", { name: "Two" })
+    ).not.toBeInTheDocument();
+
+    await user.click(browser.getByRole("button", { name: /^deep 1$/u }));
+
+    expect(browser.getByRole("button", { name: "Two" })).toBeVisible();
+
+    await user.click(work);
 
     expect(
-      await browser.findByRole("button", { name: /^inbox$/u })
-    ).toBeInTheDocument();
-    expect(
-      browser.getByRole("button", { name: /^work 1$/u })
-    ).toBeInTheDocument();
+      browser.queryByRole("button", { name: "One" })
+    ).not.toBeInTheDocument();
   });
 
-  it("should show all notes and say so when the chosen folder is deleted", async () => {
-    let folders = ["inbox", "work"];
-
-    const user = mount(
-      () => [
-        {
-          createdAt: 0,
-          folder: "work",
-          path: "work/one.md",
-          pinned: false,
-          snippet: null,
-          tags: [],
-          title: "One",
-          updatedAt: 1,
-        },
-      ],
-      () => folders
-    );
+  it("should sort the notes in a folder by title, with pinned notes first", async () => {
+    const user = mount(() => [
+      {
+        createdAt: 0,
+        folder: "work",
+        path: "work/pear.md",
+        pinned: false,
+        snippet: null,
+        tags: [],
+        title: "Pear",
+        updatedAt: 1,
+      },
+      {
+        createdAt: 0,
+        folder: "work",
+        path: "work/apple.md",
+        pinned: false,
+        snippet: null,
+        tags: [],
+        title: "Apple",
+        updatedAt: 1,
+      },
+      {
+        createdAt: 0,
+        folder: "work",
+        path: "work/zebra.md",
+        pinned: true,
+        snippet: null,
+        tags: [],
+        title: "Zebra",
+        updatedAt: 1,
+      },
+    ]);
 
     await user.click(
       await screen.findByRole("button", { name: "browse notes" })
@@ -205,49 +255,249 @@ describe("note browser", () => {
       await screen.findByRole("complementary", { name: "browse notes" })
     );
 
-    await user.click(
-      browser.getByRole("button", { name: "choose collection: all notes" })
-    );
-    await user.click(await browser.findByRole("button", { name: /^inbox$/u }));
-    expect(
-      browser.getByRole("button", { name: "choose collection: inbox" })
-    ).toBeInTheDocument();
+    await user.click(await browser.findByRole("button", { name: /^work 3$/u }));
 
-    folders = ["work"];
-    await act(async () => {
-      await user.client.invalidateQueries({ queryKey: noteQueries.index });
+    expect(
+      browser.getAllByRole("button").map((row) => row.textContent)
+    ).toStrictEqual(["work3", "Zebra", "Apple", "Pear"]);
+  });
+
+  it("should keep similarly named root folders separate from nested folders", async () => {
+    const user = mount(() => [
+      {
+        createdAt: 0,
+        folder: "work",
+        path: "work/one.md",
+        pinned: false,
+        snippet: null,
+        tags: [],
+        title: "One",
+        updatedAt: 1,
+      },
+      {
+        createdAt: 0,
+        folder: "archive/work",
+        path: "archive/work/two.md",
+        pinned: false,
+        snippet: null,
+        tags: [],
+        title: "Two",
+        updatedAt: 1,
+      },
+    ]);
+
+    await user.click(
+      await screen.findByRole("button", { name: "browse notes" })
+    );
+
+    const browser = within(
+      await screen.findByRole("complementary", { name: "browse notes" })
+    );
+
+    await user.click(await browser.findByRole("button", { name: /^work 1$/u }));
+
+    expect(browser.getByRole("button", { name: "One" })).toBeVisible();
+    expect(
+      browser.queryByRole("button", { name: "Two" })
+    ).not.toBeInTheDocument();
+  });
+
+  it("should open the tree on the folder of the note that shows and focus its row", async () => {
+    const user = mount(() => [
+      {
+        createdAt: 0,
+        folder: "work/deep",
+        path: "work/deep/two.md",
+        pinned: false,
+        snippet: null,
+        tags: [],
+        title: "Two",
+        updatedAt: 1,
+      },
+      {
+        createdAt: 0,
+        folder: "",
+        path: "three.md",
+        pinned: false,
+        snippet: null,
+        tags: [],
+        title: "Three",
+        updatedAt: 1,
+      },
+    ]);
+
+    act(() => {
+      openNote("work/deep/two.md");
     });
+    await screen.findByRole("heading", { name: "Opened" });
+    await user.click(screen.getByRole("button", { name: "browse notes" }));
 
-    expect(await screen.findByText("folder deleted")).toBeInTheDocument();
-    expect(
-      screen.getByText("inbox is gone, so the browser shows all notes")
-    ).toBeInTheDocument();
-    expect(
-      browser.getByRole("button", { name: "choose collection: all notes" })
-    ).toBeInTheDocument();
-    expect(browser.getByText("One")).toBeInTheDocument();
+    const browser = within(
+      await screen.findByRole("complementary", { name: "browse notes" })
+    );
+
+    const row = await browser.findByRole("button", { name: "Two" });
+
+    expect(row).toHaveAttribute("aria-current", "page");
+    expect(row).toHaveFocus();
   });
 
-  it("should retain browser focus and query while opening notes, then return focus to the editor on close", async () => {
+  it("should open the tree on the folder of a note opened while the browser was closed", async () => {
+    const user = mount(() => [
+      {
+        createdAt: 0,
+        folder: "work/deep",
+        path: "work/deep/two.md",
+        pinned: false,
+        snippet: null,
+        tags: [],
+        title: "Two",
+        updatedAt: 1,
+      },
+      {
+        createdAt: 0,
+        folder: "",
+        path: "three.md",
+        pinned: false,
+        snippet: null,
+        tags: [],
+        title: "Three",
+        updatedAt: 1,
+      },
+    ]);
+
+    await user.click(
+      await screen.findByRole("button", { name: "browse notes" })
+    );
+    await within(
+      await screen.findByRole("complementary", { name: "browse notes" })
+    ).findByRole("button", { name: "Three" });
+    act(() => {
+      closeNoteBrowser();
+    });
+    act(() => {
+      openNote("work/deep/two.md");
+    });
+    await screen.findByRole("heading", { name: "Opened" });
+    await user.click(screen.getByRole("button", { name: "browse notes" }));
+
+    const row = await within(
+      await screen.findByRole("complementary", { name: "browse notes" })
+    ).findByRole("button", { name: "Two" });
+
+    expect(row).toHaveAttribute("aria-current", "page");
+    expect(row).toHaveFocus();
+  });
+
+  it("should fold a tag apart from a folder of the same name", async () => {
+    const user = mount(() => [
+      {
+        createdAt: 0,
+        folder: "#idea",
+        path: "#idea/one.md",
+        pinned: false,
+        snippet: null,
+        tags: ["idea"],
+        title: "One",
+        updatedAt: 1,
+      },
+    ]);
+
+    await user.click(
+      await screen.findByRole("button", { name: "browse notes" })
+    );
+
+    const browser = within(
+      await screen.findByRole("complementary", { name: "browse notes" })
+    );
+
+    await browser.findByRole("button", { name: /^#idea 1$/u });
+    await user.click(screen.getByRole("button", { name: "browse tags" }));
+    await user.click(browser.getByRole("button", { name: /^idea 1$/u }));
+    await user.click(screen.getByRole("button", { name: "browse folders" }));
+
+    expect(
+      await browser.findByRole("button", { name: /^#idea 1$/u })
+    ).toHaveAttribute("aria-expanded", "false");
+  });
+
+  it("should fold a tag open to the notes that carry it and remember the mode", async () => {
     const user = mount(() => [
       {
         createdAt: 0,
         folder: "",
         path: "one.md",
         pinned: false,
-        snippet: "First preview",
-        tags: [],
+        snippet: null,
+        tags: ["draft", "idea"],
         title: "One",
-        updatedAt: 2,
+        updatedAt: 1,
       },
       {
         createdAt: 0,
         folder: "",
         path: "two.md",
         pinned: false,
-        snippet: "Second preview",
+        snippet: null,
+        tags: ["idea"],
+        title: "Two",
+        updatedAt: 1,
+      },
+    ]);
+
+    await user.click(
+      await screen.findByRole("button", { name: "browse notes" })
+    );
+
+    const browser = within(
+      await screen.findByRole("complementary", { name: "browse notes" })
+    );
+
+    await browser.findByRole("button", { name: "One" });
+    await user.click(screen.getByRole("button", { name: "browse tags" }));
+
+    const tags = within(browser.getByRole("list", { name: "tags" }));
+
+    expect(tags.getByRole("button", { name: /^draft 1$/u })).toBeVisible();
+    expect(tags.queryByRole("button", { name: "One" })).not.toBeInTheDocument();
+
+    await user.click(tags.getByRole("button", { name: /^idea 2$/u }));
+
+    expect(tags.getByRole("button", { name: "One" })).toBeVisible();
+    expect(tags.getByRole("button", { name: "Two" })).toBeVisible();
+    expect(localStorage.getItem("note-browser-mode")).toBe('"tags"');
+  });
+
+  it("should list recent notes in visit order, keep that order while a row opens, and open a modified click in another tab", async () => {
+    const user = mount(() => [
+      {
+        createdAt: 0,
+        folder: "",
+        path: "one.md",
+        pinned: false,
+        snippet: null,
+        tags: [],
+        title: "One",
+        updatedAt: 1,
+      },
+      {
+        createdAt: 0,
+        folder: "",
+        path: "two.md",
+        pinned: false,
+        snippet: null,
         tags: [],
         title: "Two",
+        updatedAt: 1,
+      },
+      {
+        createdAt: 0,
+        folder: "",
+        path: "three.md",
+        pinned: false,
+        snippet: null,
+        tags: [],
+        title: "Three",
         updatedAt: 1,
       },
     ]);
@@ -256,36 +506,233 @@ describe("note browser", () => {
       openNote("one.md");
     });
     await screen.findByRole("heading", { name: "Opened" });
+    rememberNote("/notes", "one.md");
+    rememberNote("/notes", "two.md");
     await user.click(screen.getByRole("button", { name: "browse notes" }));
+    await user.click(
+      await screen.findByRole("button", { name: "browse recent" })
+    );
 
-    const browser = await screen.findByRole("complementary", {
-      name: "browse notes",
-    });
+    const list = within(
+      await screen.findByRole("list", { name: "recent notes" })
+    );
 
-    const input = within(browser).getByRole("textbox", {
-      name: "search all notes",
-    });
+    expect(
+      list.getAllByRole("button").map((row) => row.textContent)
+    ).toStrictEqual(["Two", "One"]);
 
-    expect(input).toHaveFocus();
-    await user.type(input, "preview");
+    await user.keyboard("{Control>}");
+    await user.click(list.getByRole("button", { name: "Two" }));
+    await user.keyboard("{/Control}");
     await waitFor(() => {
-      expect(
-        within(browser).getByRole("list", { name: "notes in all notes" })
-      ).toHaveAttribute("aria-busy", "false");
+      expect(getTabState().tabs).toHaveLength(2);
     });
-    await user.keyboard("{ArrowDown}{ArrowDown}{Enter}");
+    await user.keyboard("{End}");
+    expect(list.getByRole("button", { name: "One" })).toHaveFocus();
+    await user.keyboard("{Enter}");
+    expect(
+      list.getAllByRole("button").map((row) => row.textContent)
+    ).toStrictEqual(["Two", "One"]);
+    await user.keyboard("{Home}");
+    expect(list.getByRole("button", { name: "Two" })).toHaveFocus();
+  });
 
-    const row = within(browser).getByRole("button", {
-      name: /^Two Second preview/u,
+  it("should list only the pinned notes, and say so when nothing is pinned", async () => {
+    let pinned = true;
+
+    const user = mount(() => [
+      {
+        createdAt: 0,
+        folder: "work",
+        path: "work/one.md",
+        pinned,
+        snippet: null,
+        tags: [],
+        title: "One",
+        updatedAt: 1,
+      },
+      {
+        createdAt: 0,
+        folder: "",
+        path: "two.md",
+        pinned: false,
+        snippet: null,
+        tags: [],
+        title: "Two",
+        updatedAt: 1,
+      },
+    ]);
+
+    await user.click(
+      await screen.findByRole("button", { name: "browse notes" })
+    );
+
+    const browser = within(
+      await screen.findByRole("complementary", { name: "browse notes" })
+    );
+
+    await user.click(screen.getByRole("button", { name: "browse pinned" }));
+
+    const list = within(
+      await browser.findByRole("list", { name: "pinned notes" })
+    );
+
+    expect(
+      list.getAllByRole("button").map((row) => row.textContent)
+    ).toStrictEqual(["One"]);
+
+    pinned = false;
+    await act(async () => {
+      await user.client.invalidateQueries({ queryKey: noteQueries.index });
     });
+
+    expect(await browser.findByText("nothing pinned")).toBeInTheDocument();
+  });
+
+  it("should open the browser on a mode from its shortcut", async () => {
+    const user = mount(() => [
+      {
+        createdAt: 0,
+        folder: "",
+        path: "one.md",
+        pinned: false,
+        snippet: null,
+        tags: ["idea"],
+        title: "One",
+        updatedAt: 1,
+      },
+    ]);
+
+    await screen.findByRole("button", { name: "browse notes" });
+    await user.keyboard("{Control>}{Alt>}2{/Alt}{/Control}");
+
+    expect(
+      await screen.findByRole("button", { name: /^idea 1$/u })
+    ).toHaveFocus();
+    expect(
+      screen.getByRole("button", { name: "browse tags", pressed: true })
+    ).toBeInTheDocument();
+  });
+
+  it("should open the browser on a mode from the palette", async () => {
+    const user = mount(() => [
+      {
+        createdAt: 0,
+        folder: "",
+        path: "one.md",
+        pinned: false,
+        snippet: null,
+        tags: ["idea"],
+        title: "One",
+        updatedAt: 1,
+      },
+    ]);
+
+    await screen.findByRole("button", { name: "browse notes" });
+    await user.keyboard("{Control>}{Shift>}p{/Shift}{/Control}");
+    await user.click(
+      await screen.findByRole("option", { name: /^browse tags/u })
+    );
+
+    expect(
+      await screen.findByRole("button", { name: /^idea 1$/u })
+    ).toHaveFocus();
+    expect(
+      screen.getByRole("button", { name: "browse tags", pressed: true })
+    ).toBeInTheDocument();
+  });
+
+  it("should close the palette from the search button that opened it", async () => {
+    const user = mount(() => []);
+
+    await user.click(
+      await screen.findByRole("button", { name: "browse notes" })
+    );
+    await user.click(screen.getByRole("button", { name: "find a note" }));
+    await screen.findByRole("dialog");
+    // The palette hides the rest of the window from assistive tech, but the bar
+    // above its backdrop still takes a pointer.
+    await user.click(
+      screen.getByRole("button", { hidden: true, name: "find a note" })
+    );
 
     await waitFor(() => {
-      expect(row).toHaveAttribute("aria-current", "page");
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    });
+  });
+
+  it("should keep the mode when its lit icon is clicked", async () => {
+    const user = mount(() => []);
+
+    await user.click(
+      await screen.findByRole("button", { name: "browse notes" })
+    );
+    await screen.findByText("no notes yet");
+    await user.click(
+      screen.getByRole("button", { name: "browse folders", pressed: true })
+    );
+
+    expect(
+      screen.getByRole("button", { name: "browse folders", pressed: true })
+    ).toBeInTheDocument();
+    expect(screen.getByText("no notes yet")).toBeInTheDocument();
+  });
+
+  it("should move through the rows with the arrow keys, fold with left and right, and return focus to the editor on Escape", async () => {
+    const user = mount(() => [
+      {
+        createdAt: 0,
+        folder: "work",
+        path: "work/one.md",
+        pinned: false,
+        snippet: null,
+        tags: [],
+        title: "One",
+        updatedAt: 1,
+      },
+      {
+        createdAt: 0,
+        folder: "",
+        path: "two.md",
+        pinned: false,
+        snippet: null,
+        tags: [],
+        title: "Two",
+        updatedAt: 1,
+      },
+    ]);
+
+    act(() => {
+      openNote("two.md");
     });
     await screen.findByRole("heading", { name: "Opened" });
-    expect(row).toHaveFocus();
-    expect(input).toHaveValue("preview");
-    expect(getTabState().tabs.map((tab) => tab.path)).toStrictEqual(["two.md"]);
+    await user.click(screen.getByRole("button", { name: "browse notes" }));
+
+    const browser = within(
+      await screen.findByRole("complementary", { name: "browse notes" })
+    );
+
+    const work = await browser.findByRole("button", { name: /^work 1$/u });
+
+    await waitFor(() => {
+      expect(browser.getByRole("button", { name: "Two" })).toHaveFocus();
+    });
+    await user.keyboard("{ArrowUp}");
+    expect(work).toHaveFocus();
+    await user.keyboard("{ArrowRight}{ArrowDown}");
+    expect(browser.getByRole("button", { name: "One" })).toHaveFocus();
+    await user.keyboard("{Enter}");
+    await waitFor(() => {
+      expect(browser.getByRole("button", { name: "One" })).toHaveAttribute(
+        "aria-current",
+        "page"
+      );
+    });
+    expect(browser.getByRole("button", { name: "One" })).toHaveFocus();
+    await user.keyboard("{ArrowUp}{ArrowLeft}");
+    expect(
+      browser.queryByRole("button", { name: "One" })
+    ).not.toBeInTheDocument();
     await user.keyboard("{Escape}");
     expect(
       screen.queryByRole("complementary", { name: "browse notes" })
@@ -293,144 +740,19 @@ describe("note browser", () => {
     await waitFor(() => {
       expect(document.activeElement).toHaveClass("ProseMirror");
     });
-    await user.click(screen.getByRole("button", { name: "browse notes" }));
-    expect(
-      screen.getByRole("textbox", { name: "search all notes" })
-    ).toHaveValue("preview");
-    expect(localStorage.getItem("note-browser-open")).toBe("true");
+    expect(localStorage.getItem("note-browser-open")).toBe("false");
   });
 
-  it("should highlight a body hit's one match without the find bar while focus stays on the row", async () => {
-    const user = mount((query) => [
-      {
-        createdAt: 0,
-        folder: "",
-        path: "one.md",
-        pinned: false,
-        snippet:
-          query === null
-            ? "Document body"
-            : `${SNIPPET_START}Document${SNIPPET_END} body`,
-        tags: [],
-        title: "One",
-        updatedAt: 1,
-      },
-    ]);
-
-    onTestFinished(() => {
-      noteFind.close();
-    });
-    act(() => {
-      openNote("one.md");
-    });
-    await screen.findByRole("heading", { name: "Opened" });
-    await user.click(screen.getByRole("button", { name: "browse notes" }));
-
-    const browser = within(
-      await screen.findByRole("complementary", { name: "browse notes" })
-    );
-
-    await user.type(browser.getByRole("textbox"), "doc");
-    await waitFor(() => {
-      expect(
-        browser.getByRole("list", { name: "notes in all notes" })
-      ).toHaveAttribute("aria-busy", "false");
-    });
-    await user.keyboard("{ArrowDown}{Enter}");
-    expect(
-      await screen.findByText("Document", { selector: ".note-find-match" })
-    ).toBeInTheDocument();
-    expect(
-      screen.queryByRole("textbox", { name: "find text" })
-    ).not.toBeInTheDocument();
-    expect(
-      browser.getByRole("button", { name: /^One Document body/u })
-    ).toHaveFocus();
-  });
-
-  it("should open a title-only hit without the previous result's find", async () => {
-    const user = mount((query) => [
-      {
-        createdAt: 0,
-        folder: "",
-        path: "one.md",
-        pinned: false,
-        snippet:
-          query === null
-            ? "Document body"
-            : `${SNIPPET_START}Document${SNIPPET_END} body`,
-        tags: [],
-        title: "One",
-        updatedAt: 2,
-      },
-      {
-        createdAt: 0,
-        folder: "",
-        path: "two.md",
-        pinned: false,
-        snippet: "Second preview",
-        tags: [],
-        title: query === null ? "Two" : `${SNIPPET_START}Two${SNIPPET_END}`,
-        updatedAt: 1,
-      },
-    ]);
-
-    onTestFinished(() => {
-      noteFind.close();
-    });
-    act(() => {
-      openNote("one.md");
-    });
-    await screen.findByRole("heading", { name: "Opened" });
-    await user.click(screen.getByRole("button", { name: "browse notes" }));
-
-    const browser = within(
-      await screen.findByRole("complementary", { name: "browse notes" })
-    );
-
-    await user.type(browser.getByRole("textbox"), "doc");
-    await waitFor(() => {
-      expect(
-        browser.getByRole("list", { name: "notes in all notes" })
-      ).toHaveAttribute("aria-busy", "false");
-    });
-    await user.keyboard("{ArrowDown}{Enter}");
-    expect(
-      await screen.findByText("Document", { selector: ".note-find-match" })
-    ).toBeInTheDocument();
-    await user.keyboard("{ArrowDown}{Enter}");
-    await waitFor(() => {
-      expect(getTabState().tabs.map((tab) => tab.path)).toStrictEqual([
-        "two.md",
-      ]);
-    });
-    await screen.findByRole("heading", { name: "Opened" });
-    expect(
-      screen.queryByRole("textbox", { name: "find text" })
-    ).not.toBeInTheDocument();
-    expect(document.querySelector(".note-find-match")).toBeNull();
-  });
-
-  it("should browse descendants, pinned notes and tags while preserving the query when changing collection", async () => {
+  it("should move focus from a row in a folder to the folder with left", async () => {
     const user = mount(() => [
       {
         createdAt: 0,
-        folder: "work/deep",
-        path: "work/deep/one.md",
-        pinned: true,
-        snippet: "Plan one",
-        tags: ["project"],
-        title: "One",
-        updatedAt: 2,
-      },
-      {
-        createdAt: 0,
-        folder: "",
-        path: "two.md",
+        folder: "work",
+        path: "work/one.md",
         pinned: false,
-        snippet: "Plan two",
+        snippet: null,
         tags: [],
-        title: "Two",
+        title: "One",
         updatedAt: 1,
       },
     ]);
@@ -443,383 +765,33 @@ describe("note browser", () => {
       await screen.findByRole("complementary", { name: "browse notes" })
     );
 
-    await user.type(browser.getByRole("textbox"), "Plan");
-    await user.click(
-      browser.getByRole("button", { name: "choose collection: all notes" })
-    );
-    await user.click(await browser.findByRole("button", { name: /^work 1$/u }));
-    expect(browser.getByRole("textbox", { name: "search work" })).toHaveValue(
-      "Plan"
-    );
-    expect(
-      within(browser.getByRole("list", { name: "notes in work" })).queryByText(
-        "Two"
-      )
-    ).not.toBeInTheDocument();
-    expect(await browser.findByText("One")).toBeInTheDocument();
-    await user.click(
-      browser.getByRole("button", { name: "choose collection: work" })
-    );
-    await user.click(browser.getByRole("button", { name: /^project 1$/u }));
-    expect(
-      browser.getByRole("textbox", { name: "search #project" })
-    ).toHaveValue("Plan");
-    await user.click(
-      browser.getByRole("button", { name: "choose collection: #project" })
-    );
-    await user.click(browser.getByRole("button", { name: /^pinned 1$/u }));
-    expect(
-      within(
-        browser.getByRole("list", { name: "notes in pinned" })
-      ).getAllByRole("button")
-    ).toHaveLength(1);
-    await user.click(
-      browser.getByRole("button", { name: "choose collection: pinned" })
-    );
-    await user.click(browser.getByRole("button", { name: /^all notes 2$/u }));
-    expect(browser.getByRole("textbox")).toHaveValue("Plan");
-    expect(await browser.findByText("Two")).toBeInTheDocument();
-  });
+    const work = await browser.findByRole("button", { name: /^work 1$/u });
 
-  it("should keep similarly named root folders separate from nested folders", async () => {
-    const user = mount(() => [
-      {
-        createdAt: 0,
-        folder: "plan/deep",
-        path: "plan/deep/one.md",
-        pinned: false,
-        snippet: null,
-        tags: [],
-        title: "One",
-        updatedAt: 2,
-      },
-      {
-        createdAt: 0,
-        folder: "plans",
-        path: "plans/two.md",
-        pinned: false,
-        snippet: null,
-        tags: [],
-        title: "Two",
-        updatedAt: 1,
-      },
-    ]);
-
-    await user.click(
-      await screen.findByRole("button", { name: "browse notes" })
-    );
-
-    const browser = within(
-      await screen.findByRole("complementary", { name: "browse notes" })
-    );
-
-    await user.click(
-      browser.getByRole("button", { name: "choose collection: all notes" })
-    );
-    expect(
-      await browser.findAllByRole("button", { name: "plans 1" })
-    ).toHaveLength(1);
-    expect(browser.getByRole("button", { name: "deep 1" })).toBeVisible();
-    await user.click(browser.getByLabelText("subfolders in plan"));
-    expect(
-      browser.getByRole("button", { hidden: true, name: "deep 1" })
-    ).not.toBeVisible();
-    expect(browser.getByRole("button", { name: "plans 1" })).toBeVisible();
-  });
-
-  it("should skip descendants of collapsed folders during arrow navigation and return from collections with Escape", async () => {
-    const user = mount(() => [
-      {
-        createdAt: 0,
-        folder: "work/deep/deeper",
-        path: "work/deep/deeper/one.md",
-        pinned: false,
-        snippet: null,
-        tags: [],
-        title: "One",
-        updatedAt: 2,
-      },
-      {
-        createdAt: 0,
-        folder: "z",
-        path: "z/two.md",
-        pinned: false,
-        snippet: null,
-        tags: [],
-        title: "Two",
-        updatedAt: 1,
-      },
-    ]);
-
-    await user.click(
-      await screen.findByRole("button", { name: "browse notes" })
-    );
-
-    const browser = within(
-      await screen.findByRole("complementary", { name: "browse notes" })
-    );
-
-    await user.click(
-      browser.getByRole("button", { name: "choose collection: all notes" })
-    );
-    await user.click(browser.getByLabelText("subfolders in work"));
-    await user.tab({ shift: true });
-    expect(browser.getByRole("button", { name: "work 1" })).toHaveFocus();
-    await user.keyboard("{ArrowDown}");
-    expect(browser.getByRole("button", { name: "z 1" })).toHaveFocus();
-    await user.keyboard("{Escape}");
-    expect(
-      browser.getByRole("textbox", { name: "search all notes" })
-    ).toHaveFocus();
-    expect(
-      browser.getByRole("list", { name: "notes in all notes" })
-    ).toBeVisible();
-  });
-
-  it("should preserve the visit order snapshot and open a modified click in another tab", async () => {
-    const user = mount(() => [
-      {
-        createdAt: 0,
-        folder: "",
-        path: "one.md",
-        pinned: false,
-        snippet: "First preview",
-        tags: [],
-        title: "One",
-        updatedAt: 2,
-      },
-      {
-        createdAt: 0,
-        folder: "",
-        path: "two.md",
-        pinned: false,
-        snippet: "Second preview",
-        tags: [],
-        title: "Two",
-        updatedAt: 1,
-      },
-    ]);
-
-    act(() => {
-      openNote("one.md");
-    });
-    await screen.findByRole("heading", { name: "Opened" });
-    rememberNote("/notes", "one.md");
-    rememberNote("/notes", "two.md");
-    await user.click(screen.getByRole("button", { name: "browse notes" }));
-
-    const browser = within(
-      await screen.findByRole("complementary", { name: "browse notes" })
-    );
-
-    await user.click(
-      browser.getByRole("button", { name: "choose collection: all notes" })
-    );
-    await user.click(browser.getByRole("button", { name: "recent 2" }));
-    const list = within(browser.getByRole("list", { name: "notes in recent" }));
     await waitFor(() => {
-      expect(list.getAllByRole("button")).toHaveLength(2);
+      expect(work).toHaveFocus();
     });
-    expect(list.getAllByRole("button")[0]).toHaveTextContent("Two");
-    await user.keyboard("{Control>}");
-    await user.click(
-      list.getByRole("button", { name: /^Two Second preview/u })
-    );
-    await user.keyboard("{/Control}");
-    await waitFor(() => {
-      expect(getTabState().tabs).toHaveLength(2);
-    });
-    expect(browser.getByRole("textbox")).toBeVisible();
-    await user.keyboard("{End}");
-    expect(
-      list.getByRole("button", { name: /^One First preview/u })
-    ).toHaveFocus();
-    await user.keyboard("{Enter}");
-    expect(list.getAllByRole("button")[0]).toHaveTextContent("Two");
-    await user.keyboard("{Home}");
-    expect(
-      list.getByRole("button", { name: /^Two Second preview/u })
-    ).toHaveFocus();
+    await user.keyboard("{ArrowRight}{ArrowDown}{ArrowLeft}");
+
+    expect(work).toHaveFocus();
+    expect(work).toHaveAttribute("aria-expanded", "true");
   });
 
-  it("should list pinned notes first in recent", async () => {
-    const user = mount(() => [
-      {
-        createdAt: 0,
-        folder: "",
-        path: "one.md",
-        pinned: true,
-        snippet: null,
-        tags: [],
-        title: "One",
-        updatedAt: 2,
-      },
-      {
-        createdAt: 0,
-        folder: "",
-        path: "two.md",
-        pinned: false,
-        snippet: null,
-        tags: [],
-        title: "Two",
-        updatedAt: 1,
-      },
-    ]);
-
-    act(() => {
-      openNote("one.md");
-    });
-    await screen.findByRole("heading", { name: "Opened" });
-    rememberNote("/notes", "one.md");
-    rememberNote("/notes", "two.md");
-    await user.click(screen.getByRole("button", { name: "browse notes" }));
-
-    const browser = within(
-      await screen.findByRole("complementary", { name: "browse notes" })
-    );
-
-    await user.click(
-      browser.getByRole("button", { name: "choose collection: all notes" })
-    );
-    await user.click(browser.getByRole("button", { name: "recent 2" }));
-    const list = within(browser.getByRole("list", { name: "notes in recent" }));
-    await waitFor(() => {
-      expect(list.getAllByRole("button")).toHaveLength(2);
-    });
-    expect(list.getAllByRole("button")[0]).toHaveTextContent("One");
-  });
-
-  it("should retain an empty result while another search is pending and replace it with completed results", async () => {
-    const pending = Promise.withResolvers<NoteMeta[]>();
-    const requested: string[] = [];
-
-    const note: NoteMeta = {
-      createdAt: 0,
-      folder: "",
-      path: "one.md",
-      pinned: false,
-      snippet: null,
-      tags: [],
-      title: "One",
-      updatedAt: 1,
-    };
-
-    const user = mount(async (query) => {
-      if (query === "missing more") {
-        requested.push(query);
-
-        return await pending.promise;
-      }
-
-      return query !== null && query !== "" ? [] : [note];
-    });
-
-    await user.click(
-      await screen.findByRole("button", { name: "browse notes" })
-    );
-
-    const browser = within(
-      await screen.findByRole("complementary", { name: "browse notes" })
-    );
-
-    await user.type(browser.getByRole("textbox"), "missing");
-    const empty = await browser.findByText("nothing found");
-    expect(empty).toBeVisible();
-    expect(
-      browser.queryByRole("button", { name: /create/u })
-    ).not.toBeInTheDocument();
-    await user.type(browser.getByRole("textbox"), " more");
-    expect(empty).toBeVisible();
-    await waitFor(() => {
-      expect(requested).toContain("missing more");
-    });
-    expect(empty).toBeVisible();
-    expect(
-      browser.getByRole("status", { name: "note count" })
-    ).toHaveTextContent("0");
-    await act(async () => {
-      pending.resolve([note]);
-    });
-    expect(await browser.findByText("One")).toBeVisible();
-    expect(browser.queryByText("nothing found")).not.toBeInTheDocument();
-    await user.click(browser.getByRole("button", { name: "clear search" }));
-    expect(browser.getByRole("textbox")).toHaveFocus();
-    expect(await browser.findByText("One")).toBeVisible();
-  });
-
-  it("should retain rows without a searching message until an empty search completes", async () => {
-    const pending = Promise.withResolvers<NoteMeta[]>();
-
-    const user = mount(async (query) =>
-      query === "missing"
-        ? await pending.promise
-        : [
-            {
-              createdAt: 0,
-              folder: "",
-              path: "one.md",
-              pinned: false,
-              snippet: "Preview",
-              tags: [],
-              title: "One",
-              updatedAt: 1,
-            },
-          ]
-    );
-
-    await user.click(
-      await screen.findByRole("button", { name: "browse notes" })
-    );
-
-    const browser = within(
-      await screen.findByRole("complementary", { name: "browse notes" })
-    );
-
-    await browser.findByText("One");
-    const count = browser.getByRole("status", { name: "note count" });
-    expect(count).toHaveTextContent("1");
-    await user.type(browser.getByRole("textbox"), "missing");
-    expect(count).toHaveTextContent("1");
-    expect(
-      browser.getByRole("list", { name: "notes in all notes" })
-    ).toHaveAttribute("aria-busy", "true");
-    expect(
-      browser.getByRole("button", { name: /^One Preview/u })
-    ).toHaveAttribute("aria-disabled", "true");
-    expect(browser.queryByText("searching…")).not.toBeInTheDocument();
-    expect(browser.queryByText("nothing found")).not.toBeInTheDocument();
-    await act(async () => {
-      pending.resolve([]);
-    });
-    expect(await browser.findByText("nothing found")).toBeVisible();
-    expect(browser.queryByText("One")).not.toBeInTheDocument();
-    expect(count).toHaveTextContent("0");
-  });
-
-  it("should keep pending rows inert and show a failed search with retry instead of creation", async () => {
-    const pending = Promise.withResolvers<NoteMeta[]>();
-    const requested: string[] = [];
-
-    const user = mount(async (query) => {
-      if (query === "missing" && requested.length === 0) {
-        requested.push(query);
-
-        return await pending.promise;
-      }
-
-      return [
+  it("should show a note whose folder the folder list is missing", async () => {
+    const user = mount(
+      () => [
         {
           createdAt: 0,
-          folder: "",
-          path: "one.md",
+          folder: "work",
+          path: "work/one.md",
           pinned: false,
-          snippet: "Preview",
+          snippet: null,
           tags: [],
           title: "One",
           updatedAt: 1,
         },
-      ];
-    });
+      ],
+      () => []
+    );
 
     await user.click(
       await screen.findByRole("button", { name: "browse notes" })
@@ -829,30 +801,87 @@ describe("note browser", () => {
       await screen.findByRole("complementary", { name: "browse notes" })
     );
 
-    await browser.findByText("One");
-    await user.type(browser.getByRole("textbox"), "missing");
-    const row = browser.getByRole("button", { name: /^One Preview/u });
-    expect(row).toHaveAttribute("aria-disabled", "true");
-    const before = getTabState();
-    await user.click(row);
-    expect(getTabState()).toBe(before);
+    await user.click(await browser.findByRole("button", { name: /^work 1$/u }));
+
+    expect(browser.getByRole("button", { name: "One" })).toBeVisible();
+  });
+
+  it("should keep the focus in the browser when a refresh removes the focused row", async () => {
+    let pinned = true;
+
+    const user = mount(() => [
+      {
+        createdAt: 0,
+        folder: "",
+        path: "one.md",
+        pinned,
+        snippet: null,
+        tags: [],
+        title: "One",
+        updatedAt: 1,
+      },
+    ]);
+
+    await screen.findByRole("button", { name: "browse notes" });
+    await user.keyboard("{Control>}{Alt>}4{/Alt}{/Control}");
+
+    const browser = await screen.findByRole("complementary", {
+      name: "browse notes",
+    });
+
     await waitFor(() => {
-      expect(requested).toContain("missing");
+      expect(
+        within(browser).getByRole("button", { name: "One" })
+      ).toHaveFocus();
     });
+    pinned = false;
     await act(async () => {
-      pending.reject({ kind: "failed", message: "Search unavailable" });
+      await user.client.invalidateQueries({ queryKey: noteQueries.index });
     });
-    expect(await browser.findByRole("alert")).toHaveTextContent(
-      "Search unavailable"
-    );
-    expect(browser.getByRole("button", { name: "retry" })).toBeInTheDocument();
-    expect(browser.queryByText("nothing found")).not.toBeInTheDocument();
+    await within(browser).findByText("nothing pinned");
+
+    await waitFor(() => {
+      expect(browser.contains(document.activeElement)).toBeTruthy();
+    });
+    await user.keyboard("{Escape}");
     expect(
-      browser.queryByRole("button", { name: /create/u })
+      screen.queryByRole("complementary", { name: "browse notes" })
     ).not.toBeInTheDocument();
-    await user.click(browser.getByRole("button", { name: "retry" }));
-    expect(await browser.findByText("One")).toBeVisible();
-    expect(browser.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
+  it("should focus the first row that arrives after the browser opened empty", async () => {
+    let notes: NoteMeta[] = [];
+
+    const user = mount(() => notes);
+
+    await user.click(
+      await screen.findByRole("button", { name: "browse notes" })
+    );
+
+    const browser = within(
+      await screen.findByRole("complementary", { name: "browse notes" })
+    );
+
+    await browser.findByText("no notes yet");
+    notes = [
+      {
+        createdAt: 0,
+        folder: "",
+        path: "one.md",
+        pinned: false,
+        snippet: null,
+        tags: [],
+        title: "One",
+        updatedAt: 1,
+      },
+    ];
+    await act(async () => {
+      await user.client.invalidateQueries({ queryKey: noteQueries.index });
+    });
+
+    await waitFor(() => {
+      expect(browser.getByRole("button", { name: "One" })).toHaveFocus();
+    });
   });
 
   it("should keep the listed notes and toast the reason when a refresh fails", async () => {
@@ -963,11 +992,11 @@ describe("note browser", () => {
           .findAll({ predicate: (query) => query.state.status === "error" })
       ).toStrictEqual([]);
     });
-    expect(reads - before).toBe(2);
+    expect(reads - before).toBe(1);
     expect(browser.getByText("One")).toBeVisible();
   });
 
-  it("should keep nothing found for an empty list when a refresh fails", async () => {
+  it("should keep the empty panel when a refresh fails", async () => {
     let failing = false;
 
     const user = mount(
@@ -991,7 +1020,7 @@ describe("note browser", () => {
       await screen.findByRole("complementary", { name: "browse notes" })
     );
 
-    await browser.findByText("nothing found");
+    await browser.findByText("no notes yet");
     failing = true;
     await act(async () => {
       await user.client.invalidateQueries({ queryKey: noteQueries.index });
@@ -1000,11 +1029,121 @@ describe("note browser", () => {
     expect(
       await screen.findByText("could not refresh the note list")
     ).toBeInTheDocument();
-    expect(browser.getByText("nothing found")).toBeInTheDocument();
+    expect(browser.getByText("no notes yet")).toBeInTheDocument();
     expect(browser.queryByText("could not load notes")).not.toBeInTheDocument();
   });
 
-  it("should say why the collections could not load and read them again on retry", async () => {
+  it("should leave a modified arrow on a row to the tab shortcuts", async () => {
+    const user = mount(() => [
+      {
+        createdAt: 0,
+        folder: "work",
+        path: "work/one.md",
+        pinned: false,
+        snippet: null,
+        tags: [],
+        title: "One",
+        updatedAt: 1,
+      },
+    ]);
+
+    await user.click(
+      await screen.findByRole("button", { name: "browse notes" })
+    );
+
+    const browser = within(
+      await screen.findByRole("complementary", { name: "browse notes" })
+    );
+
+    const work = await browser.findByRole("button", { name: /^work 1$/u });
+
+    await waitFor(() => {
+      expect(work).toHaveFocus();
+    });
+    await user.keyboard("{Control>}{Alt>}{ArrowRight}{/Alt}{/Control}");
+
+    expect(work).toHaveAttribute("aria-expanded", "false");
+  });
+
+  it("should keep the focus in the browser when a keyboard retry loads the notes", async () => {
+    let failing = true;
+
+    const user = mount(
+      () => [
+        {
+          createdAt: 0,
+          folder: "",
+          path: "one.md",
+          pinned: false,
+          snippet: null,
+          tags: [],
+          title: "One",
+          updatedAt: 1,
+        },
+      ],
+      () => {
+        if (failing) {
+          throw Object.assign(new Error("the disk is busy"), {
+            kind: "failed",
+          });
+        }
+
+        return [];
+      }
+    );
+
+    await user.click(
+      await screen.findByRole("button", { name: "browse notes" })
+    );
+
+    const browser = within(
+      await screen.findByRole("complementary", { name: "browse notes" })
+    );
+
+    await browser.findByRole("alert");
+    failing = false;
+    browser.getByRole("button", { name: "retry" }).focus();
+    await user.keyboard("{Enter}");
+
+    await waitFor(() => {
+      expect(browser.getByRole("button", { name: "One" })).toHaveFocus();
+    });
+  });
+
+  it("should list pinned notes when the folder list fails to load", async () => {
+    mount(
+      () => [
+        {
+          createdAt: 0,
+          folder: "",
+          path: "one.md",
+          pinned: true,
+          snippet: null,
+          tags: [],
+          title: "One",
+          updatedAt: 1,
+        },
+      ],
+      () => {
+        throw Object.assign(new Error("the disk is busy"), {
+          kind: "failed",
+        });
+      }
+    );
+
+    act(() => {
+      showNoteBrowserMode("pinned");
+    });
+
+    const browser = within(
+      await screen.findByRole("complementary", { name: "browse notes" })
+    );
+
+    expect(await browser.findByRole("button", { name: "One" })).toBeVisible();
+    expect(browser.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
+  it("should say why the notes could not load and read them again on retry", async () => {
     let failing = true;
 
     const user = mount(
@@ -1037,10 +1176,6 @@ describe("note browser", () => {
 
     const browser = within(
       await screen.findByRole("complementary", { name: "browse notes" })
-    );
-
-    await user.click(
-      browser.getByRole("button", { name: "choose collection: all notes" })
     );
 
     expect(await browser.findByRole("alert")).toHaveTextContent(

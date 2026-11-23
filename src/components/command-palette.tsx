@@ -36,6 +36,7 @@ import {
 import type { LucideIcon } from "lucide-react";
 import { useLayoutEffect, useRef, useState, useSyncExternalStore } from "react";
 
+import { NOTE_BROWSER_BUTTONS } from "@/components/notes/note-browser-buttons";
 import { Button } from "@/components/ui/button";
 import {
   Command,
@@ -43,6 +44,7 @@ import {
   CommandInput,
   CommandList,
 } from "@/components/ui/command";
+import type { DialogHandle } from "@/components/ui/dialog";
 import { Spinner } from "@/components/ui/spinner";
 import { toast } from "@/components/ui/toast";
 import { noteFolder } from "@/core/notes";
@@ -74,7 +76,11 @@ import {
 import { tabFullPath } from "@/lib/tabs/tab";
 import { reasonOf } from "@/lib/ui/failure";
 import { openNoteFind, openSearchResult } from "@/lib/ui/find";
-import { toggleNoteBrowser, useNoteBrowser } from "@/lib/ui/note-browser";
+import {
+  showNoteBrowserMode,
+  toggleNoteBrowser,
+  useNoteBrowser,
+} from "@/lib/ui/note-browser";
 import { useChordsByName } from "@/lib/ui/shortcuts";
 import { setTabListOpen } from "@/lib/ui/tab-list";
 import { pressView, useTabView } from "@/lib/ui/view";
@@ -177,6 +183,8 @@ function HeldOnClose({
 }
 
 interface CommandPaletteProps {
+  /** Shared with the bar's search button, which opens and closes the palette. */
+  handle: DialogHandle;
   mode: PaletteMode;
   notesDir: string;
   onOpenChange: (open: boolean) => void;
@@ -186,6 +194,7 @@ interface CommandPaletteProps {
 
 // oxlint-disable-next-line complexity, react-doctor/no-giant-component -- the split is tracked in #203
 export function CommandPalette({
+  handle,
   mode,
   notesDir,
   onOpenChange,
@@ -801,6 +810,19 @@ export function CommandPalette({
       text: "check for updates…",
       value: "check-for-updates",
     },
+    ...NOTE_BROWSER_BUTTONS.map(
+      ({ Icon, label, mode: browserMode }): PaletteAction => ({
+        Icon,
+        label,
+        needs: "none",
+        onSelect: () => {
+          close();
+          showNoteBrowserMode(browserMode);
+        },
+        text: label,
+        value: label.replace(" ", "-"),
+      })
+    ),
   ];
 
   const filterMode = view === "filters";
@@ -879,6 +901,7 @@ export function CommandPalette({
         { "h-96": listView }
       )}
       description="Search notes and run actions"
+      handle={handle}
       onOpenChange={handleOpenChange}
       open={open}
       title="command palette"

@@ -61,11 +61,18 @@ export function notePanelHasFocus() {
   );
 }
 
+export const NOTE_PANEL_MIN_WIDTH = 200;
+export const NOTE_PANEL_MAX_WIDTH = 480;
+
 export function readNotePanelWidth(): number {
   return (
     readStored(
       "note-panel-width",
-      pipe(number(), minValue(200), maxValue(480)),
+      pipe(
+        number(),
+        minValue(NOTE_PANEL_MIN_WIDTH),
+        maxValue(NOTE_PANEL_MAX_WIDTH)
+      ),
       "could not read note panel width"
     ) ?? 260
   );

@@ -10,7 +10,10 @@ function InputGroup({
   className,
   variant = "default",
   ...props
-}: React.ComponentProps<"div"> & { variant?: "default" | "sidebar" }) {
+}: React.ComponentProps<"div"> & {
+  /** `bare` drops the border and fill, for a group inside a surface that already draws its edge. */
+  variant?: "bare" | "default";
+}) {
   return (
     <div
       data-slot="input-group"
@@ -19,7 +22,7 @@ function InputGroup({
       role="group"
       className={cn(
         "group/input-group border-input has-[[data-slot=input-group-control]:disabled]:bg-input/50 has-[[data-slot][aria-invalid=true]]:border-destructive has-[[data-slot][aria-invalid=true]]:ring-destructive/20 dark:bg-input/30 dark:has-[[data-slot=input-group-control]:disabled]:bg-input/80 dark:has-[[data-slot][aria-invalid=true]]:ring-destructive/40 relative flex h-8 w-full min-w-0 items-center rounded-lg border transition-colors has-[[data-slot=input-group-control]:disabled]:opacity-50 has-[[data-slot=input-group-control]:focus-visible]:outline-2 has-[[data-slot][aria-invalid=true]]:ring-3 has-[>[data-align=block-end]]:h-auto has-[>[data-align=block-end]]:flex-col has-[>[data-align=block-start]]:h-auto has-[>[data-align=block-start]]:flex-col has-[>textarea]:h-auto has-[>[data-align=block-end]]:[&>input]:pt-3 has-[>[data-align=block-start]]:[&>input]:pb-3 has-[>[data-align=inline-end]]:[&>input]:pr-1.5 has-[>[data-align=inline-start]]:[&>input]:pl-1.5",
-        "data-[variant=sidebar]:bg-background data-[variant=sidebar]:rounded-md data-[variant=sidebar]:pointer-coarse:h-11 data-[variant=sidebar]:[&_input]:text-xs",
+        "data-[variant=bare]:border-0 data-[variant=bare]:bg-transparent dark:data-[variant=bare]:bg-transparent",
         className
       )}
       {...props}

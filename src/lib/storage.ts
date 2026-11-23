@@ -29,7 +29,7 @@ export function readStored<T>(
 /** Save the value as JSON, or report a failed write in a toast titled `title`. Never throws. */
 export function writeStored(
   key: string,
-  value: boolean | number | string[],
+  value: boolean | number | string | string[],
   title: string
 ): void {
   try {

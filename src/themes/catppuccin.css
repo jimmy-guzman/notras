@@ -24,9 +24,8 @@
   --success: #a6e3a1;
   --warning: #f9e2af;
   --info: #74c7ec;
-  --border: #181825;
+  --border: #313244;
   --input: #6c7086;
-  --band-divider: color-mix(in srgb, white 29%, var(--shell));
   --ink-on-dark: var(--foreground);
   --ink-on-light: var(--background);
   --ring: #cba6f7;
@@ -49,7 +48,7 @@
 @media (prefers-color-scheme: light), print {
   :root[data-theme="catppuccin"] {
     --background: #eff1f5;
-    --shell: #dce0e8;
+    --shell: #e6e9ef;
     --foreground: #484b64;
     --card: #e6e9ef;
     --card-foreground: #484b64;
@@ -67,9 +66,8 @@
     --success: #1e7800;
     --warning: #945b01;
     --info: #007284;
-    --border: #dce0e8;
+    --border: #ccd0da;
     --input: #9ca0b0;
-    --band-divider: color-mix(in srgb, black 38%, var(--shell));
     --ink-on-dark: var(--background);
     --ink-on-light: var(--foreground);
     --ring: #8230e7;

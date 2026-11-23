@@ -26,10 +26,7 @@ function SidebarProvider({
     <SidebarContext value={open}>
       <div
         data-slot="sidebar-wrapper"
-        className={cn(
-          "group/sidebar-wrapper flex min-h-0 rounded-lg",
-          className
-        )}
+        className={cn("group/sidebar-wrapper flex min-h-0", className)}
         {...props}
       >
         {children}
@@ -46,7 +43,7 @@ function Sidebar({ children, className, ...props }: ComponentProps<"aside">) {
       data-slot="sidebar"
       hidden={!open}
       className={cn(
-        "bg-background text-foreground flex size-full min-h-0 flex-col",
+        "text-foreground flex size-full min-h-0 flex-col",
         className
       )}
       {...props}
@@ -56,59 +53,15 @@ function Sidebar({ children, className, ...props }: ComponentProps<"aside">) {
   );
 }
 
-function SidebarHeader({ className, ...props }: ComponentProps<"div">) {
-  return (
-    <div
-      data-slot="sidebar-header"
-      data-sidebar="header"
-      className={cn("flex flex-col gap-2 p-2", className)}
-      {...props}
-    />
-  );
-}
-
 function SidebarContent({ className, ...props }: ComponentProps<"div">) {
   return (
     <div
       data-slot="sidebar-content"
       data-sidebar="content"
-      className={cn("flex min-h-0 flex-1 flex-col overflow-hidden", className)}
-      {...props}
-    />
-  );
-}
-
-function SidebarGroup({ className, ...props }: ComponentProps<"div">) {
-  return (
-    <div
-      data-slot="sidebar-group"
-      data-sidebar="group"
-      className={cn("relative flex w-full min-w-0 flex-col p-2", className)}
-      {...props}
-    />
-  );
-}
-
-function SidebarGroupLabel({ className, ...props }: ComponentProps<"div">) {
-  return (
-    <div
-      data-sidebar="group-label"
-      data-slot="sidebar-group-label"
       className={cn(
-        "text-muted-foreground flex h-8 shrink-0 items-center rounded-md px-2 text-xs font-normal tracking-wider uppercase focus-visible:-outline-offset-2 [&>svg]:size-4 [&>svg]:shrink-0",
+        "flex min-h-0 flex-1 flex-col overflow-hidden outline-none",
         className
       )}
-      {...props}
-    />
-  );
-}
-
-function SidebarGroupContent({ className, ...props }: ComponentProps<"div">) {
-  return (
-    <div
-      data-slot="sidebar-group-content"
-      data-sidebar="group-content"
-      className={cn("w-full text-sm", className)}
       {...props}
     />
   );
@@ -119,7 +72,7 @@ function SidebarMenu({ className, ...props }: ComponentProps<"ul">) {
     <ul
       data-slot="sidebar-menu"
       data-sidebar="menu"
-      className={cn("flex w-full min-w-0 flex-col gap-0.5", className)}
+      className={cn("flex w-full min-w-0 flex-col", className)}
       {...props}
     />
   );
@@ -136,14 +89,16 @@ function SidebarMenuItem({ className, ...props }: ComponentProps<"li">) {
   );
 }
 
+/** A row runs the full width of the sidebar, and its hover and active fills are tints of the text color, so they show on the shell in every theme. */
 function SidebarMenuButton({
+  depth = 0,
   isActive = false,
-  size = "default",
   className,
   ...props
 }: ComponentProps<"button"> & {
+  /** How many branches the row sits under. Only its content steps in, by the width of a branch's icon and gap. */
+  depth?: number;
   isActive?: boolean;
-  size?: "default" | "note";
 }) {
   return (
     <button
@@ -151,11 +106,9 @@ function SidebarMenuButton({
       data-sidebar="menu-button"
       data-slot="sidebar-menu-button"
       type="button"
+      style={{ "--depth": depth }}
       className={cn(
-        "hover:bg-muted/50 data-active:bg-accent data-active:text-accent-foreground relative flex w-full items-center gap-2 rounded-md text-left focus-visible:-outline-offset-2 [&_svg]:size-3.5 [&_svg]:shrink-0",
-        size === "note"
-          ? "data-active:before:bg-primary h-auto min-h-20 px-3 py-3 data-active:before:absolute data-active:before:inset-y-3 data-active:before:left-0 data-active:before:w-0.5 data-active:before:rounded-full"
-          : "min-h-8 px-2 py-1.5 text-xs pointer-coarse:min-h-11",
+        "group/menu-button hover:bg-foreground/4 data-active:bg-foreground/8 relative flex min-h-7 w-full items-center gap-2 py-1 ps-[calc(0.75rem+var(--depth)*1.375rem)] pe-3 text-left text-sm focus-visible:-outline-offset-2 pointer-coarse:min-h-11 [&_svg]:size-3.5 [&_svg]:shrink-0",
         className
       )}
       {...props}
@@ -179,10 +132,6 @@ function SidebarMenuBadge({ className, ...props }: ComponentProps<"span">) {
 export {
   Sidebar,
   SidebarContent,
-  SidebarGroup,
-  SidebarGroupContent,
-  SidebarGroupLabel,
-  SidebarHeader,
   SidebarMenu,
   SidebarMenuBadge,
   SidebarMenuButton,

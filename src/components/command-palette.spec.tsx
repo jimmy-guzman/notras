@@ -1,5 +1,6 @@
 import { setTimeout as sleep } from "node:timers/promises";
 
+import { Dialog } from "@base-ui/react/dialog";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { createStore } from "@tanstack/react-store";
 import { clearMocks, mockIPC, mockWindows } from "@tauri-apps/api/mocks";
@@ -71,6 +72,7 @@ function mount(mode: "actions" | "find", notes: NoteMeta[]) {
       QueryClientProvider,
       { client },
       createElement(CommandPalette, {
+        handle: Dialog.createHandle(),
         mode,
         notesDir: "/notes",
         onOpenChange: (next) => {
@@ -605,9 +607,12 @@ describe("command palette actions", () => {
       client.clear();
     });
 
+    const handle = Dialog.createHandle();
+
     const { rerender } = render(
       <QueryClientProvider client={client}>
         <CommandPalette
+          handle={handle}
           mode="actions"
           notesDir="/notes"
           onOpenChange={() => {}}
@@ -624,6 +629,7 @@ describe("command palette actions", () => {
     rerender(
       <QueryClientProvider client={client}>
         <CommandPalette
+          handle={handle}
           mode="actions"
           notesDir="/notes"
           onOpenChange={() => {}}
@@ -687,6 +693,10 @@ describe("recent commands", () => {
         "catppuccin theme",
         "reindex library",
         "check for updates…",
+        "browse folders",
+        "browse tags",
+        "browse recent",
+        "browse pinned",
       ]);
     }
   );
@@ -863,6 +873,7 @@ describe("recent commands", () => {
           open={dialog === "settings"}
         />
         <CommandPalette
+          handle={Dialog.createHandle()}
           mode="actions"
           notesDir="/notes"
           onOpenChange={() => {}}
@@ -1307,7 +1318,10 @@ describe("recent commands", () => {
     const workspace = render(
       <QueryClientProvider client={client}>
         <Suspense fallback={null}>
-          <Workspace onOpenSearch={() => {}} />
+          <Workspace
+            onOpenSearch={() => {}}
+            searchTrigger={Dialog.createHandle()}
+          />
         </Suspense>
       </QueryClientProvider>
     );
@@ -1629,6 +1643,7 @@ describe("command palette", () => {
     render(
       <QueryClientProvider client={client}>
         <CommandPalette
+          handle={Dialog.createHandle()}
           mode="find"
           notesDir="/notes"
           onOpenChange={onOpenChange}
@@ -1674,6 +1689,7 @@ describe("command palette", () => {
     render(
       <QueryClientProvider client={client}>
         <CommandPalette
+          handle={Dialog.createHandle()}
           mode="find"
           notesDir="/notes"
           onOpenChange={onOpenChange}

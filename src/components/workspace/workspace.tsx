@@ -1,6 +1,6 @@
 import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { cn } from "cn";
-import { PanelLeftIcon, PanelRightIcon } from "lucide-react";
+import { PanelLeftIcon, PanelRightIcon, SearchIcon } from "lucide-react";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { usePanelRef } from "react-resizable-panels";
@@ -8,9 +8,11 @@ import { usePanelRef } from "react-resizable-panels";
 import { BarButton } from "@/components/bar-button";
 import { FindBar } from "@/components/find-bar";
 import { TabGraph } from "@/components/graph/note-graph";
-import { NoteBrowser } from "@/components/notes/note-browser";
+import { NoteBrowser, NoteBrowserModes } from "@/components/notes/note-browser";
+import { NOTE_BROWSER_BUTTONS } from "@/components/notes/note-browser-buttons";
 import { TabStrip } from "@/components/tabs/tab-strip";
 import { Titlebar } from "@/components/titlebar";
+import type { DialogHandle } from "@/components/ui/dialog";
 import {
   ResizableHandle,
   ResizablePanel,
@@ -38,13 +40,18 @@ import { reasonOf } from "@/lib/ui/failure";
 import { noteFind, openNoteFind } from "@/lib/ui/find";
 import {
   closeNoteBrowser,
+  NOTE_BROWSER_MAX_WIDTH,
+  NOTE_BROWSER_MIN_WIDTH,
   readNoteBrowserWidth,
   rememberNoteBrowserWidth,
+  showNoteBrowserMode,
   toggleNoteBrowser,
   useNoteBrowser,
 } from "@/lib/ui/note-browser";
 import {
   closeNotePanel,
+  NOTE_PANEL_MAX_WIDTH,
+  NOTE_PANEL_MIN_WIDTH,
   openNotePanel,
   readNotePanelWidth,
   rememberNotePanelWidth,
@@ -153,49 +160,51 @@ function TabJumps() {
   return null;
 }
 
-const PANEL_MIN = 200;
-const PANEL_MAX = 480;
-
 /** A panel's pixel width from the group's layout, which reports percentages. */
-function panelWidth(group: HTMLDivElement, percentage: number) {
+function panelWidth(
+  group: HTMLDivElement,
+  percentage: number,
+  min: number,
+  max: number
+) {
   const handles = [
     ...group.querySelectorAll<HTMLElement>('[data-slot="resizable-handle"]'),
   ].reduce((sum, handle) => sum + handle.offsetWidth, 0);
 
   return Math.max(
-    PANEL_MIN,
+    min,
     Math.min(
-      PANEL_MAX,
+      max,
       Math.round(((group.clientWidth - handles) * percentage) / 100)
     )
   );
 }
 
 function BrowserPanels({
+  browserBand,
   children,
-  left,
-  leftBand,
-  leftOpen,
-  rightBand,
+  notePanel,
+  notePanelBand,
+  notePanelOpen,
 }: {
+  /** The browser's button and its modes, in the band above it while it is open. */
+  browserBand: ReactNode;
   children: ReactNode;
-  left: ReactNode;
-  /** The panel's button and its own toggles, in the band above it. */
-  leftBand: ReactNode;
-  leftOpen: boolean;
-  /** The browser's button, in the band above it while it is open. */
-  rightBand: ReactNode;
+  notePanel: ReactNode;
+  /** The panel's own toggles and its button, in the band above it. */
+  notePanelBand: ReactNode;
+  notePanelOpen: boolean;
 }) {
   const open = useSidebar();
-  const panel = usePanelRef();
-  const leftPanel = usePanelRef();
+  const browser = usePanelRef();
+  const note = usePanelRef();
   const group = useRef<HTMLDivElement>(null);
-  const [width, setWidth] = useState(readNoteBrowserWidth);
-  const [leftWidth, setLeftWidth] = useState(readNotePanelWidth);
+  const [browserWidth, setBrowserWidth] = useState(readNoteBrowserWidth);
+  const [noteWidth, setNoteWidth] = useState(readNotePanelWidth);
   useLayoutEffect(() => {
     const resize = () => {
-      panel.current?.resize(open ? width : 0);
-      leftPanel.current?.resize(leftOpen ? leftWidth : 0);
+      browser.current?.resize(open ? browserWidth : 0);
+      note.current?.resize(notePanelOpen ? noteWidth : 0);
     };
 
     resize();
@@ -215,7 +224,7 @@ function BrowserPanels({
       cancelAnimationFrame(frame);
       observer.disconnect();
     };
-  }, [leftOpen, leftPanel, leftWidth, open, panel, width]);
+  }, [browser, browserWidth, note, notePanelOpen, noteWidth, open]);
 
   return (
     <ResizablePanelGroup
@@ -229,66 +238,65 @@ function BrowserPanels({
           return;
         }
 
-        const browser = layout["note-browser"];
-        const note = layout["note-panel"];
+        const browserSize = layout["note-browser"];
+        const noteSize = layout["note-panel"];
 
-        if (open && browser !== undefined) {
-          if (browser === 0) {
+        if (open && browserSize !== undefined) {
+          if (browserSize === 0) {
             closeNoteBrowser();
           } else {
-            const next = panelWidth(group.current, browser);
-            setWidth(next);
+            const next = panelWidth(
+              group.current,
+              browserSize,
+              NOTE_BROWSER_MIN_WIDTH,
+              NOTE_BROWSER_MAX_WIDTH
+            );
+
+            setBrowserWidth(next);
             rememberNoteBrowserWidth(next);
           }
         }
 
-        if (leftOpen && note !== undefined) {
-          if (note === 0) {
+        if (notePanelOpen && noteSize !== undefined) {
+          if (noteSize === 0) {
             closeNotePanel();
           } else {
-            const next = panelWidth(group.current, note);
-            setLeftWidth(next);
+            const next = panelWidth(
+              group.current,
+              noteSize,
+              NOTE_PANEL_MIN_WIDTH,
+              NOTE_PANEL_MAX_WIDTH
+            );
+
+            setNoteWidth(next);
             rememberNotePanelWidth(next);
           }
         }
       }}
     >
       <ResizablePanel
-        id="note-panel"
+        id="note-browser"
         collapsedSize={0}
         collapsedThreshold={0}
         collapsible
-        defaultSize={leftOpen ? leftWidth : 0}
+        defaultSize={browserWidth}
         groupResizeBehavior="preserve-pixel-size"
-        maxSize={PANEL_MAX}
-        minSize={PANEL_MIN}
-        panelRef={leftPanel}
+        maxSize={NOTE_BROWSER_MAX_WIDTH}
+        minSize={NOTE_BROWSER_MIN_WIDTH}
+        panelRef={browser}
       >
         <div className="flex size-full min-h-0 flex-col">
-          {/* `ps-titlebar` clears the traffic lights, which puts the panel's button where it sits while the panel is closed. */}
-          <div
-            className="text-muted-foreground ps-titlebar flex h-8 shrink-0 items-center gap-2 py-1 pe-1"
-            data-tauri-drag-region="deep"
-          >
-            {leftOpen ? leftBand : null}
-          </div>
-          <div
-            className={cn(
-              "flex min-h-0 flex-1 overflow-clip rounded-t-lg",
-              leftOpen &&
-                "animate-in fade-in-0 slide-in-from-left-8 duration-200 ease-out motion-reduce:animate-none"
-            )}
-            hidden={!leftOpen}
-          >
-            {left}
+          {/* `ps-titlebar` clears the traffic lights, which puts the browser's button where it sits while the browser is closed. */}
+          <Titlebar>{open ? browserBand : null}</Titlebar>
+          <div className="flex min-h-0 flex-1 overflow-clip">
+            <NoteBrowser />
           </div>
         </div>
       </ResizablePanel>
       <ResizableHandle
-        aria-label="resize note panel"
-        disabled={!leftOpen}
+        aria-label="resize note browser"
+        disabled={!open}
         disableDoubleClick
-        titleBand
       />
       <ResizablePanel
         id="note-editor"
@@ -298,38 +306,33 @@ function BrowserPanels({
         {children}
       </ResizablePanel>
       <ResizableHandle
-        aria-label="resize note browser"
-        disabled={!open}
+        aria-label="resize note panel"
+        disabled={!notePanelOpen}
         disableDoubleClick
-        titleBand
       />
       <ResizablePanel
-        id="note-browser"
+        id="note-panel"
         collapsedSize={0}
         collapsedThreshold={0}
         collapsible
-        defaultSize={width}
-        minSize={200}
-        maxSize={480}
+        defaultSize={notePanelOpen ? noteWidth : 0}
         groupResizeBehavior="preserve-pixel-size"
-        panelRef={panel}
+        maxSize={NOTE_PANEL_MAX_WIDTH}
+        minSize={NOTE_PANEL_MIN_WIDTH}
+        panelRef={note}
       >
         <div className="flex size-full min-h-0 flex-col">
-          {/* Not `Titlebar`: its traffic-light inset would give the collapsed panel 88px of content it cannot fit. */}
           <div
-            className="text-muted-foreground flex h-8 shrink-0 items-center justify-end py-1 pe-1"
+            className="text-muted-foreground before:bg-border relative flex h-8 shrink-0 items-center gap-2 p-1 before:pointer-events-none before:absolute before:inset-x-0 before:bottom-0 before:h-px"
             data-tauri-drag-region="deep"
           >
-            {open ? rightBand : null}
+            {notePanelOpen ? notePanelBand : null}
           </div>
           <div
-            className={cn(
-              "flex min-h-0 flex-1 overflow-clip rounded-t-lg",
-              open &&
-                "animate-in fade-in-0 slide-in-from-right-8 duration-200 ease-out motion-reduce:animate-none"
-            )}
+            className="flex min-h-0 flex-1 overflow-clip"
+            hidden={!notePanelOpen}
           >
-            <NoteBrowser />
+            {notePanel}
           </div>
         </div>
       </ResizablePanel>
@@ -345,7 +348,14 @@ function BrowserPanels({
  * keyboard belongs here rather than inside one of them. Registered N times it
  * would fire N times, and a dropped file would land in every open note.
  */
-export function Workspace({ onOpenSearch }: { onOpenSearch: () => void }) {
+export function Workspace({
+  onOpenSearch,
+  searchTrigger,
+}: {
+  onOpenSearch: () => void;
+  /** The palette's handle, so the band's search button opens and closes it. */
+  searchTrigger: DialogHandle;
+}) {
   const browserOpen = useNoteBrowser();
   const { activeId, tabs } = useTabState();
 
@@ -422,6 +432,15 @@ export function Workspace({ onOpenSearch }: { onOpenSearch: () => void }) {
   useHotkey("Mod+Alt+G", pressGraph, { meta: { name: "graph view" } });
   useHotkey("Mod+F", openNoteFind, { meta: { name: "find in note" } });
   useHotkey("Mod+\\", toggleNoteBrowser, { meta: { name: "browse notes" } });
+  useHotkeys(
+    NOTE_BROWSER_BUTTONS.map(({ hotkey, label, mode }) => ({
+      callback: () => {
+        showNoteBrowserMode(mode);
+      },
+      hotkey,
+      options: { meta: { name: label } },
+    }))
+  );
   // The browser's chord with Shift, for the panel on the other side.
   useHotkey("Mod+Shift+\\", toggleNotePanel, {
     meta: { name: "note panel" },
@@ -499,20 +518,20 @@ export function Workspace({ onOpenSearch }: { onOpenSearch: () => void }) {
 
   // Every tab kind gets the panel, even one with nothing in it, so switching
   // tabs never moves the tab strip.
-  const leftOpen = notePanelOpen && activeTab !== undefined;
+  const panelOpen = notePanelOpen && activeTab !== undefined;
 
   const panelButton = (
     <BarButton
-      Icon={PanelLeftIcon}
+      Icon={PanelRightIcon}
       label="note panel"
       onClick={toggleNotePanel}
-      pressed={leftOpen}
+      pressed={panelOpen}
     />
   );
 
   const browseButton = (
     <BarButton
-      Icon={PanelRightIcon}
+      Icon={PanelLeftIcon}
       label="browse notes"
       onClick={toggleNoteBrowser}
       pressed={browserOpen}
@@ -526,31 +545,37 @@ export function Workspace({ onOpenSearch }: { onOpenSearch: () => void }) {
         className="relative min-h-0 flex-1 overflow-clip"
       >
         <BrowserPanels
-          left={<NotePanel tab={activeTab} />}
-          leftBand={
+          browserBand={
             <>
-              {panelButton}
-              {/* Arrives with the card below it, on the card's timing. The
-                  panel button is not faded: it stays where it was clicked. */}
-              <div className="animate-in fade-in-0 duration-200 ease-out motion-reduce:animate-none">
-                <NotePanelToggles tab={activeTab} />
+              {browseButton}
+              <NoteBrowserModes />
+              <div className="ms-auto">
+                <BarButton
+                  Icon={SearchIcon}
+                  label="find a note"
+                  opens={searchTrigger}
+                />
               </div>
             </>
           }
-          leftOpen={leftOpen}
-          rightBand={browseButton}
+          notePanel={<NotePanel tab={activeTab} />}
+          notePanelBand={
+            <>
+              <NotePanelToggles tab={activeTab} />
+              <div className="ms-auto">{panelButton}</div>
+            </>
+          }
+          notePanelOpen={panelOpen}
         >
-          <Titlebar
-            // Open, the browser's card corner ends the bar, and the last tab's
-            // foot clears its 8px radius.
-            className={cn(leftOpen && "ps-1!", browserOpen && "pe-3")}
-          >
+          <Titlebar className={cn(browserOpen && "ps-1!")}>
             {/* Open, each panel's button rides in its band at this same spot. */}
-            {activeTab === undefined || leftOpen ? null : panelButton}
+            {browserOpen ? null : browseButton}
             <TabStrip activeId={activeId} tabs={tabs} />
-            {browserOpen ? null : <div className="ms-auto">{browseButton}</div>}
+            {activeTab === undefined || panelOpen ? null : (
+              <div className="ms-auto">{panelButton}</div>
+            )}
           </Titlebar>
-          <div className="bg-background relative flex min-h-0 min-w-0 flex-1 flex-col overflow-clip rounded-t-lg">
+          <div className="bg-background relative flex min-h-0 min-w-0 flex-1 flex-col overflow-clip">
             {tabs.length === 0 ? (
               <Home onNew={openDraft} onSearch={onOpenSearch} />
             ) : (

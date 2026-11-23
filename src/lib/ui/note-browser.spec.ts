@@ -72,6 +72,13 @@ describe("note browser startup", () => {
           },
           command: "plugin:log|log",
         },
+        {
+          args: {
+            message:
+              "could not read note browser mode: Storage access is denied",
+          },
+          command: "plugin:log|log",
+        },
       ]);
     });
   });
