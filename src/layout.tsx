@@ -1,3 +1,4 @@
+import { Dialog } from "@base-ui/react/dialog";
 import {
   QueryErrorResetBoundary,
   useQueryClient,
@@ -50,6 +51,9 @@ async function listenForContinuedJots() {
     openNoteAtCaret(payload.path, payload.caret);
   });
 }
+
+/** One palette per window, so the bar's search button and the palette share one handle. */
+const paletteTrigger = Dialog.createHandle();
 
 function MainWindow() {
   const [{ data: notesDir }] = useSuspenseQueries({
@@ -310,9 +314,11 @@ function MainWindow() {
           onOpenSearch={() => {
             handlePaletteOpenChange(true);
           }}
+          searchTrigger={paletteTrigger}
         />
       </div>
       <CommandPalette
+        handle={paletteTrigger}
         key={`${paletteView}:${paletteSession}`}
         mode={paletteView}
         notesDir={notesDir}

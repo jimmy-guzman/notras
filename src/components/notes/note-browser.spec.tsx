@@ -642,6 +642,25 @@ describe("note browser", () => {
     ).toBeInTheDocument();
   });
 
+  it("should close the palette from the search button that opened it", async () => {
+    const user = mount(() => []);
+
+    await user.click(
+      await screen.findByRole("button", { name: "browse notes" })
+    );
+    await user.click(screen.getByRole("button", { name: "find a note" }));
+    await screen.findByRole("dialog");
+    // The palette hides the rest of the window from assistive tech, but the bar
+    // above its backdrop still takes a pointer.
+    await user.click(
+      screen.getByRole("button", { hidden: true, name: "find a note" })
+    );
+
+    await waitFor(() => {
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    });
+  });
+
   it("should keep the mode when its lit icon is clicked", async () => {
     const user = mount(() => []);
 

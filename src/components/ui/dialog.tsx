@@ -16,6 +16,13 @@ function Dialog({ ...props }: DialogPrimitive.Root.Props) {
   );
 }
 
+/** Opens the dialog whose handle it holds, from anywhere in the tree. A press on it while that dialog is open closes it, and never counts as a press outside. */
+function DialogTrigger({ ...props }: DialogPrimitive.Trigger.Props) {
+  return <DialogPrimitive.Trigger data-slot="dialog-trigger" {...props} />;
+}
+
+type DialogHandle = DialogPrimitive.Handle<unknown>;
+
 function DialogPortal({ ...props }: DialogPrimitive.Portal.Props) {
   return <DialogPrimitive.Portal data-slot="dialog-portal" {...props} />;
 }
@@ -121,4 +128,7 @@ export {
   DialogOverlay,
   DialogPortal,
   DialogTitle,
+  DialogTrigger,
 };
+
+export type { DialogHandle };

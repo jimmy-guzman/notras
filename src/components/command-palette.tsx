@@ -44,6 +44,7 @@ import {
   CommandInput,
   CommandList,
 } from "@/components/ui/command";
+import type { DialogHandle } from "@/components/ui/dialog";
 import { Spinner } from "@/components/ui/spinner";
 import { toast } from "@/components/ui/toast";
 import { noteFolder } from "@/core/notes";
@@ -182,6 +183,8 @@ function HeldOnClose({
 }
 
 interface CommandPaletteProps {
+  /** Shared with the bar's search button, which opens and closes the palette. */
+  handle: DialogHandle;
   mode: PaletteMode;
   notesDir: string;
   onOpenChange: (open: boolean) => void;
@@ -191,6 +194,7 @@ interface CommandPaletteProps {
 
 // oxlint-disable-next-line complexity, react-doctor/no-giant-component -- the split is tracked in #203
 export function CommandPalette({
+  handle,
   mode,
   notesDir,
   onOpenChange,
@@ -897,6 +901,7 @@ export function CommandPalette({
         { "h-96": listView }
       )}
       description="Search notes and run actions"
+      handle={handle}
       onOpenChange={handleOpenChange}
       open={open}
       title="command palette"

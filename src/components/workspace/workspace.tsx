@@ -12,6 +12,7 @@ import { NoteBrowser, NoteBrowserModes } from "@/components/notes/note-browser";
 import { NOTE_BROWSER_BUTTONS } from "@/components/notes/note-browser-buttons";
 import { TabStrip } from "@/components/tabs/tab-strip";
 import { Titlebar } from "@/components/titlebar";
+import type { DialogHandle } from "@/components/ui/dialog";
 import {
   ResizableHandle,
   ResizablePanel,
@@ -347,7 +348,14 @@ function BrowserPanels({
  * keyboard belongs here rather than inside one of them. Registered N times it
  * would fire N times, and a dropped file would land in every open note.
  */
-export function Workspace({ onOpenSearch }: { onOpenSearch: () => void }) {
+export function Workspace({
+  onOpenSearch,
+  searchTrigger,
+}: {
+  onOpenSearch: () => void;
+  /** The palette's handle, so the band's search button opens and closes it. */
+  searchTrigger: DialogHandle;
+}) {
   const browserOpen = useNoteBrowser();
   const { activeId, tabs } = useTabState();
 
@@ -545,7 +553,7 @@ export function Workspace({ onOpenSearch }: { onOpenSearch: () => void }) {
                 <BarButton
                   Icon={SearchIcon}
                   label="find a note"
-                  onClick={onOpenSearch}
+                  opens={searchTrigger}
                 />
               </div>
             </>
