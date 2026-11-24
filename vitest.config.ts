@@ -19,6 +19,7 @@ export default defineConfig({
     exclude: [
       ...configDefaults.exclude,
       ".claude/**",
+      ".delta/**",
       ".worktrees/**",
       "src-tauri/**",
       "smoke/**",
