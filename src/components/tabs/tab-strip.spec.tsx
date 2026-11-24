@@ -7,7 +7,7 @@ import { Suspense } from "react";
 import { afterEach, describe, expect, it, onTestFinished } from "vitest";
 
 import { Titlebar } from "@/components/titlebar";
-import { readRecentNotes } from "@/lib/recent-notes";
+import { readVisits } from "@/lib/recent-notes";
 import {
   closeTab,
   getTabState,
@@ -112,14 +112,16 @@ describe("tab strip", () => {
         target,
       });
       expect(getTabState().activeId).toBe(first);
-      expect(readRecentNotes("/notes")).toStrictEqual([]);
+      expect([...readVisits("/notes").keys()]).toStrictEqual([]);
 
       if (drag) {
         await user.pointer({ coords: { x: 10, y: 0 }, target });
       }
 
       await user.pointer({ keys: "[/MouseLeft]", target });
-      expect(readRecentNotes("/notes")).toStrictEqual(drag ? [] : ["a.md"]);
+      expect([...readVisits("/notes").keys()]).toStrictEqual(
+        drag ? [] : ["a.md"]
+      );
     }
   );
 

@@ -23,7 +23,7 @@ import type { NoteMeta } from "@/core/notes";
 import { parseSearch } from "@/core/search";
 import { appearanceQuery, noteQueries, themeQuery } from "@/data/queries";
 import { createQueryClient } from "@/lib/query-client";
-import { readRecentNotes, rememberNote } from "@/lib/recent-notes";
+import { readVisits, rememberNote } from "@/lib/recent-notes";
 import type { TabSnapshot } from "@/lib/tabs/store";
 import {
   closeTab,
@@ -695,7 +695,7 @@ describe("recent commands", () => {
         "check for updates…",
         "browse folders",
         "browse tags",
-        "browse recent",
+        "browse history",
         "browse pinned",
       ]);
     }
@@ -1836,10 +1836,10 @@ describe("recent note results", () => {
     expect(
       screen.getAllByRole("option").map((row) => row.dataset.value)
     ).toStrictEqual([
-      "21.md",
       "22.md",
-      ...Array.from({ length: 18 }, (_, index) => `${index + 1}.md`),
+      ...Array.from({ length: 19 }, (_, index) => `${index + 1}.md`),
     ]);
+    expect(screen.getByRole("group", { name: "recent" })).toBeVisible();
     expect(
       screen.queryByRole("option", { name: "Note 0" })
     ).not.toBeInTheDocument();
@@ -1851,6 +1851,7 @@ describe("recent note results", () => {
     expect(
       await screen.findByRole("option", { name: "Note 0" })
     ).toBeInTheDocument();
+    expect(screen.getByRole("group", { name: "notes" })).toBeVisible();
   });
 
   it("should keep rows and selection steady through refresh, remove deletions, and rank again after clearing", async () => {
@@ -1933,7 +1934,7 @@ describe("recent note results", () => {
     expect(
       screen.getAllByRole("option").map((row) => row.dataset.value)
     ).toStrictEqual(["c.md", "b.md"]);
-    expect(readRecentNotes("/notes")).toStrictEqual([]);
+    expect([...readVisits("/notes").keys()]).toStrictEqual([]);
     rememberNote("/notes", "b.md");
     const held = Promise.withResolvers<NoteMeta[]>();
 
@@ -2012,7 +2013,7 @@ describe("recent note results", () => {
     await waitFor(() => {
       expect(getTabState().tabs).toStrictEqual([]);
     });
-    expect(readRecentNotes("/notes")).toStrictEqual([]);
+    expect([...readVisits("/notes").keys()]).toStrictEqual([]);
   });
 });
 

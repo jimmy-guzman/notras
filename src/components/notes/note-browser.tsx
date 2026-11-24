@@ -1,6 +1,9 @@
 import { useQuery } from "@tanstack/react-query";
 import {
-  Clock3Icon,
+  ArchiveIcon,
+  CalendarDaysIcon,
+  ClockFadingIcon,
+  ClockIcon,
   FileTextIcon,
   FolderIcon,
   FolderOpenIcon,
@@ -36,7 +39,8 @@ import type { NoteMeta } from "@/core/notes";
 import { searchFolders } from "@/core/search";
 import { indexStatusQuery } from "@/data/index-status";
 import { noteQueries, notesDirQuery } from "@/data/queries";
-import { readRecentNotes } from "@/lib/recent-notes";
+import { notesByDay } from "@/lib/note-history";
+import type { HistoryDay } from "@/lib/note-history";
 import { useTabState } from "@/lib/tabs/store";
 import { reasonOf } from "@/lib/ui/failure";
 import { openSearchResult } from "@/lib/ui/find";
@@ -44,6 +48,7 @@ import {
   closeNoteBrowser,
   showNoteBrowserMode,
   useNoteBrowser,
+  useNoteBrowserArrival,
   useNoteBrowserMode,
 } from "@/lib/ui/note-browser";
 
@@ -144,14 +149,14 @@ function keepRowFocus(button: HTMLButtonElement | null) {
 }
 
 function NoteRow({
-  Icon = FileTextIcon,
   depth = 0,
   note,
+  showPin = true,
 }: {
-  /** What the row is in its mode: a file in a tree, a visit in recent, a pin in pinned. */
-  Icon?: typeof FileTextIcon;
   depth?: number;
   note: NoteMeta;
+  /** Off where every row is pinned, so the mark would tell no row from the next. */
+  showPin?: boolean;
 }) {
   const { activeId, tabs } = useTabState();
   const activeTab = tabs.find((tab) => tab.id === activeId);
@@ -170,9 +175,9 @@ function NoteRow({
         }}
         onKeyDown={moveFocus}
       >
-        <Icon className="text-muted-foreground" />
+        <FileTextIcon className="text-muted-foreground" />
         <span className="min-w-0 flex-1 truncate">{note.title}</span>
-        {note.pinned && Icon !== PinIcon ? (
+        {note.pinned && showPin ? (
           <PinIcon aria-label="pinned" className="text-muted-foreground" />
         ) : null}
       </SidebarMenuButton>
@@ -232,6 +237,13 @@ function Branch({
     </SidebarMenuItem>
   );
 }
+
+const DAY_ICONS: Record<HistoryDay, typeof FileTextIcon> = {
+  older: ArchiveIcon,
+  "previous 7 days": CalendarDaysIcon,
+  today: ClockIcon,
+  yesterday: ClockFadingIcon,
+};
 
 interface Fold {
   onToggle: (key: string) => void;
@@ -302,6 +314,35 @@ function Nothing({ children, title }: { children: ReactNode; title: string }) {
   );
 }
 
+function HistoryRows({ fold, notes }: { fold: Fold; notes: NoteMeta[] }) {
+  const days = notesByDay(notes, useNoteBrowserArrival());
+
+  return days.size === 0 ? (
+    <Nothing title="no notes yet">
+      Write a note with <Chord hotkey="Mod+N" /> and it shows here.
+    </Nothing>
+  ) : (
+    <SidebarMenu aria-label="history">
+      {[...days].map(([day, saved]) => (
+        <Branch
+          Icon={DAY_ICONS[day]}
+          count={saved.length}
+          key={day}
+          label={day}
+          onToggle={() => {
+            fold.onToggle(`day:${day}`);
+          }}
+          open={fold.opened.has(`day:${day}`)}
+        >
+          {saved.map((note) => (
+            <NoteRow depth={1} key={note.path} note={note} />
+          ))}
+        </Branch>
+      ))}
+    </SidebarMenu>
+  );
+}
+
 /** The ancestors of a folder and the folder itself, so a branch deep in the tree shows. */
 function folderChain(folder: string) {
   return folder === ""
@@ -311,7 +352,7 @@ function folderChain(folder: string) {
         .map((_, index, parts) => parts.slice(0, index + 1).join("/"));
 }
 
-function Browser({ notesDir }: { notesDir: string }) {
+function Browser() {
   const open = useSidebar();
   const mode = useNoteBrowserMode();
   const { activeId, tabs } = useTabState();
@@ -329,18 +370,15 @@ function Browser({ notesDir }: { notesDir: string }) {
         ).map((folder) => `folder:${folder}`)
       : [];
 
-  const [opened, setOpened] = useState(() => new Set(showingFolders));
+  const [opened, setOpened] = useState(
+    () => new Set([...showingFolders, "day:today", "day:yesterday"])
+  );
 
-  // Read as a mode arrives, so a click on a row does not reorder the list under the pointer.
   const arrival = `${mode}:${open}`;
+  const [arrived, setArrived] = useState(arrival);
 
-  const [visits, setVisits] = useState(() => ({
-    arrival,
-    history: readRecentNotes(notesDir),
-  }));
-
-  if (visits.arrival !== arrival) {
-    setVisits({ arrival, history: readRecentNotes(notesDir) });
+  if (arrived !== arrival) {
+    setArrived(arrival);
     setOpened((keys) => new Set([...keys, ...showingFolders]));
   }
 
@@ -441,22 +479,8 @@ function Browser({ notesDir }: { notesDir: string }) {
       );
     }
 
-    if (mode === "recent") {
-      const visited = visits.history.flatMap(
-        (path) => listed.find((note) => note.path === path) ?? []
-      );
-
-      return visited.length === 0 ? (
-        <Nothing title="nothing opened yet">
-          Open a note with <Chord hotkey="Mod+P" /> and it shows here.
-        </Nothing>
-      ) : (
-        <SidebarMenu aria-label="recent notes">
-          {visited.map((note) => (
-            <NoteRow Icon={Clock3Icon} key={note.path} note={note} />
-          ))}
-        </SidebarMenu>
-      );
+    if (mode === "history") {
+      return <HistoryRows fold={fold} notes={listed} />;
     }
 
     const pinned = listed.filter((note) => note.pinned);
@@ -468,7 +492,7 @@ function Browser({ notesDir }: { notesDir: string }) {
     ) : (
       <SidebarMenu aria-label="pinned notes">
         {pinned.map((note) => (
-          <NoteRow Icon={PinIcon} key={note.path} note={note} />
+          <NoteRow key={note.path} note={note} showPin={false} />
         ))}
       </SidebarMenu>
     );
@@ -564,7 +588,5 @@ export function NoteBrowser() {
   const open = useNoteBrowser();
   const { data: notesDir } = useQuery({ ...notesDirQuery, enabled: open });
 
-  return notesDir === undefined ? null : (
-    <Browser key={notesDir} notesDir={notesDir} />
-  );
+  return notesDir === undefined ? null : <Browser key={notesDir} />;
 }

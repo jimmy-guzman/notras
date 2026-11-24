@@ -1,4 +1,5 @@
 import { createStore, useSelector } from "@tanstack/react-store";
+import { useSyncExternalStore } from "react";
 import { boolean, maxValue, minValue, number, picklist, pipe } from "valibot";
 
 import { readStored, writeStored } from "@/lib/storage";
@@ -21,7 +22,7 @@ browser.subscribe((open) => {
 export const NOTE_BROWSER_MODES = [
   "folders",
   "tags",
-  "recent",
+  "history",
   "pinned",
 ] as const;
 
@@ -42,6 +43,23 @@ shownMode.subscribe((mode) => {
     "could not remember note browser mode"
   );
 });
+
+let arrivedAt = Date.now();
+
+function subscribeToArrival(onArrival: () => void) {
+  const markArrival = () => {
+    arrivedAt = Date.now();
+    onArrival();
+  };
+
+  // A list that starts to show has arrived too. React reads the clock again after it subscribes.
+  arrivedAt = Date.now();
+  window.addEventListener("focus", markArrival);
+
+  return () => {
+    window.removeEventListener("focus", markArrival);
+  };
+}
 
 /** The browser's band at its narrowest: the traffic lights, the browser's button, the four modes and search. */
 export const NOTE_BROWSER_MIN_WIDTH = 240;
@@ -75,6 +93,11 @@ export function useNoteBrowser() {
 
 export function useNoteBrowserMode() {
   return useSelector(shownMode);
+}
+
+/** The clock as a list last started to show or the window last came back. A list cut into days reads it, so the list holds still while it shows and moves on when a day ended meanwhile. */
+export function useNoteBrowserArrival() {
+  return useSyncExternalStore(subscribeToArrival, () => arrivedAt);
 }
 
 /** Shows a mode of the browser, opening the browser when it is closed. */

@@ -104,7 +104,7 @@ describe("home", () => {
     localStorage.removeItem("recent-notes:/notes");
   });
 
-  it("should list the last five visited notes with pinned ones ahead", async () => {
+  it("should list the last five visited notes, with no pinned note ahead", async () => {
     for (const path of ["f.md", "e.md", "d.md", "c.md", "b.md", "a.md"]) {
       rememberNote("/notes", path);
     }
@@ -125,7 +125,7 @@ describe("home", () => {
       within(list)
         .getAllByRole("button")
         .map((row) => row.textContent?.at(0))
-    ).toStrictEqual(["F", "A", "B", "C", "D"]);
+    ).toStrictEqual(["A", "B", "C", "D", "E"]);
   });
 
   it("should say why the list could not load and retry", async () => {
@@ -146,6 +146,28 @@ describe("home", () => {
     const list = await screen.findByRole("list", { name: "recent notes" });
 
     expect(within(list).getAllByRole("button")).toHaveLength(1);
+  });
+
+  it("should move a note to the top when it is visited while home shows", async () => {
+    rememberNote("/notes", "a.md");
+    mountHome([note("a.md", "A"), note("b.md", "B")]);
+
+    const list = await screen.findByRole("list", { name: "recent notes" });
+
+    expect(
+      within(list)
+        .getAllByRole("button")
+        .map((row) => row.textContent?.at(0))
+    ).toStrictEqual(["A", "B"]);
+
+    act(() => {
+      rememberNote("/notes", "b.md");
+    });
+    expect(
+      within(list)
+        .getAllByRole("button")
+        .map((row) => row.textContent?.at(0))
+    ).toStrictEqual(["B", "A"]);
   });
 
   it("should open a recent note on click and on its chord", async () => {

@@ -3,13 +3,12 @@ import { clearMocks, mockIPC, mockWindows } from "@tauri-apps/api/mocks";
 import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { nullish, object, parse, string } from "valibot";
-import { describe, expect, it, onTestFinished } from "vitest";
+import { describe, expect, it, onTestFinished, vi } from "vitest";
 
 import { Toaster } from "@/components/ui/toast";
 import { noteQueries } from "@/data/queries";
 import { Layout } from "@/layout";
 import { createQueryClient } from "@/lib/query-client";
-import { rememberNote } from "@/lib/recent-notes";
 import { closeTab, getTabState, openNote } from "@/lib/tabs/store";
 import { closeNoteBrowser, showNoteBrowserMode } from "@/lib/ui/note-browser";
 import type { NoteMeta_Serialize } from "@/server/adapters/bindings";
@@ -468,7 +467,9 @@ describe("note browser", () => {
     expect(localStorage.getItem("note-browser-mode")).toBe('"tags"');
   });
 
-  it("should list recent notes in visit order, keep that order while a row opens, and open a modified click in another tab", async () => {
+  it("should group every note by the day it was last saved, hold the rows still while one opens, and open a modified click in another tab", async () => {
+    const saved = Date.now();
+
     const user = mount(() => [
       {
         createdAt: 0,
@@ -478,7 +479,7 @@ describe("note browser", () => {
         snippet: null,
         tags: [],
         title: "One",
-        updatedAt: 1,
+        updatedAt: saved,
       },
       {
         createdAt: 0,
@@ -488,7 +489,7 @@ describe("note browser", () => {
         snippet: null,
         tags: [],
         title: "Two",
-        updatedAt: 1,
+        updatedAt: saved + 1000,
       },
       {
         createdAt: 0,
@@ -503,38 +504,130 @@ describe("note browser", () => {
     ]);
 
     act(() => {
-      openNote("one.md");
+      openNote("three.md");
     });
     await screen.findByRole("heading", { name: "Opened" });
-    rememberNote("/notes", "one.md");
-    rememberNote("/notes", "two.md");
     await user.click(screen.getByRole("button", { name: "browse notes" }));
     await user.click(
-      await screen.findByRole("button", { name: "browse recent" })
+      await screen.findByRole("button", { name: "browse history" })
     );
 
-    const list = within(
-      await screen.findByRole("list", { name: "recent notes" })
-    );
+    const list = within(await screen.findByRole("list", { name: "history" }));
 
     expect(
       list.getAllByRole("button").map((row) => row.textContent)
-    ).toStrictEqual(["Two", "One"]);
+    ).toStrictEqual(["today2", "Two", "One", "older1"]);
 
     await user.keyboard("{Control>}");
-    await user.click(list.getByRole("button", { name: "Two" }));
+    await user.click(list.getByRole("button", { name: "One" }));
     await user.keyboard("{/Control}");
     await waitFor(() => {
       expect(getTabState().tabs).toHaveLength(2);
     });
     await user.keyboard("{End}");
+    expect(list.getByRole("button", { name: "older 1" })).toHaveFocus();
+    await user.keyboard("{ArrowRight}");
+    expect(list.getByRole("button", { name: "Three" })).toBeVisible();
+    await user.keyboard("{ArrowUp}");
     expect(list.getByRole("button", { name: "One" })).toHaveFocus();
     await user.keyboard("{Enter}");
     expect(
       list.getAllByRole("button").map((row) => row.textContent)
-    ).toStrictEqual(["Two", "One"]);
+    ).toStrictEqual(["today2", "Two", "One", "older1", "Three"]);
     await user.keyboard("{Home}");
-    expect(list.getByRole("button", { name: "Two" })).toHaveFocus();
+    expect(list.getByRole("button", { name: "today 2" })).toHaveFocus();
+    await user.keyboard("{ArrowLeft}");
+    expect(
+      list.getAllByRole("button").map((row) => row.textContent)
+    ).toStrictEqual(["today2", "older1", "Three"]);
+  });
+
+  it("should move a note to yesterday when the window comes back on the next day", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    onTestFinished(() => {
+      vi.useRealTimers();
+    });
+    vi.setSystemTime(new Date(2026, 10, 23, 23, 59));
+
+    const user = mount(() => [
+      {
+        createdAt: 0,
+        folder: "",
+        path: "one.md",
+        pinned: false,
+        snippet: null,
+        tags: [],
+        title: "One",
+        updatedAt: new Date(2026, 10, 23, 23, 0).getTime(),
+      },
+    ]);
+
+    act(() => {
+      openNote("one.md");
+    });
+    await screen.findByRole("heading", { name: "Opened" });
+    await user.click(screen.getByRole("button", { name: "browse notes" }));
+    await user.click(
+      await screen.findByRole("button", { name: "browse history" })
+    );
+
+    const list = within(await screen.findByRole("list", { name: "history" }));
+
+    expect(
+      list.getAllByRole("button").map((row) => row.textContent)
+    ).toStrictEqual(["today1", "One"]);
+
+    vi.setSystemTime(new Date(2026, 10, 24, 0, 1));
+    act(() => {
+      window.dispatchEvent(new Event("focus"));
+    });
+    expect(
+      list.getAllByRole("button").map((row) => row.textContent)
+    ).toStrictEqual(["yesterday1", "One"]);
+  });
+
+  it("should move a note to yesterday when the browser opens again on the next day", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    onTestFinished(() => {
+      vi.useRealTimers();
+    });
+    vi.setSystemTime(new Date(2026, 10, 23, 23, 59));
+
+    const user = mount(() => [
+      {
+        createdAt: 0,
+        folder: "",
+        path: "one.md",
+        pinned: false,
+        snippet: null,
+        tags: [],
+        title: "One",
+        updatedAt: new Date(2026, 10, 23, 23, 0).getTime(),
+      },
+    ]);
+
+    act(() => {
+      openNote("one.md");
+    });
+    await screen.findByRole("heading", { name: "Opened" });
+    await user.click(screen.getByRole("button", { name: "browse notes" }));
+    await user.click(
+      await screen.findByRole("button", { name: "browse history" })
+    );
+    expect(
+      within(await screen.findByRole("list", { name: "history" }))
+        .getAllByRole("button")
+        .map((row) => row.textContent)
+    ).toStrictEqual(["today1", "One"]);
+
+    await user.click(screen.getByRole("button", { name: "browse notes" }));
+    vi.setSystemTime(new Date(2026, 10, 24, 0, 1));
+    await user.click(screen.getByRole("button", { name: "browse notes" }));
+    expect(
+      within(await screen.findByRole("list", { name: "history" }))
+        .getAllByRole("button")
+        .map((row) => row.textContent)
+    ).toStrictEqual(["yesterday1", "One"]);
   });
 
   it("should list only the pinned notes, and say so when nothing is pinned", async () => {
@@ -580,6 +673,7 @@ describe("note browser", () => {
     expect(
       list.getAllByRole("button").map((row) => row.textContent)
     ).toStrictEqual(["One"]);
+    expect(list.queryByLabelText("pinned")).not.toBeInTheDocument();
 
     pinned = false;
     await act(async () => {
