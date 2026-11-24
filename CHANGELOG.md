@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.12.10](https://github.com/jimmy-guzman/notras/compare/v0.12.9...v0.12.10) (2026-11-24)
+
+
+### Features
+
+* **notes:** ✨ browse history by day with ⌘⌥3 ([#590](https://github.com/jimmy-guzman/notras/issues/590)) ([d975bae](https://github.com/jimmy-guzman/notras/commit/d975baedf3976495cc4df71676674aeb1d6bb41a))
+
 ## [0.12.9](https://github.com/jimmy-guzman/notras/compare/v0.12.8...v0.12.9) (2026-11-23)
 
 
