@@ -26,7 +26,7 @@ import {
 import type { SearchFilter } from "@/core/search";
 import { indexStatusQuery } from "@/data/index-status";
 import { noteQueries } from "@/data/queries";
-import { recentNotes } from "@/lib/recent-notes";
+import { recentNotes, useVisits } from "@/lib/recent-notes";
 import { reasonOf } from "@/lib/ui/failure";
 
 import { Mark } from "./mark";
@@ -175,8 +175,10 @@ function useDisplayedNotes(
   notesDir: string,
   showing: string | undefined
 ) {
+  const visits = useVisits(notesDir);
+
   const readyNotes = idle
-    ? recentNotes(notesDir, currentNotes)
+    ? recentNotes(currentNotes, visits)
         .filter((note) => note.path !== showing)
         .slice(0, 20)
     : currentNotes;
@@ -421,7 +423,10 @@ function NoteResults({
         </Empty>
       ) : null}
       {visible.length > 0 || offerCreate ? (
-        <CommandGroup heading="notes" key={resultQuery}>
+        <CommandGroup
+          heading={resultQuery.trim() === "" ? "recent" : "notes"}
+          key={resultQuery}
+        >
           {visible.map((note) => (
             <NoteItem
               disabled={pending}

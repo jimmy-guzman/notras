@@ -7,7 +7,7 @@ import { object, parse, string } from "valibot";
 import { beforeEach, describe, expect, it, onTestFinished } from "vitest";
 
 import { Layout } from "@/layout";
-import { readRecentNotes } from "@/lib/recent-notes";
+import { readVisits } from "@/lib/recent-notes";
 import { closeTab, getTabState } from "@/lib/tabs/store";
 import { noteFind } from "@/lib/ui/find";
 import { closeNoteBrowser } from "@/lib/ui/note-browser";
@@ -474,18 +474,21 @@ describe("workspace", () => {
 
     await screen.findByText("Restored document");
     expect(editors()).toBe(1);
-    expect(readRecentNotes("/notes")).toStrictEqual([]);
+    expect([...readVisits("/notes").keys()]).toStrictEqual([]);
 
     // Unmounted, the tab still wears its filename stem.
     await user.click(screen.getByRole("tab", { name: "second" }));
     await waitFor(() => {
       expect(editors()).toBe(2);
-      expect(readRecentNotes("/notes")).toStrictEqual(["second.md"]);
+      expect([...readVisits("/notes").keys()]).toStrictEqual(["second.md"]);
     });
 
     await user.click(screen.getByRole("tab", { selected: false }));
     expect(editors()).toBe(2);
-    expect(readRecentNotes("/notes")).toStrictEqual(["first.md", "second.md"]);
+    expect([...readVisits("/notes").keys()]).toStrictEqual([
+      "first.md",
+      "second.md",
+    ]);
   });
 
   it("should put focus back on the graph's centre when its showing tab is picked from the list", async () => {

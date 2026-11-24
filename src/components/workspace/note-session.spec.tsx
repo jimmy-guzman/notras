@@ -20,7 +20,7 @@ import { Toaster } from "@/components/ui/toast";
 import type { ConflictStash } from "@/data/conflict-stash";
 import { noteQueries, notesDirQuery, tabOpeningQuery } from "@/data/queries";
 import { flushPendingWrites } from "@/lib/pending-flush";
-import { readRecentNotes, rememberNote } from "@/lib/recent-notes";
+import { readVisits, rememberNote } from "@/lib/recent-notes";
 import {
   activateTab,
   closeTab,
@@ -385,7 +385,7 @@ describe(NoteSession, () => {
         </QueryClientProvider>
       );
       await editor(id);
-      expect(readRecentNotes("/notes")).toStrictEqual(["original.md"]);
+      expect([...readVisits("/notes").keys()]).toStrictEqual(["original.md"]);
       rememberNote("/notes", "other.md");
       const { changePath } = sessionHandles(id);
 
@@ -423,7 +423,7 @@ describe(NoteSession, () => {
         await changed;
       });
       expect(getTabState().tabs.some((entry) => entry.id === id)).toBeFalsy();
-      expect(readRecentNotes("/notes")).toStrictEqual([
+      expect([...readVisits("/notes").keys()]).toStrictEqual([
         "other.md",
         kind === "move" ? "folder/original.md" : "renamed.md",
       ]);
@@ -485,7 +485,7 @@ describe(NoteSession, () => {
         </QueryClientProvider>
       );
       await screen.findByText("could not read this note");
-      expect(readRecentNotes("/notes")).toStrictEqual([]);
+      expect([...readVisits("/notes").keys()]).toStrictEqual([]);
       readable = true;
       await act(async () => {
         if (recovery === "retry") {
@@ -497,7 +497,7 @@ describe(NoteSession, () => {
         }
       });
       await editor(id);
-      expect(readRecentNotes("/notes")).toStrictEqual(
+      expect([...readVisits("/notes").keys()]).toStrictEqual(
         recovery === "retry" ? ["read.md"] : []
       );
       rememberNote("/notes", "other.md");
@@ -508,7 +508,7 @@ describe(NoteSession, () => {
       await waitFor(() => {
         expect(attempts).toBeGreaterThan(before);
       });
-      expect(readRecentNotes("/notes")).toStrictEqual(
+      expect([...readVisits("/notes").keys()]).toStrictEqual(
         recovery === "retry" ? ["other.md", "read.md"] : ["other.md"]
       );
     }
@@ -5076,7 +5076,7 @@ describe(NoteSession, () => {
       });
 
       const surface = await editor(id);
-      expect(readRecentNotes("/notes")).toStrictEqual([]);
+      expect([...readVisits("/notes").keys()]).toStrictEqual([]);
 
       act(() => {
         surface.commands.insertContent({
@@ -5089,7 +5089,7 @@ describe(NoteSession, () => {
         await flushPendingWrites();
       });
 
-      expect(readRecentNotes("/notes")).toStrictEqual(["hello.md"]);
+      expect([...readVisits("/notes").keys()]).toStrictEqual(["hello.md"]);
       rememberNote("/notes", "other.md");
       expect(creates).toStrictEqual([
         { options: { content: "# Hello", name: null } },
@@ -5114,7 +5114,10 @@ describe(NoteSession, () => {
       expect(creates).toHaveLength(1);
       expect(saves).toHaveLength(1);
       expect(saves[0]).toMatchObject({ path: "hello.md" });
-      expect(readRecentNotes("/notes")).toStrictEqual(["other.md", "hello.md"]);
+      expect([...readVisits("/notes").keys()]).toStrictEqual([
+        "other.md",
+        "hello.md",
+      ]);
     });
 
     it("should land typing during the create in the created file on the next save", async () => {

@@ -8,11 +8,29 @@ import type { NoteMeta } from "@/core/notes";
 
 import {
   forgetNote,
-  readRecentNotes,
+  readVisits,
   recentNotes,
   rememberNote,
   renameRecentNote,
 } from "./recent-notes";
+
+function note(
+  path: string,
+  createdAt: Date,
+  updatedAt: Date,
+  pinned = false
+): NoteMeta {
+  return {
+    createdAt,
+    folder: "",
+    path,
+    pinned,
+    snippet: null,
+    tags: [],
+    title: path,
+    updatedAt,
+  };
+}
 
 describe("recent notes", () => {
   beforeEach(() => {
@@ -33,7 +51,7 @@ describe("recent notes", () => {
     expect(() => {
       rememberNote("/notes", "new.md");
     }).not.toThrow();
-    expect(readRecentNotes("/notes")).toStrictEqual(["kept.md"]);
+    expect([...readVisits("/notes").keys()]).toStrictEqual(["kept.md"]);
     expect(
       await screen.findByText("could not update recent notes")
     ).toBeInTheDocument();
@@ -61,7 +79,7 @@ describe("recent notes", () => {
         clearMocks();
       });
 
-      expect(readRecentNotes("/notes")).toStrictEqual([]);
+      expect([...readVisits("/notes").keys()]).toStrictEqual([]);
       await waitFor(() => {
         expect(logged).toMatchObject([
           {
@@ -75,104 +93,73 @@ describe("recent notes", () => {
     }
   );
 
-  it.each(["null", "{}", "bad json", "[3]", '["a.md","a.md"]'])(
+  it.each(["null", "bad json", '["a.md"]', '{"a.md":"yesterday"}'])(
     "should discard invalid history %s",
     (raw) => {
       localStorage.setItem("recent-notes:/notes", raw);
-      expect(readRecentNotes("/notes")).toStrictEqual([]);
+      expect([...readVisits("/notes").keys()]).toStrictEqual([]);
     }
   );
 
-  it("should put pins first, then last chosen, then unvisited by last saved and path", () => {
-    const notes: NoteMeta[] = [
-      {
-        createdAt: new Date(0),
-        folder: "",
-        path: "old-pin.md",
-        pinned: true,
-        snippet: null,
-        tags: [],
-        title: "Old pin",
-        updatedAt: new Date(0),
-      },
-      {
-        createdAt: new Date(0),
-        folder: "",
-        path: "read-pin.md",
-        pinned: true,
-        snippet: null,
-        tags: [],
-        title: "Read pin",
-        updatedAt: new Date(0),
-      },
-      {
-        createdAt: new Date(0),
-        folder: "",
-        path: "frequent.md",
-        pinned: false,
-        snippet: null,
-        tags: [],
-        title: "Frequent",
-        updatedAt: new Date(900),
-      },
-      {
-        createdAt: new Date(0),
-        folder: "",
-        path: "chosen.md",
-        pinned: false,
-        snippet: null,
-        tags: [],
-        title: "Chosen",
-        updatedAt: new Date(0),
-      },
-      {
-        createdAt: new Date(0),
-        folder: "",
-        path: "b.md",
-        pinned: false,
-        snippet: null,
-        tags: [],
-        title: "B",
-        updatedAt: new Date(1000),
-      },
-      {
-        createdAt: new Date(0),
-        folder: "",
-        path: "a.md",
-        pinned: false,
-        snippet: null,
-        tags: [],
-        title: "A",
-        updatedAt: new Date(1000),
-      },
-      {
-        createdAt: new Date(0),
-        folder: "",
-        path: "old.md",
-        pinned: false,
-        snippet: null,
-        tags: [],
-        title: "Old",
-        updatedAt: new Date(0),
-      },
-    ];
+  it("should put the latest of a visit, a save and a creation first, pinned or not, then order by path", () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    onTestFinished(() => {
+      vi.useRealTimers();
+    });
 
-    rememberNote("/notes", "read-pin.md");
-    rememberNote("/notes", "frequent.md");
-    rememberNote("/notes", "frequent.md");
-    rememberNote("/notes", "chosen.md");
+    vi.setSystemTime(new Date(2026, 10, 23, 10, 0));
+    rememberNote("/notes", "visited.md");
     rememberNote("/notes", "missing.md");
-    expect(recentNotes("/notes", notes).map((note) => note.path)).toStrictEqual(
-      [
-        "read-pin.md",
-        "old-pin.md",
-        "chosen.md",
-        "frequent.md",
-        "a.md",
-        "b.md",
-        "old.md",
-      ]
+    expect(
+      recentNotes(
+        [
+          note("pinned-old.md", new Date(0), new Date(0), true),
+          note("a-old.md", new Date(0), new Date(0)),
+          note("visited.md", new Date(0), new Date(0)),
+          note("created-later.md", new Date(2026, 10, 23, 10, 30), new Date(0)),
+          note("saved-later.md", new Date(0), new Date(2026, 10, 23, 11, 0)),
+        ],
+        readVisits("/notes")
+      ).map(({ path }) => path)
+    ).toStrictEqual([
+      "saved-later.md",
+      "created-later.md",
+      "visited.md",
+      "a-old.md",
+      "pinned-old.md",
+    ]);
+  });
+
+  it("should stamp a visit with the clock after an earlier visit was stamped ahead of it", () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    onTestFinished(() => {
+      vi.useRealTimers();
+    });
+    vi.setSystemTime(new Date(2027, 10, 23, 10, 0));
+    rememberNote("/notes", "ahead.md");
+    vi.setSystemTime(new Date(2026, 10, 23, 10, 0));
+    rememberNote("/notes", "now.md");
+    expect([...readVisits("/notes").keys()]).toStrictEqual([
+      "now.md",
+      "ahead.md",
+    ]);
+    expect(readVisits("/notes").get("now.md")).toBe(
+      new Date(2026, 10, 23, 10, 0).getTime()
     );
+  });
+
+  it("should keep the order of two visits inside one tick of the clock", () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    onTestFinished(() => {
+      vi.useRealTimers();
+    });
+    vi.setSystemTime(new Date(2026, 10, 23, 10, 0));
+    rememberNote("/notes", "first.md");
+    rememberNote("/notes", "second.md");
+    expect([...readVisits("/notes").keys()]).toStrictEqual([
+      "second.md",
+      "first.md",
+    ]);
   });
 
   it("should carry renames and moves without a visit and remove deleted history only from its library", () => {
@@ -182,15 +169,17 @@ describe("recent notes", () => {
     renameRecentNote("/notes", "a.md", "renamed.md");
     renameRecentNote("/notes", "renamed.md", "folder/renamed.md");
     renameRecentNote("/notes", "unvisited.md", "elsewhere.md");
-    expect(readRecentNotes("/notes")).toStrictEqual([
+    expect([...readVisits("/notes").keys()]).toStrictEqual([
       "b.md",
       "folder/renamed.md",
     ]);
-    expect(readRecentNotes("/other")).toStrictEqual(["a.md"]);
+    expect([...readVisits("/other").keys()]).toStrictEqual(["a.md"]);
     forgetNote("/notes", "b.md");
-    expect(readRecentNotes("/notes")).toStrictEqual(["folder/renamed.md"]);
-    expect(
-      JSON.parse(localStorage.getItem("recent-notes:/notes") ?? "null")
-    ).toStrictEqual(["folder/renamed.md"]);
+    expect([...readVisits("/notes").keys()]).toStrictEqual([
+      "folder/renamed.md",
+    ]);
+    expect(localStorage.getItem("recent-notes:/notes")).toMatch(
+      /^\{"folder\/renamed\.md":\d+\}$/v
+    );
   });
 });

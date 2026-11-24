@@ -13,7 +13,7 @@ import {
 } from "@/components/ui/empty";
 import { indexStatusQuery } from "@/data/index-status";
 import { noteQueries, notesDirQuery } from "@/data/queries";
-import { recentNotes } from "@/lib/recent-notes";
+import { recentNotes, useVisits } from "@/lib/recent-notes";
 import { reasonOf } from "@/lib/ui/failure";
 import { openSearchResult } from "@/lib/ui/find";
 import { useHotkeys } from "@/lib/ui/shortcuts";
@@ -25,8 +25,10 @@ function RecentNotes({ notesDir }: { notesDir: string }) {
   const library = useQuery(noteQueries.list());
   const status = useQuery(indexStatusQuery);
 
+  const visits = useVisits(notesDir);
+
   const notes =
-    library.data === undefined ? [] : recentNotes(notesDir, library.data);
+    library.data === undefined ? [] : recentNotes(library.data, visits);
 
   const rows = ROW_CHORDS.flatMap((hotkey, index) => {
     const note = notes[index];
@@ -105,7 +107,7 @@ function RecentNotes({ notesDir }: { notesDir: string }) {
 }
 
 /**
- * The screen with no tab open: the lockup, then the last five notes visited,
+ * The screen with no tab open: the lockup, then the five most recent notes,
  * so picking up where you left off is one key away.
  */
 export function Home({

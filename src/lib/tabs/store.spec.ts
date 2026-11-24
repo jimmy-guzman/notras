@@ -15,7 +15,7 @@ import { createNotePersistence } from "@/components/editor/note-persistence";
 import type { SaveOutcome } from "@/components/editor/note-persistence";
 import { Toaster } from "@/components/ui/toast";
 import { parseNote } from "@/core/frontmatter";
-import { readRecentNotes } from "@/lib/recent-notes";
+import { readVisits } from "@/lib/recent-notes";
 
 import {
   activateTab,
@@ -830,20 +830,20 @@ describe("note choices", () => {
   it("should remember successful choices and leave automatic tab changes alone", () => {
     openNote("initial.md");
     const initial = getTabState().activeId;
-    expect(readRecentNotes("/notes")).toStrictEqual([]);
+    expect([...readVisits("/notes").keys()]).toStrictEqual([]);
     registerLoadedNote(initial, "/notes");
-    expect(readRecentNotes("/notes")).toStrictEqual(["initial.md"]);
+    expect([...readVisits("/notes").keys()]).toStrictEqual(["initial.md"]);
 
     openNote("chosen.md", true);
     const chosen = getTabState().activeId;
-    expect(readRecentNotes("/notes")).toStrictEqual(["initial.md"]);
+    expect([...readVisits("/notes").keys()]).toStrictEqual(["initial.md"]);
     registerLoadedNote(chosen, "/notes");
-    expect(readRecentNotes("/notes")).toStrictEqual([
+    expect([...readVisits("/notes").keys()]).toStrictEqual([
       "chosen.md",
       "initial.md",
     ]);
     activateTab(initial);
-    expect(readRecentNotes("/notes")).toStrictEqual([
+    expect([...readVisits("/notes").keys()]).toStrictEqual([
       "initial.md",
       "chosen.md",
     ]);
@@ -851,19 +851,19 @@ describe("note choices", () => {
     showTab(chosen);
     moveTab(chosen, 0);
     closeTab(chosen);
-    expect(readRecentNotes("/notes")).toStrictEqual([
+    expect([...readVisits("/notes").keys()]).toStrictEqual([
       "initial.md",
       "chosen.md",
     ]);
     reopenTab();
     registerLoadedNote(chosen, "/notes");
-    expect(readRecentNotes("/notes")).toStrictEqual([
+    expect([...readVisits("/notes").keys()]).toStrictEqual([
       "chosen.md",
       "initial.md",
     ]);
     activateTab(initial);
     openNote("chosen.md");
-    expect(readRecentNotes("/notes")).toStrictEqual([
+    expect([...readVisits("/notes").keys()]).toStrictEqual([
       "chosen.md",
       "initial.md",
     ]);
@@ -874,27 +874,27 @@ describe("note choices", () => {
     const cancelled = getTabState().activeId;
     openNote("failed.md", true);
     registerLoadedNote(cancelled, "/notes");
-    expect(readRecentNotes("/notes")).toStrictEqual([]);
+    expect([...readVisits("/notes").keys()]).toStrictEqual([]);
     closeTab(getTabState().activeId);
     registerLoadedNote(cancelled, "/notes");
-    expect(readRecentNotes("/notes")).toStrictEqual([]);
+    expect([...readVisits("/notes").keys()]).toStrictEqual([]);
     openTab("external", "/outside.md");
     openDraft();
-    expect(readRecentNotes("/notes")).toStrictEqual([]);
+    expect([...readVisits("/notes").keys()]).toStrictEqual([]);
   });
 
   it("should count a showing draft's first file but not a background draft", () => {
     openDraft();
     const draft = getTabState().activeId;
     renameTab(draft, "first.md", "/notes");
-    expect(readRecentNotes("/notes")).toStrictEqual(["first.md"]);
+    expect([...readVisits("/notes").keys()]).toStrictEqual(["first.md"]);
     openNote("second.md", true);
     registerLoadedNote(getTabState().activeId, "/notes");
     openDraft();
     const background = getTabState().activeId;
     activateTab(draft);
     renameTab(background, "background.md", "/notes");
-    expect(readRecentNotes("/notes")).not.toContain("background.md");
+    expect([...readVisits("/notes").keys()]).not.toContain("background.md");
   });
 
   it("should restore tabs without recording visits and keep choices in the loaded library", () => {
@@ -908,13 +908,13 @@ describe("note choices", () => {
     );
     restoreTabs();
     registerLoadedNote("restored", "/notes");
-    expect(readRecentNotes("/notes")).toStrictEqual([]);
+    expect([...readVisits("/notes").keys()]).toStrictEqual([]);
     activateTab("restored");
-    expect(readRecentNotes("/notes")).toStrictEqual(["a.md"]);
+    expect([...readVisits("/notes").keys()]).toStrictEqual(["a.md"]);
     closeTab("restored");
     openNote("b.md");
     registerLoadedNote(getTabState().activeId, "/other");
-    expect(readRecentNotes("/other")).toStrictEqual(["b.md"]);
-    expect(readRecentNotes("/notes")).toStrictEqual(["a.md"]);
+    expect([...readVisits("/other").keys()]).toStrictEqual(["b.md"]);
+    expect([...readVisits("/notes").keys()]).toStrictEqual(["a.md"]);
   });
 });
