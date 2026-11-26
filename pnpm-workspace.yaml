@@ -9,7 +9,7 @@ autoInstallPeers: false
 color: always
 engineStrict: true
 minimumReleaseAgeExclude:
-  - "@pierre/highlights@0.5.2"
+  - "@pierre/highlights@0.6.0"
 patchedDependencies:
   "@tiptap/core": patches/@tiptap__core.patch
   "@tiptap/markdown": patches/@tiptap__markdown.patch
