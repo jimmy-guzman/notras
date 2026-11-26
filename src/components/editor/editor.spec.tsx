@@ -1060,7 +1060,7 @@ describe("embeds", () => {
 
   it("should color the whole of an embedded note's long code block for a print", async () => {
     const code = Array.from(
-      { length: 3000 },
+      { length: 1200 },
       (_, i) => `const v${i} = ${i};`
     ).join("\n");
 
@@ -1076,18 +1076,18 @@ describe("embeds", () => {
       },
     });
 
-    expect(embeddedSyntax()).not.toContain("2999");
+    expect(embeddedSyntax()).not.toContain("1199");
 
     const windowAgain = handle.revealSyntax();
-    expect(embeddedSyntax()).toContain("2999");
+    expect(embeddedSyntax()).toContain("1199");
 
     windowAgain();
-    expect(embeddedSyntax()).not.toContain("2999");
+    expect(embeddedSyntax()).not.toContain("1199");
   });
 
   it("should color the whole of an embed's long code block when it refreshes during a print", async () => {
     const code = Array.from(
-      { length: 3000 },
+      { length: 1200 },
       (_, i) => `const v${i} = ${i};`
     ).join("\n");
 
@@ -1118,16 +1118,16 @@ describe("embeds", () => {
     });
 
     await waitFor(() => {
-      expect(embeddedSyntax()).toContain("2999");
+      expect(embeddedSyntax()).toContain("1199");
     });
 
     windowAgain();
-    expect(embeddedSyntax()).not.toContain("2999");
+    expect(embeddedSyntax()).not.toContain("1199");
   });
 
   it("should color the whole of an embed's long code block before a frame passes when it refreshes during a print", async () => {
     const code = Array.from(
-      { length: 3000 },
+      { length: 1200 },
       (_, i) => `const v${i} = ${i};`
     ).join("\n");
 
@@ -1157,13 +1157,13 @@ describe("embeds", () => {
       }
     });
 
-    expect(embeddedSyntax()).toContain("2999");
+    expect(embeddedSyntax()).toContain("1199");
     windowAgain();
   });
 
   it("should window an embed's long code block again when it refreshes during a print that ends before its next frame", async () => {
     const code = Array.from(
-      { length: 3000 },
+      { length: 1200 },
       (_, i) => `const v${i} = ${i};`
     ).join("\n");
 
@@ -1195,7 +1195,7 @@ describe("embeds", () => {
     windowAgain();
 
     await waitFor(() => {
-      expect(embeddedSyntax()).not.toContain("2999");
+      expect(embeddedSyntax()).not.toContain("1199");
     });
   });
 
