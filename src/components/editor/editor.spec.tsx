@@ -1161,6 +1161,44 @@ describe("embeds", () => {
     windowAgain();
   });
 
+  it("should window an embed's long code block again when it refreshes during a print that ends before its next frame", async () => {
+    const code = Array.from(
+      { length: 3000 },
+      (_, i) => `const v${i} = ${i};`
+    ).join("\n");
+
+    const refreshes: (() => void)[] = [];
+
+    const { handle } = await mount({
+      initialContent: "see ![[Atlas]]",
+      watchEmbed: (_title, show) => {
+        const draw = () => {
+          show({
+            body: `\`\`\`ts\n${code}\n\`\`\``,
+            resolveImageSrc: (src) => ({ failure: "", src }),
+          });
+        };
+
+        draw();
+        refreshes.push(draw);
+
+        return () => {};
+      },
+    });
+
+    const windowAgain = handle.revealSyntax();
+    act(() => {
+      for (const refresh of refreshes) {
+        refresh();
+      }
+    });
+    windowAgain();
+
+    await waitFor(() => {
+      expect(embeddedSyntax()).not.toContain("2999");
+    });
+  });
+
   it("should show an embedded image in the viewer from its open button", async () => {
     await mount({
       initialContent: "![[Atlas]]",

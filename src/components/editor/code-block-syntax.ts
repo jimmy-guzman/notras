@@ -288,7 +288,7 @@ function syntaxPlugin() {
       init: (_, state) => {
         // A fresh editor opens at the top. One drawn during a print opens
         // whole, since the print can copy it before a frame joins it to the
-        // reveal; outside the reveal, its first measure windows it again.
+        // reveal; outside the reveal, its first frame windows it again.
         const viewport =
           reveals.size > 0
             ? { from: 0, to: state.doc.content.size }
@@ -303,6 +303,8 @@ function syntaxPlugin() {
     view(view: EditorView) {
       let measured = false;
       let frame = 0;
+      // The state's `init` opened this view whole for a print.
+      let openedWhole = reveals.size > 0;
 
       function tick() {
         frame = 0;
@@ -316,6 +318,7 @@ function syntaxPlugin() {
         );
 
         if (reveal !== undefined) {
+          openedWhole = false;
           reveal[1].push(revealView(view, { from: 0, to: WINDOW }));
 
           return;
@@ -330,6 +333,15 @@ function syntaxPlugin() {
           // brings it back measures it.
           if (!view.dom.isConnected && codeBlocks(view.state.doc).length > 0) {
             frame = requestAnimationFrame(tick);
+
+            return;
+          }
+
+          // Opened whole for a print it is not part of, or one that ended
+          // before this frame: back to the top until a measure places it.
+          if (openedWhole && !measured) {
+            openedWhole = false;
+            setViewport(view, { from: 0, to: WINDOW });
           }
 
           return;

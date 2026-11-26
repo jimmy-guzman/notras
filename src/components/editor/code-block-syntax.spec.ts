@@ -456,6 +456,44 @@ describe("code block highlighting", () => {
     expect(coloredText(editor, "syntax-keyword")).toContain("const");
   });
 
+  it("should window an editor drawn out of sight during a print it is not part of", ({
+    onTestFinished,
+  }) => {
+    vi.useFakeTimers({ toFake: ["requestAnimationFrame"] });
+    onTestFinished(() => {
+      vi.useRealTimers();
+    });
+    const lines = 3000;
+
+    const code = Array.from(
+      { length: lines },
+      (_, i) => `const v${i} = ${i};`
+    ).join("\n");
+
+    const printed = createEditor("ts", "const a = 1;");
+    onTestFinished(() => {
+      printed.destroy();
+    });
+    const windowAgain = revealSyntax(printed.view);
+    onTestFinished(windowAgain);
+
+    const other = createEditor("ts", code);
+    onTestFinished(() => {
+      other.destroy();
+    });
+    document.body.append(other.view.dom);
+    onTestFinished(() => {
+      other.view.dom.remove();
+    });
+
+    vi.advanceTimersToNextFrame();
+
+    expect(coloredText(other, "syntax-number")).not.toContain(
+      String(lines - 1)
+    );
+    expect(coloredText(other, "syntax-keyword")).toContain("const");
+  });
+
   it("should stop measuring an editor scrolled out of sight until a scroll brings it back", ({
     onTestFinished,
   }) => {
