@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.12.11](https://github.com/jimmy-guzman/notras/compare/v0.12.10...v0.12.11) (2026-11-27)
+
+
+### Features
+
+* **editor:** ✨ color code the moment it is typed ([#533](https://github.com/jimmy-guzman/notras/issues/533)) ([a4e6682](https://github.com/jimmy-guzman/notras/commit/a4e6682cca67c2dbd5dc159da22f1c8885d82b62))
+
+
+### Bug Fixes
+
+* **ui:** 🐛 move the sidebar button to the edge in fullscreen ([#593](https://github.com/jimmy-guzman/notras/issues/593)) ([3308c32](https://github.com/jimmy-guzman/notras/commit/3308c322b7e304a3635bda5547501a9394383e48))
+
 ## [0.12.10](https://github.com/jimmy-guzman/notras/compare/v0.12.9...v0.12.10) (2026-11-24)
 
 
