@@ -1,195 +1,168 @@
-import { bundledLanguagesInfo } from "shiki/langs";
+import { codeToTokens, isSupportedLanguage } from "@pierre/highlights";
+import type { Lang } from "@pierre/highlights";
 
-/** One colored run inside a line; `offset` counts from the line start. */
+import { parseNote } from "@/core/frontmatter";
+
+import { syntaxTheme } from "./syntax-theme";
+
+/** One styled run of code; `offset` counts from the start of the code. */
 export interface SyntaxToken {
   color: string;
+  /** CSS for an italic, bold or struck run, such as Markdown emphasis. */
+  font?: string;
   length: number;
   offset: number;
 }
 
-export interface SyntaxRequest {
-  code: string;
-  /** The block being tokenized, so the worker can diff against its last text. */
-  document: number;
-  id: number;
-  language: string;
+const PLAIN = new Set(["plain", "plaintext", "text", "txt"]);
+const MARKDOWN = new Set(["markdown", "md", "mdc"]);
+const DIFF = new Set(["diff", "patch"]);
+
+/**
+ * The ink each diff line takes as a whole, by its prefix. The lexer greys the
+ * `+` and `-` markers and colors the file lines as change, which no theme
+ * category can tell apart from the lines they name.
+ */
+const DIFF_INKS = [
+  [/^@@/u, "var(--syntax-member)"],
+  [/^-/u, "var(--syntax-removed)"],
+  [/^\+/u, "var(--syntax-added)"],
+  [/^!/u, "var(--syntax-changed)"],
+] as const;
+
+/** Fence labels that name a lexer the highlighter knows under another name. */
+const ALIASES = new Map([
+  ["console", "shellsession"],
+  ["f18", "fortran-free-form"],
+  ["mbti", "moonbit"],
+]);
+
+/**
+ * The runs that are not plain text, which needs no decoration. As the default
+ * of a theme set, the theme comes back as each run's inline CSS, font included.
+ */
+function styledTokens(code: string, lang: Lang, shift: number) {
+  const { fg, tokens } = codeToTokens(code, {
+    defaultColor: "notras",
+    lang,
+    themes: { notras: syntaxTheme },
+  });
+
+  return tokens.flat().flatMap(({ content, htmlStyle = {}, offset }) => {
+    const { color, ...font } = htmlStyle;
+
+    const run = {
+      color: color === undefined || color === fg ? "inherit" : color,
+      length: content.length,
+      offset: offset + shift,
+    };
+
+    const declarations = Object.entries(font).map(
+      ([property, value]) => `${property}: ${value}`
+    );
+
+    if (declarations.length === 0) {
+      return run.color === "inherit" ? [] : [run];
+    }
+
+    return [{ ...run, font: declarations.join("; ") }];
+  });
 }
 
 /**
- * A block's code plus what decides when the worker sees it. `distance` and
- * `showing` are read when the next request is picked, so the caller keeps
- * them current while the job waits.
+ * Whether a diff line names files or ranges rather than changing a line. A
+ * removed `-- comment` reads `--- comment`, so `---` and `+++` name files only
+ * beside the line they pair with. A removed `-- ` line directly above an added
+ * `++ ` line still reads as a file pair, which only hunk line counts settle.
  */
-export interface SyntaxJob {
-  code: string;
-  /** Characters between the block and what is on screen, zero when it reaches into it. */
-  distance: number;
-  /** The block being tokenized, so the worker can diff against its last text. */
-  document: number;
-  /** An edit asked, rather than a mount. */
-  edited: boolean;
-  language: string;
-  /** The editor holding the block is painted. */
-  showing: boolean;
-  /** Aborting withdraws the job while it waits; one in flight still answers. */
-  signal: AbortSignal;
-}
-
-/** Replace the lines from `start` up to the last `tail` lines with `lines`. */
-export interface SyntaxSplice {
-  lines: SyntaxToken[][];
-  start: number;
-  tail: number;
-}
-
-export type SyntaxResponse =
-  | { error: string; id: number }
-  | ({ id: number } & SyntaxSplice);
-
-interface Waiting {
-  arrived: number;
-  job: SyntaxJob;
-  resolvers: PromiseWithResolvers<SyntaxSplice | undefined>;
-}
-
-let worker: Worker | undefined;
-let nextId = 0;
-let arrivals = 0;
-
-/** One job per block, keyed by the block's id. */
-const waiting = new Map<number, Waiting>();
-let inFlight: Waiting | undefined;
-
-/** Negative when `a` goes first: a showing editor, then an edit, then the block nearest its screen, then the earliest arrival. */
-function compare(a: Waiting, b: Waiting) {
+function isDiffHeader(line: string, previous: string, next: string) {
   return (
-    Number(b.job.showing) - Number(a.job.showing) ||
-    Number(b.job.edited) - Number(a.job.edited) ||
-    a.job.distance - b.job.distance ||
-    a.arrived - b.arrived
+    /^(?:diff |index |\*\*\*)/u.test(line) ||
+    /^--- \d+(?:,\d+)? ----$/u.test(line) ||
+    (line.startsWith("--- ") &&
+      (next.startsWith("+++ ") || previous.startsWith("*** "))) ||
+    (line.startsWith("+++ ") && previous.startsWith("--- "))
   );
 }
 
-function fail(reason: string) {
-  const failed = [inFlight, ...waiting.values()];
-  inFlight = undefined;
-  waiting.clear();
+function diffTokens(code: string) {
+  const lines = [...code.matchAll(/^.+$/gmu)];
 
-  for (const each of failed) {
-    each?.resolvers.reject(new Error(reason));
-  }
+  return lines.flatMap(({ 0: line, index }, at) => {
+    const ink = isDiffHeader(
+      line,
+      lines[at - 1]?.[0] ?? "",
+      lines[at + 1]?.[0] ?? ""
+    )
+      ? "var(--syntax-comment)"
+      : DIFF_INKS.find(([prefix]) => prefix.test(line))?.[1];
+
+    return ink === undefined
+      ? []
+      : [{ color: ink, length: line.length, offset: index }];
+  });
 }
 
-function settle(response: SyntaxResponse) {
-  if (inFlight === undefined || response.id !== nextId) {
-    throw new Error("The worker answered a request nobody made");
-  }
-
-  const { resolvers } = inFlight;
-  inFlight = undefined;
-
-  if ("error" in response) {
-    resolvers.reject(new Error(response.error));
-  } else {
-    resolvers.resolve(response);
-  }
+/**
+ * The Markdown lexer opens frontmatter on any leading `---`. A leading newline
+ * keeps it out of text the app reads as Markdown.
+ */
+function markdownTokens(markdown: string, lang: Lang, shift: number) {
+  return styledTokens(`\n${markdown}`, lang, shift - 1);
 }
 
-/** Take the best waiting job off the queue; aborted jobs leave it on the way. */
-function takeNext() {
-  let next: Waiting | undefined;
+/** A leading `---` over a line the YAML lexer opens with a key: frontmatter being typed. */
+function opensWithKey(code: string) {
+  const second = /^---\r?\n(?<line>.*)/u.exec(code)?.groups?.line;
 
-  for (const [document, candidate] of waiting) {
-    if (candidate.job.signal.aborted) {
-      waiting.delete(document);
-      candidate.resolvers.resolve(undefined);
-    } else if (next === undefined || compare(candidate, next) < 0) {
-      next = candidate;
-    }
-  }
+  const [first] =
+    second === undefined ? [] : styledTokens(second.trimStart(), "yaml", 0);
 
-  if (next !== undefined) {
-    waiting.delete(next.job.document);
-  }
-
-  return next;
+  return first?.offset === 0 && first.color === "var(--syntax-member)";
 }
-
-/** Post the best waiting job, unless one is in flight. */
-function post() {
-  if (inFlight !== undefined) {
-    return;
-  }
-
-  const next = takeNext();
-
-  if (next === undefined) {
-    return;
-  }
-
-  nextId += 1;
-  inFlight = next;
-
-  if (worker === undefined) {
-    const instance = new Worker(new URL("syntax-worker.ts", import.meta.url), {
-      type: "module",
-    });
-
-    instance.addEventListener(
-      "message",
-      (event: MessageEvent<SyntaxResponse>) => {
-        settle(event.data);
-        post();
-      }
-    );
-    // A worker that cannot start answers nothing, so its requests fail here
-    // and the next request starts a fresh one.
-    instance.addEventListener("error", (event) => {
-      instance.terminate();
-      worker = undefined;
-      fail(event.message);
-    });
-    worker = instance;
-  }
-
-  const { code, document, language } = next.job;
-  const request: SyntaxRequest = { code, document, id: nextId, language };
-  // oxlint-disable-next-line unicorn/require-post-message-target-origin -- a Worker's second argument is a transfer list, not an origin
-  worker.postMessage(request);
-}
-
-export const codeLanguages = bundledLanguagesInfo.map(({ id }) => id);
 
 /** Resolve an explicit fence label without changing what is saved to the file. */
 export function syntaxLanguage(
   language: string | null | undefined
-): string | undefined {
-  if (language === null || language === undefined) {
-    return undefined;
-  }
+): Lang | undefined {
+  const lowered = language?.toLowerCase();
 
-  const label = language.toLowerCase();
+  const label =
+    lowered === undefined ? undefined : (ALIASES.get(lowered) ?? lowered);
 
-  return bundledLanguagesInfo.find(
-    ({ aliases, id }) => id === label || aliases?.includes(label) === true
-  )?.id;
+  return label === undefined || PLAIN.has(label) || !isSupportedLanguage(label)
+    ? undefined
+    : label;
 }
 
 /**
- * Tokenize code off the UI thread, one block at a time in the order the jobs
- * rank; grammars are packaged, so no network service receives code. Resolves
- * with nothing when a later job for the same block replaced this one, or its
- * signal aborted, before it was posted.
+ * Tokenize code with the packaged lexers, so no network service receives it.
+ * A note's frontmatter is what `parseNote` says it is: the Markdown lexer
+ * closes a block on `---` alone and would read the body after `...` as YAML,
+ * and it opens one on a rule the app reads as Markdown. A block still being
+ * typed, with a key under its opening line, keeps the lexer's YAML colors.
  */
-export async function highlightCode(
-  job: SyntaxJob
-): Promise<SyntaxSplice | undefined> {
-  const resolvers = Promise.withResolvers<SyntaxSplice | undefined>();
-  waiting.get(job.document)?.resolvers.resolve(undefined);
-  arrivals += 1;
-  waiting.set(job.document, { arrived: arrivals, job, resolvers });
-  // A frame or an edit enqueues a batch synchronously; the pick waits for all of it.
-  queueMicrotask(post);
+export function highlightCode(code: string, language: Lang): SyntaxToken[] {
+  if (DIFF.has(language)) {
+    return diffTokens(code);
+  }
 
-  return await resolvers.promise;
+  if (!MARKDOWN.has(language)) {
+    return styledTokens(code, language, 0);
+  }
+
+  const { body, raw } = parseNote(code);
+
+  if (raw === undefined) {
+    return opensWithKey(code)
+      ? styledTokens(code, language, 0)
+      : markdownTokens(code, language, 0);
+  }
+
+  const head = code.slice(0, code.length - body.length);
+
+  return [
+    ...styledTokens(head, "yaml", 0),
+    ...markdownTokens(body, language, head.length),
+  ];
 }

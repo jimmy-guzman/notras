@@ -64,6 +64,15 @@
   --radius-4xl: calc(var(--radius) + 16px);
 }
 
+/* Each theme sets these roles on both selectors; the diff inks resolve against
+   the palette of the element they land on, so the fence on paper keeps its own. */
+:root,
+.print-sheet .code-block-wrapper {
+  --syntax-added: var(--success);
+  --syntax-changed: var(--warning);
+  --syntax-removed: var(--destructive);
+}
+
 :root {
   --radius: 0.5rem;
 }

@@ -101,6 +101,18 @@ async function dragPanelDivider(
   delta: number
 ) {
   await session.$(selector).waitForDisplayed();
+  // A panel that just opened is sized again a frame after the group's
+  // ResizeObserver first reports, which would undo a drag landing before it.
+  await session.execute(async () => {
+    const painted = Promise.withResolvers<number>();
+
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        requestAnimationFrame(painted.resolve);
+      });
+    });
+    await painted.promise;
+  });
   await session.execute(
     (dividerSelector, offset) => {
       const divider = document.querySelector(dividerSelector);
