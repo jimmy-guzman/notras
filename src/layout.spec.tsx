@@ -686,6 +686,130 @@ describe("layout", () => {
     ).toBeInTheDocument();
   });
 
+  it("should mark the page fullscreen while the window is", async () => {
+    mockWindows("main");
+    let fullscreen = true;
+    mockIPC(
+      (command) => {
+        if (command === "get_notes_dir") {
+          return "/notes";
+        }
+
+        if (command === "index_status") {
+          return { state: "ready" };
+        }
+
+        if (command === "list_notes" || command === "list_tags") {
+          return [];
+        }
+
+        if (command === "take_pending_open") {
+          return [];
+        }
+
+        if (command === "plugin:window|is_fullscreen") {
+          return fullscreen;
+        }
+
+        if (command.startsWith("plugin:")) {
+          return 0;
+        }
+
+        throw new Error(`unexpected command: ${command}`);
+      },
+      { shouldMockEvents: true }
+    );
+
+    const client = new QueryClient({
+      defaultOptions: {
+        queries: { retry: false, staleTime: Number.POSITIVE_INFINITY },
+      },
+    });
+
+    onTestFinished(() => {
+      client.clear();
+      clearMocks();
+      delete document.documentElement.dataset.fullscreen;
+    });
+    render(
+      <QueryClientProvider client={client}>
+        <Layout />
+      </QueryClientProvider>
+    );
+
+    await waitFor(() => {
+      expect(document.documentElement).toHaveAttribute("data-fullscreen");
+    });
+
+    fullscreen = false;
+    await emit("tauri://resize", { height: 800, width: 1200 });
+
+    await waitFor(() => {
+      expect(document.documentElement).not.toHaveAttribute("data-fullscreen");
+    });
+  });
+
+  it("should log and leave the page unmarked when the window cannot say it is fullscreen", async () => {
+    mockWindows("main");
+    const logged: unknown[] = [];
+    mockIPC((command, args) => {
+      if (command === "get_notes_dir") {
+        return "/notes";
+      }
+
+      if (command === "index_status") {
+        return { state: "ready" };
+      }
+
+      if (command === "list_notes" || command === "list_tags") {
+        return [];
+      }
+
+      if (command === "take_pending_open") {
+        return [];
+      }
+
+      if (command === "plugin:window|is_fullscreen") {
+        throw new Error("window is gone");
+      }
+
+      if (command === "plugin:log|log") {
+        logged.push(args);
+      }
+
+      if (command.startsWith("plugin:")) {
+        return 0;
+      }
+
+      throw new Error(`unexpected command: ${command}`);
+    });
+
+    const client = new QueryClient({
+      defaultOptions: {
+        queries: { retry: false, staleTime: Number.POSITIVE_INFINITY },
+      },
+    });
+
+    onTestFinished(() => {
+      client.clear();
+      clearMocks();
+    });
+    render(
+      <QueryClientProvider client={client}>
+        <Layout />
+      </QueryClientProvider>
+    );
+
+    await waitFor(() => {
+      expect(logged).toContainEqual(
+        expect.objectContaining({
+          message: "could not read fullscreen: Error: window is gone",
+        })
+      );
+    });
+    expect(document.documentElement).not.toHaveAttribute("data-fullscreen");
+  });
+
   it("should save every open tab when the window loses focus", async () => {
     localStorage.setItem(
       "tabs",

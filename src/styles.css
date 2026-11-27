@@ -12,6 +12,7 @@
 @import "@/themes/catppuccin.css";
 
 @custom-variant dark (@media (prefers-color-scheme: dark));
+@custom-variant fullscreen (&:where([data-fullscreen] *));
 
 /* dnd-kit hands a tab its offset and its settle transition; the transition
    targets `transform`, and it must sit beside the hover and selection fades
