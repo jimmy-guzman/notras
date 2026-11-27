@@ -5,6 +5,7 @@ import {
   useSuspenseQueries,
 } from "@tanstack/react-query";
 import { listen } from "@tauri-apps/api/event";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import { Suspense, useEffect, useState } from "react";
 import { ErrorBoundary } from "react-error-boundary";
 import type { FallbackProps } from "react-error-boundary";
@@ -50,6 +51,36 @@ async function listenForContinuedJots() {
 
     openNoteAtCaret(payload.path, payload.caret);
   });
+}
+
+/**
+ * Marks `<html data-fullscreen>` while the window is fullscreen. macOS hides
+ * the traffic lights there, and the bars stop clearing them. Entering or
+ * leaving fullscreen resizes the window.
+ */
+function useFullscreenMark() {
+  useEffect(() => {
+    const appWindow = getCurrentWindow();
+
+    const markFullscreen = async () => {
+      try {
+        document.documentElement.toggleAttribute(
+          "data-fullscreen",
+          await appWindow.isFullscreen()
+        );
+      } catch (error) {
+        await logBestEffort(`could not read fullscreen: ${String(error)}`);
+      }
+    };
+
+    void markFullscreen();
+
+    return disposeLater(
+      appWindow.onResized(() => {
+        void markFullscreen();
+      })
+    );
+  }, []);
 }
 
 /** One palette per window, so the bar's search button and the palette share one handle. */
@@ -191,6 +222,8 @@ function MainWindow() {
       window.removeEventListener("blur", flushAll);
     };
   }, []);
+
+  useFullscreenMark();
 
   useEffect(() => {
     // Rust queues every "Open With" path and only signals that the queue has
