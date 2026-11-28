@@ -24,7 +24,7 @@ smoke = ["dep:tauri-plugin-wdio", "dep:tauri-plugin-wdio-webdriver"]
 arboard = { version = "3.6", default-features = false }
 log.workspace = true
 notify = "8"
-notify-debouncer-full = "0.7"
+notify-debouncer-full = "0.8"
 notras-core = { path = "../crates/notras-core", features = ["bindings"] }
 serde.workspace = true
 serde_json.workspace = true
